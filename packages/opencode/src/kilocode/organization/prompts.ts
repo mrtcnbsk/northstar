@@ -11,19 +11,24 @@ export namespace OrgPrompts {
     reviseNote?: string
   }
 
+  /** Prevent user-supplied text from closing its fence tag (prompt-section spoofing). */
+  function escapeFence(text: string, tag: string): string {
+    return text.replace(new RegExp(`</(${tag})>`, "gi"), "<\\/$1>")
+  }
+
   /** The task prompt the CEO passes verbatim to a department chief. */
   export function stagePrompt(input: StageInput): string {
     const priors = input.priorDeliverables.length
       ? input.priorDeliverables.map((p) => `- ${p.stage}: ${p.path}`).join("\n")
       : "- (none — you are the first stage)"
     const revise = input.reviseNote
-      ? `\n## REVISION REQUESTED\nThe user reviewed your previous deliverable and asks:\n<note>\n${input.reviseNote}\n</note>\nRead the current deliverable at the path below before updating it.\nUpdate the deliverable accordingly.\n`
+      ? `\n## REVISION REQUESTED\nThe user reviewed your previous deliverable and asks:\n<note>\n${escapeFence(input.reviseNote, "note")}\n</note>\nRead the current deliverable at the path below before updating it.\nUpdate the deliverable accordingly.\n`
       : ""
     return `You are running the "${input.stage}" stage of an organization pipeline.
 
 ## App idea
 <idea>
-${input.idea}
+${escapeFence(input.idea, "idea")}
 </idea>
 
 ## Prior deliverables (read these first with the read tool)

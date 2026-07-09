@@ -1,4 +1,5 @@
 // kilocode_change - new file
+import { createHash } from "node:crypto"
 import { OrgSchema } from "./schema"
 import { OrgState } from "./state"
 import { OrgArtifacts } from "./artifacts"
@@ -26,6 +27,25 @@ export namespace OrgRunner {
 
   export function start(projectDir: string, org: OrgSchema.Organization, idea: string) {
     return OrgState.create(projectDir, org, idea)
+  }
+
+  /** Hash of the stage deliverable as currently on disk (empty string when unreadable). */
+  async function deliverableHash(projectDir: string, runID: string, stage: string): Promise<string> {
+    const text = await Bun.file(OrgArtifacts.deliverablePath(projectDir, runID, stage))
+      .text()
+      .catch(() => "")
+    return createHash("sha256").update(text).digest("hex")
+  }
+
+  /** Guard against organization.jsonc changing mid-run: every pipeline stage must exist in the run state. */
+  function assertPipelineMatches(org: OrgSchema.Organization, run: OrgState.Run): void {
+    for (const { stage } of org.pipeline) {
+      if (!run.stages[stage]) {
+        throw new Error(
+          `run ${run.runID} was created with a different pipeline (stage "${stage}" missing); organization.jsonc changed mid-run?`,
+        )
+      }
+    }
   }
 
   function priorDeliverables(projectDir: string, org: OrgSchema.Organization, run: OrgState.Run, upto: string) {
@@ -72,12 +92,33 @@ export namespace OrgRunner {
     input: { taskID?: string },
   ): Promise<Advance> {
     let run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
     if (run.status === "halted") return { kind: "halted", reason: run.haltReason ?? "run halted" }
     if (run.status === "completed") return { kind: "done" }
+
+    // A failed stage blocks the pipeline (run stays active so future recovery can resume it).
+    const failed = org.pipeline.find(({ stage }) => run.stages[stage].status === "failed")
+    if (failed) {
+      if (input.taskID) {
+        run = await OrgState.update(projectDir, runID, (s) => {
+          s.stages[failed.stage].taskID = input.taskID
+        })
+      }
+      const record = run.stages[failed.stage]
+      return {
+        kind: "halted",
+        reason: `stage "${failed.stage}" failed${record.decisionNote ? ": " + record.decisionNote : ""}; resolve it before continuing`,
+      }
+    }
 
     // 1. A stage awaiting approval blocks everything until org_decision.
     const awaiting = org.pipeline.find(({ stage }) => run.stages[stage].status === "awaiting_approval")
     if (awaiting) {
+      if (input.taskID) {
+        await OrgState.update(projectDir, runID, (s) => {
+          s.stages[awaiting.stage].taskID = input.taskID
+        })
+      }
       return {
         kind: "gate",
         stage: awaiting.stage,
@@ -110,11 +151,26 @@ export namespace OrgRunner {
       if (!validation.ok) {
         return { kind: "incomplete", stage, reason: validation.reason, resumeTaskID: record.taskID }
       }
+      // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
+      if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
+        return {
+          kind: "incomplete",
+          stage,
+          reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
+          resumeTaskID: record.taskID,
+        }
+      }
       const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
       run = await OrgState.update(projectDir, runID, (s) => {
-        s.stages[stage].completedAt = new Date().toISOString()
-        if (cost !== undefined) s.stages[stage].cost = cost
-        s.stages[stage].status = running.gate === "human" ? "awaiting_approval" : "completed"
+        const rec = s.stages[stage]
+        rec.completedAt = new Date().toISOString()
+        if (cost !== undefined) {
+          // A fresh session adds new spend on top of prior sessions'; a resumed session reports cumulative cost, so overwrite.
+          rec.cost = rec.cost !== undefined && rec.costTaskID !== undefined && rec.costTaskID !== record.taskID ? rec.cost + cost : cost
+          rec.costTaskID = record.taskID
+        }
+        rec.reviseBaseline = undefined // changed content accepted; baseline consumed
+        rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
       })
       if (running.gate === "human") {
         return { kind: "gate", stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) }
@@ -147,8 +203,11 @@ export namespace OrgRunner {
     note?: string,
   ): Promise<OrgState.Run> {
     const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
     const gated = org.pipeline.find(({ stage }) => run.stages[stage].status === "awaiting_approval")
     if (!gated) throw new Error(`Cannot record decision "${decision}": no stage awaiting approval in run ${runID}`)
+    // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
+    const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
     return OrgState.update(projectDir, runID, (s) => {
       const record = s.stages[gated.stage]
       record.decision = decision
@@ -161,6 +220,9 @@ export namespace OrgRunner {
         s.haltReason = `no-go at ${gated.stage}${note ? `: ${note}` : ""}`
       } else {
         record.status = "running"
+        record.reviseBaseline = reviseBaseline
+        record.completedAt = undefined // the pre-revise completion timestamp is stale now
+        // cost is left as-is: it reflects real spend so far; the next completion accumulates or overwrites it.
       }
     })
   }

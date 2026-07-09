@@ -18,10 +18,10 @@ const ORG = OrgSchema.parse({
   pipeline: [{ stage: "evaluation", gate: "human", haltOn: "no-go" }, { stage: "planning" }],
 })
 
-async function writeDeliverable(dir: string, runID: string, stage: string) {
+async function writeDeliverable(dir: string, runID: string, stage: string, content?: string) {
   const file = OrgArtifacts.deliverablePath(dir, runID, stage)
   await mkdir(path.dirname(file), { recursive: true })
-  await Bun.write(file, `# ${stage} deliverable\n\n` + "content ".repeat(20))
+  await Bun.write(file, content ?? `# ${stage} deliverable\n\n` + "content ".repeat(20))
 }
 
 const deps = { costOf: async () => 0.42 }
@@ -116,5 +116,123 @@ describe("OrgRunner full flows", () => {
     await using tmp = await tmpdir()
     const run = await OrgRunner.start(tmp.path, ORG, "idea five")
     await expect(OrgRunner.decide(tmp.path, ORG, run.runID, "approve")).rejects.toThrow(/no stage awaiting/i)
+  })
+
+  test("revise with unchanged deliverable cannot re-complete", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea six")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+
+    // revise cleared the stale completion timestamp
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].completedAt).toBeUndefined()
+    expect(state.stages["evaluation"].reviseBaseline).toBeDefined()
+
+    const redo = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(redo.kind).toBe("instruct")
+
+    // the chief did nothing; the pre-revise deliverable is still on disk and still "valid"
+    const stuck = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(stuck.kind).toBe("incomplete")
+    if (stuck.kind !== "incomplete") throw new Error("unreachable")
+    expect(stuck.reason).toContain("unchanged")
+    expect(stuck.resumeTaskID).toBe("ses_eval")
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].status).toBe("running")
+  })
+
+  test("revise with changed deliverable re-gates and clears the baseline", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea seven")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct
+
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# revised evaluation\n\n" + "new content ".repeat(20))
+    const regate = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(regate.kind).toBe("gate")
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].reviseBaseline).toBeUndefined()
+    expect(state.stages["evaluation"].completedAt).toBeDefined()
+  })
+
+  test("a failed stage halts advance without mutating run status", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea eight")
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "failed"
+    })
+    const result = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_failed" })
+    expect(result.kind).toBe("halted")
+    if (result.kind !== "halted") throw new Error("unreachable")
+    expect(result.reason).toContain('stage "evaluation" failed')
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("active")
+    expect(state.stages["evaluation"].taskID).toBe("ses_failed")
+    expect(state.stages["planning"].status).toBe("pending")
+  })
+
+  test("advance and decide with a mismatched pipeline throw", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea nine")
+    const ORG3 = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        design: { chief: "design-chief", workers: ["ux"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      pipeline: [{ stage: "evaluation" }, { stage: "design" }, { stage: "planning" }],
+    })
+    await expect(OrgRunner.advance(deps, tmp.path, ORG3, run.runID, {})).rejects.toThrow(/different pipeline/)
+    await expect(OrgRunner.decide(tmp.path, ORG3, run.runID, "approve")).rejects.toThrow(/different pipeline/)
+  })
+
+  test("taskID reported at a gate is persisted", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea ten")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // completes to gate without a taskID
+    const again = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_late" })
+    expect(again.kind).toBe("gate")
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].taskID).toBe("ses_late")
+  })
+
+  test("cost accumulates across sessions but not within a resumed session", async () => {
+    await using tmp = await tmpdir()
+    const costs: Record<string, number> = { ses_A: 5 }
+    const costDeps = { costOf: async (id: string) => costs[id] }
+    const run = await OrgRunner.start(tmp.path, ORG, "idea eleven")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].cost).toBe(5)
+
+    // revise; the chief RESUMES ses_A whose cumulative cost grows to 7 -> overwrite, not 5 + 7
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "more depth")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {}) // re-instruct
+    costs["ses_A"] = 7
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# take two\n\n" + "revised ".repeat(20))
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].cost).toBe(7)
+
+    // revise again; a FRESH session ses_B costs 2 -> accumulate on top of prior spend
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "one more pass")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {}) // re-instruct
+    costs["ses_B"] = 2
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# take three\n\n" + "fresh ".repeat(20))
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_B" })
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].cost).toBe(9)
+    expect(state.stages["evaluation"].costTaskID).toBe("ses_B")
   })
 })

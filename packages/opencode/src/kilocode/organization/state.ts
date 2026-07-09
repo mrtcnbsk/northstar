@@ -13,9 +13,13 @@ export namespace OrgState {
     status: StageStatus,
     taskID: z.string().optional(),
     cost: z.number().optional(),
+    /** Session that produced `cost`; a different session at completion means fresh spend to accumulate. */
+    costTaskID: z.string().optional(),
     attempts: z.number().default(0),
     decision: z.enum(["approve", "no-go", "revise"]).optional(),
     decisionNote: z.string().optional(),
+    /** Deliverable hash captured when revise was requested; unchanged content cannot re-complete the stage. */
+    reviseBaseline: z.string().optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
   })
