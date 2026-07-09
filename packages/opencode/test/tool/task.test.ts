@@ -511,6 +511,110 @@ describe("tool.task", () => {
     },
   )
 
+  // kilocode_change start - manager subagents (specific-pattern task allow) keep delegation open
+  it.instance(
+    "execute keeps the task tool open for manager subagents",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        const result = yield* def.execute(
+          {
+            description: "coordinate feature",
+            prompt: "delegate the implementation to your workers",
+            subagent_type: "chief",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        const child = yield* sessions.get(result.metadata.sessionId)
+        expect(child.parentID).toBe(chat.id)
+        // no session-level task deny for a manager (neither derive nor KiloTask.permissions inject one)
+        expect(
+          child.permission?.some((r) => r.permission === "task" && r.pattern === "*" && r.action === "deny"),
+        ).toBe(false)
+        // the task tool is NOT disabled in the child prompt; question/interactive_terminal stay closed
+        expect(seen?.tools).toEqual({
+          question: false,
+          interactive_terminal: false,
+          todowrite: false,
+        })
+      }),
+    {
+      config: {
+        agent: {
+          chief: {
+            mode: "subagent",
+            // "*" deny FIRST, then the specific allow — mirrors what the upcoming
+            // `subordinates` expansion emits; the non-wildcard allow marks a manager
+            permission: {
+              task: {
+                "*": "deny",
+                "worker-agent": "allow",
+              },
+            },
+          },
+        },
+      },
+    },
+  )
+
+  it.instance("execute rejects delegation from a depth-2 session (worker)", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      // chat (root, depth 0) -> child (depth 1) -> grandchild (depth 2)
+      const child = yield* sessions.create({ parentID: chat.id, title: "chief session" })
+      const grandchild = yield* sessions.create({ parentID: child.id, title: "worker session" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const promptOps = stubOps()
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "forbidden delegation",
+            prompt: "try to spawn from a worker",
+            subagent_type: "general",
+          },
+          {
+            sessionID: grandchild.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      const squashed = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
+      const message = squashed instanceof Error ? squashed.message : String(squashed)
+      expect(message).toContain("Delegation depth limit")
+      // no child session was created under the worker
+      const kids = yield* sessions.children(grandchild.id)
+      expect(kids).toHaveLength(0)
+    }),
+  )
+  // kilocode_change end
+
   // kilocode_change start - terminal child assistant errors fail the task tool boundary
   it.instance("execute fails when child prompt returns assistant error", () =>
     Effect.gen(function* () {

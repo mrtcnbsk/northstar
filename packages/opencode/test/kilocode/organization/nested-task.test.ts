@@ -16,6 +16,11 @@ describe("KiloTask.nestedTask", () => {
     expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "deny" }]))).toBe(false)
   })
 
+  test("false when the only non-deny task rule is wildcard (global config leak)", () => {
+    expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "ask" }]))).toBe(false)
+    expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "allow" }]))).toBe(false)
+  })
+
   test("true for a manager with a task allow rule", () => {
     expect(
       KiloTask.nestedTask(
