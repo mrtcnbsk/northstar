@@ -1,0 +1,71 @@
+// packages/opencode/test/kilocode/organization/template.test.ts
+import { describe, test, expect } from "bun:test"
+import path from "path"
+import { parse as parseJsonc } from "jsonc-parser"
+import * as ConfigAgent from "../../../src/config/agent"
+import { OrgSchema } from "../../../src/kilocode/organization/schema"
+
+const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
+
+async function loadTemplate() {
+  const text = await Bun.file(path.join(TEMPLATE, "organization.jsonc")).text()
+  const org = OrgSchema.parse(parseJsonc(text))
+  const agents = await ConfigAgent.load(TEMPLATE)
+  return { org, agents }
+}
+
+describe("org-template consistency", () => {
+  test("organization.jsonc is structurally valid", async () => {
+    const { org } = await loadTemplate()
+    expect(OrgSchema.validate(org)).toEqual([])
+    expect(org.pipeline.length).toBe(8)
+    expect(org.pipeline[0]).toMatchObject({ stage: "evaluation", gate: "human", haltOn: "no-go" })
+    expect(org.pipeline[7]).toMatchObject({ stage: "marketing", gate: "human" })
+  })
+
+  test("all 26 agent files load and cross-check against the org chart", async () => {
+    const { org, agents } = await loadTemplate()
+    expect(Object.keys(agents).length).toBe(26)
+    const view = Object.fromEntries(
+      Object.entries(agents).map(([name, a]) => [
+        name,
+        { mode: a.mode, subordinates: (a as { subordinates?: readonly string[] }).subordinates },
+      ]),
+    )
+    expect(OrgSchema.crossCheck(org, view)).toEqual([])
+  })
+
+  test("ceo is primary; everyone else is a subagent", async () => {
+    const { org, agents } = await loadTemplate()
+    for (const [name, agent] of Object.entries(agents)) {
+      if (name === org.ceo) expect(agent.mode).toBe("primary")
+      else expect(agent.mode).toBe("subagent")
+    }
+  })
+
+  test("chiefs got ordered task permissions from subordinates expansion", async () => {
+    const { org, agents } = await loadTemplate()
+    for (const dept of Object.values(org.departments)) {
+      const chief = agents[dept.chief]
+      const task = chief.permission?.task as Record<string, string>
+      expect(Object.entries(task)[0]).toEqual(["*", "deny"])
+      for (const worker of dept.workers) expect(task[worker]).toBe("allow")
+      expect(task["apple-docs"]).toBe("allow")
+    }
+  })
+
+  test("every agent pins a model", async () => {
+    const { agents } = await loadTemplate()
+    for (const [name, agent] of Object.entries(agents)) {
+      expect(agent.model, `agent ${name} must pin a model`).toBeTruthy()
+    }
+  })
+
+  test("workers have no task permissions (cannot delegate)", async () => {
+    const { org, agents } = await loadTemplate()
+    const workers = new Set(Object.values(org.departments).flatMap((d) => d.workers).concat(org.shared))
+    for (const name of workers) {
+      expect(agents[name].permission?.task, `worker ${name} must not have task rules`).toBeUndefined()
+    }
+  })
+})
