@@ -36,7 +36,8 @@ ${priors}
 ${revise}
 ## Your team
 Delegate concrete work to your workers via the task tool (you may run independent
-tasks in parallel with background=true): ${input.workers.join(", ")}.
+tasks in parallel with background=true; if the background option is unavailable,
+run them sequentially): ${input.workers.join(", ")}.
 For Apple platform/API/HIG questions consult: ${input.shared.join(", ") || "(none)"}.
 Do not do the workers' work yourself; decompose, delegate, verify, integrate.
 

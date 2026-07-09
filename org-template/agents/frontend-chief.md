@@ -6,6 +6,7 @@ subordinates: [swiftui-dev-1, swiftui-dev-2, apple-docs]
 permission:
   edit:
     "*": deny
+    ".kilo/org/**": allow
     "**/.kilo/org/**": allow
   bash: deny
   webfetch: deny

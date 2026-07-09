@@ -139,6 +139,22 @@ describe("ConfigProtection.isRequest", () => {
     expect(result).toBe(false)
   })
 
+  test("returns false for edit targeting excluded subdir (org deliverables)", () => {
+    const result = ConfigProtection.isRequest({
+      permission: "edit",
+      patterns: [".kilo/org/runs/x/deliverables/y.md"],
+    })
+    expect(result).toBe(false)
+  })
+
+  test("returns true for edit targeting non-excluded config files (agents)", () => {
+    const result = ConfigProtection.isRequest({
+      permission: "edit",
+      patterns: [".kilo/agents/ceo.md"],
+    })
+    expect(result).toBe(true)
+  })
+
   test("returns false for read permission", () => {
     const result = ConfigProtection.isRequest({
       permission: "read",

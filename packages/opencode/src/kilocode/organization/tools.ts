@@ -4,6 +4,7 @@ import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
+import { Config } from "@/config/config"
 import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
 import { OrgSchema } from "./schema"
 import { OrgRunner } from "./runner"
@@ -65,6 +66,18 @@ export const OrgAdvanceTool = Tool.define(
   "org_advance",
   Effect.gen(function* () {
     const sessions = yield* Session.Service
+    // kilocode_change start - after a CLI restart, a persisted taskID from state.json is no
+    // longer a child of the current session (src/tool/task.ts rejects such resumes), so a
+    // resumeTaskID must be verified resumable before we hand it back to the CEO.
+    const isResumable = (taskID: string | undefined, ctx: Tool.Context) =>
+      Effect.gen(function* () {
+        if (!taskID || !taskID.startsWith("ses")) return false
+        const session = yield* sessions
+          .get(SessionID.make(taskID))
+          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        return session !== undefined && session.parentID === ctx.sessionID
+      })
+    // kilocode_change end
     return {
       description:
         "Advance the organization pipeline. Validates the current stage's deliverable, enforces gates, and returns the next action: an exact task-tool call to run a department chief, a human gate to resolve via org_decision, or done/halted. Pass task_id after a chief task finishes so cost and resume tracking work.",
@@ -91,7 +104,8 @@ export const OrgAdvanceTool = Tool.define(
             OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
           )
           switch (advance.kind) {
-            case "instruct":
+            case "instruct": {
+              const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
               return result(`stage: ${advance.stage}`, {
                 action: "run_task",
                 stage: advance.stage,
@@ -99,10 +113,16 @@ export const OrgAdvanceTool = Tool.define(
                   subagent_type: advance.chief,
                   description: `${advance.stage} stage`,
                   prompt: advance.taskPrompt,
-                  ...(advance.resumeTaskID ? { task_id: advance.resumeTaskID } : {}),
+                  ...(resumable ? { task_id: advance.resumeTaskID } : {}),
                 },
+                ...(advance.resumeTaskID && !resumable
+                  ? {
+                      note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
+                    }
+                  : {}),
                 then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
               })
+            }
             case "gate":
               return result(`gate: ${advance.stage}`, {
                 action: "human_gate",
@@ -111,13 +131,20 @@ export const OrgAdvanceTool = Tool.define(
                 instructions:
                   "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision.",
               })
-            case "incomplete":
+            case "incomplete": {
+              const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
               return result(`incomplete: ${advance.stage}`, {
                 action: "resume_chief",
                 stage: advance.stage,
                 reason: advance.reason,
-                ...(advance.resumeTaskID ? { resume_task_id: advance.resumeTaskID } : {}),
+                ...(resumable ? { resume_task_id: advance.resumeTaskID } : {}),
+                ...(advance.resumeTaskID && !resumable
+                  ? {
+                      note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
+                    }
+                  : {}),
               })
+            }
             case "halted":
               return result("halted", { action: "halted", reason: advance.reason })
             case "done":
@@ -162,9 +189,10 @@ const StatusParameters = Schema.Struct({
 export const OrgStatusTool = Tool.define(
   "org_status",
   Effect.gen(function* () {
+    const config = yield* Config.Service
     return {
       description:
-        "Show the organization chart and validation (no run_id), or the state and cost breakdown of a run (with run_id). Use for dry-run inspection of the org config.",
+        "Show the organization chart and validation against configured agents (no run_id), or the state and cost breakdown of a run (with run_id). Use for dry-run inspection of the org config.",
       parameters: StatusParameters,
       execute: (params: Schema.Schema.Type<typeof StatusParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
@@ -174,7 +202,18 @@ export const OrgStatusTool = Tool.define(
           yield* guardCeo(org, ctx.agent)
           if (!params.run_id) {
             const runs = yield* tryOrg(() => OrgState.list(dir))
-            return result("organization", { organization: org, runs })
+            // kilocode_change - cross-check the org chart against the actually-configured
+            // agents (project markdown files merge into cfg.agent), matching what
+            // OrgSchema.crossCheck already validates in tests.
+            const cfg = yield* config.get()
+            const view = Object.fromEntries(
+              Object.entries(cfg.agent ?? {}).map(([name, a]) => [
+                name,
+                { mode: a.mode, subordinates: (a as { subordinates?: readonly string[] }).subordinates },
+              ]),
+            )
+            const issues = OrgSchema.crossCheck(org, view)
+            return result("organization", { organization: org, runs, issues })
           }
           const status = yield* tryOrg(() => OrgRunner.status(dir, org, params.run_id!))
           return result(`run ${params.run_id}`, status)

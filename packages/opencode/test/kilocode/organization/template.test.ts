@@ -68,4 +68,19 @@ describe("org-template consistency", () => {
       expect(agents[name].permission?.task, `worker ${name} must not have task rules`).toBeUndefined()
     }
   })
+
+  test("chief edit permission actually allows deliverable writes (relative path, real evaluator)", async () => {
+    const { org, agents } = await loadTemplate()
+    const { Permission } = await import("../../../src/permission")
+    for (const dept of Object.values(org.departments)) {
+      const chief = agents[dept.chief]
+      const ruleset = Permission.fromConfig(chief.permission ?? {})
+      const rel = ".kilo/org/runs/20260710-120000-idea/deliverables/evaluation.md"
+      expect(
+        Permission.evaluate("edit", rel, ruleset).action,
+        `chief ${dept.chief} must be able to write deliverables`,
+      ).toBe("allow")
+      expect(Permission.evaluate("edit", "Sources/App/Main.swift", ruleset).action).toBe("deny")
+    }
+  })
 })

@@ -6,6 +6,7 @@ subordinates: [ux-designer, apple-docs]
 permission:
   edit:
     "*": deny
+    ".kilo/org/**": allow
     "**/.kilo/org/**": allow
   bash: deny
   webfetch: deny

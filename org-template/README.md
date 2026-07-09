@@ -22,7 +22,8 @@ From the project directory, start the CLI and run:
 Resume after an interruption: `/build-app --resume <run-id>`
 Inspect without advancing: `/build-app --status` (or with a run id)
 Dry-run the org config (validation, no LLM pipeline): ask the CEO to call
-`org_status` — it loads and validates `organization.jsonc` and lists runs.
+`org_status` — it loads and validates `organization.jsonc`, cross-checks it
+against the configured agents, and lists runs.
 
 ## State and deliverables
 

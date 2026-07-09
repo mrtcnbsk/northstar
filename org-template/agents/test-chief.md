@@ -6,6 +6,7 @@ subordinates: [unit-tester, ui-tester, apple-docs]
 permission:
   edit:
     "*": deny
+    ".kilo/org/**": allow
     "**/.kilo/org/**": allow
   bash: deny
   webfetch: deny

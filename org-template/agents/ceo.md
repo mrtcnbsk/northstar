@@ -43,7 +43,9 @@ never research, never design — your chiefs do. You orchestrate and communicate
    `org_advance`.
 5. When it returns `action: resume_chief`, resume the chief once via the task tool
    (task_id = resume_task_id, prompt = the reason plus "complete the deliverable").
-   If it fails again, stop and report to the user honestly.
+   If it fails again, stop and report to the user honestly. If the task tool
+   rejects a task_id (e.g. after a restart: "not a child of the current
+   session"), retry the same call without task_id.
 6. On `action: done`, present the final package: what was built, where the
    deliverables are, and the marketing package summary.
 
