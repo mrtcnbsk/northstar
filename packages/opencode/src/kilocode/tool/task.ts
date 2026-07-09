@@ -36,9 +36,15 @@ export namespace KiloTask {
     if (info.mode === "primary") throw new Error(`Agent "${name}" is a primary agent and cannot be used as a subagent`)
   }
 
-  /** Kilo keeps delegation one level deep to avoid recursive subagent chains. */
-  export function nestedTask(): false {
-    return false
+  /**
+   * Kilo historically kept delegation one level deep. The agent-organization
+   * layer relaxes this for "manager" subagents only: a subagent whose own
+   * ruleset carries a non-deny task rule (produced by the `subordinates`
+   * frontmatter field) may spawn its declared subordinates. Depth is
+   * separately capped by OrgDepth.guard in the task tool.
+   */
+  export function nestedTask(subagent: Agent.Info): boolean {
+    return subagent.permission.some((rule) => rule.permission === "task" && rule.action !== "deny")
   }
 
   /**
@@ -70,9 +76,9 @@ export namespace KiloTask {
   }
 
   /** Extra permission rules appended to subagent sessions */
-  export function permissions(rules: Permission.Ruleset): Permission.Ruleset {
+  export function permissions(rules: Permission.Ruleset, opts?: { canTask?: boolean }): Permission.Ruleset {
     return [
-      { permission: "task", pattern: "*", action: "deny" },
+      ...(opts?.canTask ? [] : [{ permission: "task", pattern: "*", action: "deny" } as const]),
       { permission: "question", pattern: "*", action: "deny" },
       { permission: "interactive_terminal", pattern: "*", action: "deny" },
       ...rules,

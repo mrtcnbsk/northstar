@@ -495,8 +495,11 @@ describe("tool.task", () => {
         agent: {
           reviewer: {
             mode: "subagent",
+            // kilocode_change - task: "deny" keeps this a plain worker; a non-deny task rule
+            // now makes an agent a "manager" per KiloTask.nestedTask, which is covered by
+            // test/kilocode/organization/nested-task.test.ts
             permission: {
-              task: "allow",
+              task: "deny",
             },
           },
         },
