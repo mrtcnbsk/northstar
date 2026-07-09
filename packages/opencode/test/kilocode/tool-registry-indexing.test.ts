@@ -339,10 +339,15 @@ describe("kilocode tool registry indexing", () => {
       process: def("background_process"),
       image: def("generate_image"),
       terminal: def("interactive_terminal"),
+      orgStart: def("org_start"),
+      orgAdvance: def("org_advance"),
+      orgDecision: def("org_decision"),
+      orgStatus: def("org_status"),
       notebookRead: def("notebook_read"),
       notebookEdit: def("notebook_edit"),
       notebookExecute: def("notebook_execute"),
     }
+    const orgIDs = ["org_start", "org_advance", "org_decision", "org_status"]
 
     try {
       process.env["KILO_CLIENT"] = "cli"
@@ -353,6 +358,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "background_process",
         "interactive_terminal",
+        ...orgIDs,
       ])
       expect(KiloToolRegistry.extra(tools, { experimental: { codebase_search: true } }).map((tool) => tool.id)).toEqual(
         [
@@ -363,6 +369,7 @@ describe("kilocode tool registry indexing", () => {
           "recall",
           "background_process",
           "interactive_terminal",
+          ...orgIDs,
         ],
       )
       expect(
@@ -378,6 +385,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "background_process",
         "interactive_terminal",
+        ...orgIDs,
       ])
 
       process.env["KILO_CLIENT"] = "vscode"
@@ -391,6 +399,7 @@ describe("kilocode tool registry indexing", () => {
           "background_process",
           "agent_manager_models",
           "agent_manager",
+          ...orgIDs,
         ],
       )
       expect(
@@ -409,6 +418,7 @@ describe("kilocode tool registry indexing", () => {
         "notebook_read",
         "notebook_edit",
         "notebook_execute",
+        ...orgIDs,
       ])
       expect(KiloToolRegistry.extra({ ...tools, semantic: undefined }, {}).map((tool) => tool.id)).toEqual([
         "kilo_memory_recall",
@@ -417,6 +427,7 @@ describe("kilocode tool registry indexing", () => {
         "background_process",
         "agent_manager_models",
         "agent_manager",
+        ...orgIDs,
       ])
 
       process.env["KILO_CLIENT"] = "desktop"
@@ -425,6 +436,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        ...orgIDs,
       ])
 
       process.env["KILO_CLIENT"] = "run"
@@ -433,6 +445,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        ...orgIDs,
       ])
 
       process.env["KILO_CLIENT"] = "acp"
@@ -441,6 +454,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        ...orgIDs,
       ])
     } finally {
       if (prev === undefined) delete process.env["KILO_CLIENT"]

@@ -1,0 +1,176 @@
+// kilocode_change - new file
+import { Effect, Schema } from "effect"
+import * as Tool from "@/tool/tool"
+import { InstanceState } from "@/effect/instance-state"
+import { Session } from "@/session/session"
+import { SessionID } from "@/session/schema"
+import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
+import { OrgSchema } from "./schema"
+import { OrgRunner } from "./runner"
+import { OrgState } from "./state"
+
+const load = (projectDir: string) => Effect.tryPromise(() => OrgSchema.loadOrganization(projectDir))
+
+const guardCeo = (org: OrgSchema.Organization, agent: string) =>
+  agent === org.ceo
+    ? Effect.void
+    : Effect.fail(new Error(`org tools are reserved for the CEO agent "${org.ceo}" (called by "${agent}")`))
+
+function result(title: string, body: unknown) {
+  return { title, metadata: {}, output: typeof body === "string" ? body : JSON.stringify(body, null, 2) }
+}
+
+const StartParameters = Schema.Struct({
+  idea: Schema.String.annotate({ description: "The app idea, verbatim from the user" }),
+})
+
+export const OrgStartTool = Tool.define(
+  "org_start",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Start a new organization pipeline run from an app idea. Returns the run_id. Then call org_advance to get the first stage instruction.",
+      parameters: StartParameters,
+      execute: (params: Schema.Schema.Type<typeof StartParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const run = yield* Effect.tryPromise(() => OrgRunner.start(dir, org, params.idea))
+          return result(`org run ${run.runID}`, {
+            run_id: run.runID,
+            pipeline: org.pipeline,
+            next: "call org_advance with this run_id",
+          })
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const AdvanceParameters = Schema.Struct({
+  run_id: Schema.String,
+  task_id: Schema.optional(Schema.String).annotate({
+    description: "The task session id of the chief task you just ran for the current stage",
+  }),
+})
+
+export const OrgAdvanceTool = Tool.define(
+  "org_advance",
+  Effect.gen(function* () {
+    const sessions = yield* Session.Service
+    return {
+      description:
+        "Advance the organization pipeline. Validates the current stage's deliverable, enforces gates, and returns the next action: an exact task-tool call to run a department chief, a human gate to resolve via org_decision, or done/halted. Pass task_id after a chief task finishes so cost and resume tracking work.",
+      parameters: AdvanceParameters,
+      execute: (params: Schema.Schema.Type<typeof AdvanceParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const deps: OrgRunner.Deps = {
+            costOf: (taskID) =>
+              Effect.runPromise(
+                KiloCostPropagation.childCost(sessions, SessionID.make(taskID)).pipe(
+                  Effect.catch(() => Effect.succeed(undefined)),
+                ),
+              ),
+          }
+          const advance = yield* Effect.tryPromise(() =>
+            OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
+          )
+          switch (advance.kind) {
+            case "instruct":
+              return result(`stage: ${advance.stage}`, {
+                action: "run_task",
+                stage: advance.stage,
+                task_call: {
+                  subagent_type: advance.chief,
+                  description: `${advance.stage} stage`,
+                  prompt: advance.taskPrompt,
+                  ...(advance.resumeTaskID ? { task_id: advance.resumeTaskID } : {}),
+                },
+                then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
+              })
+            case "gate":
+              return result(`gate: ${advance.stage}`, {
+                action: "human_gate",
+                stage: advance.stage,
+                deliverable: advance.deliverablePath,
+                instructions:
+                  "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision.",
+              })
+            case "incomplete":
+              return result(`incomplete: ${advance.stage}`, {
+                action: "resume_chief",
+                stage: advance.stage,
+                reason: advance.reason,
+                ...(advance.resumeTaskID ? { resume_task_id: advance.resumeTaskID } : {}),
+              })
+            case "halted":
+              return result("halted", { action: "halted", reason: advance.reason })
+            case "done":
+              return result("done", { action: "done", note: "pipeline complete; present the final package to the user" })
+          }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const DecisionParameters = Schema.Struct({
+  run_id: Schema.String,
+  decision: Schema.Literals(["approve", "no-go", "revise"]),
+  note: Schema.optional(Schema.String).annotate({
+    description: "Required for revise: what the user wants changed",
+  }),
+})
+
+export const OrgDecisionTool = Tool.define(
+  "org_decision",
+  Effect.gen(function* () {
+    return {
+      description: "Record the user's gate decision for the stage awaiting approval (approve / no-go / revise).",
+      parameters: DecisionParameters,
+      execute: (params: Schema.Schema.Type<typeof DecisionParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const run = yield* Effect.tryPromise(() =>
+            OrgRunner.decide(dir, org, params.run_id, params.decision, params.note),
+          )
+          return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const StatusParameters = Schema.Struct({
+  run_id: Schema.optional(Schema.String),
+})
+
+export const OrgStatusTool = Tool.define(
+  "org_status",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Show the organization chart and validation (no run_id), or the state and cost breakdown of a run (with run_id). Use for dry-run inspection of the org config.",
+      parameters: StatusParameters,
+      execute: (params: Schema.Schema.Type<typeof StatusParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          if (!params.run_id) {
+            const runs = yield* Effect.tryPromise(() => OrgState.list(dir))
+            return result("organization", { organization: org, runs })
+          }
+          const status = yield* Effect.tryPromise(() => OrgRunner.status(dir, org, params.run_id!))
+          return result(`run ${params.run_id}`, status)
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
