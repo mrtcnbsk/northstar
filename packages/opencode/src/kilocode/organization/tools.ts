@@ -9,7 +9,13 @@ import { OrgSchema } from "./schema"
 import { OrgRunner } from "./runner"
 import { OrgState } from "./state"
 
-const load = (projectDir: string) => Effect.tryPromise(() => OrgSchema.loadOrganization(projectDir))
+/** Two-arg tryPromise so the real Error (with its readable message) lands in the failure channel;
+ * bare single-arg tryPromise wraps rejections in UnknownError whose .message is a fixed opaque string,
+ * which would reduce every expected config/runner error to noise before it reaches the CEO agent. */
+export const tryOrg = <A>(f: () => Promise<A>) =>
+  Effect.tryPromise({ try: f, catch: (e) => (e instanceof Error ? e : new Error(String(e))) })
+
+const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
 
 const guardCeo = (org: OrgSchema.Organization, agent: string) =>
   agent === org.ceo
@@ -37,7 +43,7 @@ export const OrgStartTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const run = yield* Effect.tryPromise(() => OrgRunner.start(dir, org, params.idea))
+          const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea))
           return result(`org run ${run.runID}`, {
             run_id: run.runID,
             pipeline: org.pipeline,
@@ -70,14 +76,18 @@ export const OrgAdvanceTool = Tool.define(
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
           const deps: OrgRunner.Deps = {
+            // Best-effort: a malformed model-provided task_id must degrade to unknown cost,
+            // not reject the whole advance (SessionID.make throws synchronously outside the Effect).
             costOf: (taskID) =>
-              Effect.runPromise(
-                KiloCostPropagation.childCost(sessions, SessionID.make(taskID)).pipe(
-                  Effect.catch(() => Effect.succeed(undefined)),
-                ),
-              ),
+              taskID.startsWith("ses")
+                ? Effect.runPromise(
+                    KiloCostPropagation.childCost(sessions, SessionID.make(taskID)).pipe(
+                      Effect.catch(() => Effect.succeed(undefined)),
+                    ),
+                  ).catch(() => undefined)
+                : Promise.resolve(undefined),
           }
-          const advance = yield* Effect.tryPromise(() =>
+          const advance = yield* tryOrg(() =>
             OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
           )
           switch (advance.kind) {
@@ -138,9 +148,7 @@ export const OrgDecisionTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const run = yield* Effect.tryPromise(() =>
-            OrgRunner.decide(dir, org, params.run_id, params.decision, params.note),
-          )
+          const run = yield* tryOrg(() => OrgRunner.decide(dir, org, params.run_id, params.decision, params.note))
           return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
         }).pipe(Effect.orDie),
     }
@@ -165,10 +173,10 @@ export const OrgStatusTool = Tool.define(
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
           if (!params.run_id) {
-            const runs = yield* Effect.tryPromise(() => OrgState.list(dir))
+            const runs = yield* tryOrg(() => OrgState.list(dir))
             return result("organization", { organization: org, runs })
           }
-          const status = yield* Effect.tryPromise(() => OrgRunner.status(dir, org, params.run_id!))
+          const status = yield* tryOrg(() => OrgRunner.status(dir, org, params.run_id!))
           return result(`run ${params.run_id}`, status)
         }).pipe(Effect.orDie),
     }
