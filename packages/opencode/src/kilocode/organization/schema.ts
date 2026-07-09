@@ -1,7 +1,7 @@
 // kilocode_change - new file
 import path from "path"
 import z from "zod"
-import { parse as parseJsonc } from "jsonc-parser"
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser"
 
 export namespace OrgSchema {
   export const Department = z.object({
@@ -18,7 +18,7 @@ export namespace OrgSchema {
   export const Organization = z.object({
     ceo: z.string().min(1),
     departments: z.record(z.string(), Department),
-    shared: z.array(z.string()).default([]),
+    shared: z.array(z.string().min(1)).default([]),
     pipeline: z.array(Stage).min(1),
   })
   export type Organization = z.output<typeof Organization>
@@ -47,11 +47,17 @@ export namespace OrgSchema {
       const problem = invalidName(name)
       if (problem) errors.push(problem)
     }
+    for (const key of Object.keys(org.departments)) {
+      if (key === "." || key.includes("..") || key.includes("/") || key.includes("\\")) {
+        errors.push(`department key "${key}" is not a safe path segment (no "/", "\\", "..", or ".")`)
+      }
+    }
     const seen = new Set<string>()
     for (const { stage } of org.pipeline) {
       if (seen.has(stage)) errors.push(`duplicate pipeline stage "${stage}"`)
       seen.add(stage)
-      if (!org.departments[stage]) errors.push(`pipeline stage "${stage}" has no matching department`)
+      if (!Object.hasOwn(org.departments, stage))
+        errors.push(`pipeline stage "${stage}" has no matching department`)
     }
     const chiefs = new Set(Object.values(org.departments).map((d) => d.chief))
     const workers = new Set(Object.values(org.departments).flatMap((d) => d.workers))
@@ -72,13 +78,39 @@ export namespace OrgSchema {
     const file = organizationPath(projectDir)
     const text = await Bun.file(file)
       .text()
-      .catch(() => {
-        throw new Error(
-          `No organization found: expected ${file}. Copy org-template/ into your project's .kilo/ directory first.`,
-        )
+      .catch((e: unknown) => {
+        if ((e as NodeJS.ErrnoException)?.code === "ENOENT") {
+          throw new Error(
+            `No organization found: expected ${file}. Copy org-template/ into your project's .kilo/ directory first.`,
+          )
+        }
+        throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
       })
-    const raw = parseJsonc(text)
-    const org = parse(raw)
+    const parseErrors: ParseError[] = []
+    const raw = parseJsonc(text, parseErrors, { allowTrailingComma: true })
+    if (parseErrors.length) {
+      const lines = text.split("\n")
+      const detail = parseErrors
+        .map((e) => {
+          const before = text.substring(0, e.offset).split("\n")
+          const line = before.length
+          const col = before[before.length - 1].length + 1
+          const src = lines[line - 1]
+          const msg = `${printParseErrorCode(e.error)} at line ${line}, column ${col}`
+          return src ? `${msg}\n   Line ${line}: ${src}` : msg
+        })
+        .join("\n")
+      throw new Error(`Invalid organization.jsonc at ${file}: JSONC syntax error\n${detail}`)
+    }
+    let org: Organization
+    try {
+      org = parse(raw)
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        throw new Error(`Invalid organization.jsonc at ${file}:\n${z.prettifyError(err)}`, { cause: err })
+      }
+      throw err
+    }
     const errors = validate(org)
     if (errors.length) throw new Error(`Invalid organization.jsonc:\n- ${errors.join("\n- ")}`)
     return org
@@ -96,7 +128,7 @@ export namespace OrgSchema {
 
     const chiefs = Object.values(org.departments).map((d) => d.chief)
     for (const chief of chiefs) {
-      if (!agents[chief]) errors.push(`chief agent "${chief}" is not defined`)
+      if (!Object.hasOwn(agents, chief)) errors.push(`chief agent "${chief}" is not defined`)
       if (ceo && !(ceo.subordinates ?? []).includes(chief)) {
         errors.push(`ceo "${org.ceo}" is missing subordinate "${chief}"`)
       }
@@ -105,7 +137,8 @@ export namespace OrgSchema {
       const chief = agents[dept.chief]
       const required = [...dept.workers, ...org.shared]
       for (const agentName of required) {
-        if (!agents[agentName]) errors.push(`agent "${agentName}" (department "${name}") is not defined`)
+        if (!Object.hasOwn(agents, agentName))
+          errors.push(`agent "${agentName}" (department "${name}") is not defined`)
         if (chief && !(chief.subordinates ?? []).includes(agentName)) {
           errors.push(`chief "${dept.chief}" is missing subordinate "${agentName}"`)
         }

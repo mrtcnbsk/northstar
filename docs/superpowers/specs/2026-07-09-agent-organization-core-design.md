@@ -128,6 +128,7 @@ Dokunulan dosyalar (hepsi işaretli/kilocode-güvenli):
 
 ```jsonc
 {
+  "ceo": "ceo",
   "departments": {
     "evaluation": { "chief": "eval-chief", "workers": ["market-research", "competitor-analysis", "feasibility"] },
     "planning":   { "chief": "planning-chief", "workers": ["product-spec", "architect"] },

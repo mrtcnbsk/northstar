@@ -68,6 +68,20 @@ describe("OrgSchema.parse + validate", () => {
     expect(errors.some((e) => e.includes('"*"'))).toBe(true)
     expect(errors.some((e) => e.includes('"42"'))).toBe(true)
   })
+
+  test("flags a pipeline stage named toString without a department (prototype safety)", () => {
+    const org = OrgSchema.parse({ ...VALID, pipeline: [...VALID.pipeline, { stage: "toString" }] })
+    expect(OrgSchema.validate(org).some((e) => e.includes("toString"))).toBe(true)
+  })
+
+  test("flags department keys that are not safe path segments", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: { ...VALID.departments, "../x": { chief: "esc-chief", workers: ["esc-worker"] } },
+      pipeline: [...VALID.pipeline, { stage: "../x" }],
+    })
+    expect(OrgSchema.validate(org).some((e) => e.includes("../x"))).toBe(true)
+  })
 })
 
 describe("OrgSchema.loadOrganization", () => {
@@ -86,6 +100,59 @@ describe("OrgSchema.loadOrganization", () => {
   test("throws a readable error when the file is missing", async () => {
     await using tmp = await tmpdir()
     await expect(OrgSchema.loadOrganization(tmp.path)).rejects.toThrow(/organization\.jsonc/)
+  })
+
+  test("wraps schema errors readably with the file path instead of raw zod JSON", async () => {
+    await using tmp = await tmpdir()
+    await mkdir(path.join(tmp.path, ".kilo"), { recursive: true })
+    await Bun.write(
+      path.join(tmp.path, ".kilo", "organization.jsonc"),
+      `{"ceo":"ceo","departments":[],"pipeline":[]}`,
+    )
+    const err = await OrgSchema.loadOrganization(tmp.path).then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    )
+    expect(err).toBeDefined()
+    expect(err!.message).toMatch(/Invalid organization\.jsonc at .*organization\.jsonc/)
+    expect(err!.message).not.toContain('"code":"invalid_type"')
+  })
+
+  test("accepts trailing commas (JSONC convention)", async () => {
+    await using tmp = await tmpdir()
+    await mkdir(path.join(tmp.path, ".kilo"), { recursive: true })
+    await Bun.write(
+      path.join(tmp.path, ".kilo", "organization.jsonc"),
+      [
+        `{`,
+        `  "ceo": "ceo",`,
+        `  "departments": {`,
+        `    "evaluation": { "chief": "eval-chief", "workers": ["market-research"] },`,
+        `  },`,
+        `  "shared": ["apple-docs"],`,
+        `  "pipeline": [`,
+        `    { "stage": "evaluation" },`,
+        `  ],`,
+        `}`,
+      ].join("\n"),
+    )
+    const org = await OrgSchema.loadOrganization(tmp.path)
+    expect(org.ceo).toBe("ceo")
+    expect(org.pipeline.length).toBe(1)
+  })
+
+  test("reports JSONC syntax errors with the file path, not a misleading schema error", async () => {
+    await using tmp = await tmpdir()
+    await mkdir(path.join(tmp.path, ".kilo"), { recursive: true })
+    await Bun.write(path.join(tmp.path, ".kilo", "organization.jsonc"), `{"ceo": "ceo", "departments": {`)
+    const err = await OrgSchema.loadOrganization(tmp.path).then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    )
+    expect(err).toBeDefined()
+    expect(err!.message).toContain("organization.jsonc")
+    expect(err!.message).toMatch(/syntax error/i)
+    expect(err!.message).not.toContain("expected array")
   })
 })
 
