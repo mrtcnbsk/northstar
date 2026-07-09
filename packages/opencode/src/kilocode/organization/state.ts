@@ -1,7 +1,8 @@
 // kilocode_change - new file
 import path from "path"
-import { mkdir, rename, readdir } from "node:fs/promises"
+import { readdir } from "node:fs/promises"
 import z from "zod"
+import { Filesystem } from "../../util/filesystem"
 import type { OrgSchema } from "./schema"
 
 export namespace OrgState {
@@ -47,10 +48,11 @@ export namespace OrgState {
       text
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
+        .replace(/[\u0300-\u036f]/g, "") // strip combining diacritics (escaped so NFC-normalizing editors can't corrupt the range)
         .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40) || "run"
+        .replace(/^-+/, "")
+        .slice(0, 40)
+        .replace(/-+$/, "") || "run"
     )
   }
 
@@ -89,6 +91,7 @@ export namespace OrgState {
     return Run.parse(JSON.parse(text))
   }
 
+  /** Read-modify-write without locking: safe because org tools are CEO-only and a single CEO session calls them serially; org_advance is idempotent by runner design. */
   export async function update(projectDir: string, runID: string, fn: (run: Run) => void): Promise<Run> {
     const run = await read(projectDir, runID)
     fn(run)
@@ -97,16 +100,20 @@ export namespace OrgState {
   }
 
   export async function list(projectDir: string): Promise<string[]> {
-    const entries = await readdir(runsDir(projectDir)).catch(() => [] as string[])
-    return entries.sort().reverse()
+    const dir = runsDir(projectDir)
+    const entries = await readdir(dir, { withFileTypes: true }).catch((e: unknown) => {
+      if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return []
+      throw new Error(`Failed to list org runs in ${dir}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
+    })
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .reverse()
   }
 
+  // Filesystem.write is atomic (unique tmp suffix + rename) and mkdirs the parent on ENOENT.
   async function write(projectDir: string, run: Run): Promise<void> {
-    const dir = runDir(projectDir, run.runID)
-    await mkdir(dir, { recursive: true })
-    const target = stateFile(projectDir, run.runID)
-    const tmp = `${target}.tmp`
-    await Bun.write(tmp, JSON.stringify(run, null, 2))
-    await rename(tmp, target)
+    await Filesystem.write(stateFile(projectDir, run.runID), JSON.stringify(run, null, 2))
   }
 }

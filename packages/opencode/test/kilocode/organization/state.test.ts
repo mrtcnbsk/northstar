@@ -57,4 +57,11 @@ describe("OrgState", () => {
     const run = await OrgState.create(tmp.path, ORG, "Deniz Feneri! App (v2)")
     expect(run.runID).toMatch(/deniz-feneri-app-v2/)
   })
+
+  test("slug cut at 40 chars does not end in a dash", () => {
+    const slug = OrgState.slugify("a".repeat(39) + " tail beyond the cut")
+    expect(slug.length).toBeLessThanOrEqual(40)
+    expect(slug.endsWith("-")).toBe(false)
+    expect(slug).toBe("a".repeat(39))
+  })
 })
