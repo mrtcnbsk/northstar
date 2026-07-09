@@ -1,0 +1,26 @@
+// Organization chart + pipeline for the app-building organization.
+// Copy this whole template into your app project: cp -r org-template/. <project>/.kilo/
+{
+  "ceo": "ceo",
+  "departments": {
+    "evaluation": { "chief": "eval-chief", "workers": ["market-research", "competitor-analysis", "feasibility"] },
+    "planning":   { "chief": "planning-chief", "workers": ["product-spec", "architect"] },
+    "ux":         { "chief": "ux-chief", "workers": ["ux-designer"] },
+    "backend":    { "chief": "backend-chief", "workers": ["data-layer-dev"] },
+    "frontend":   { "chief": "frontend-chief", "workers": ["swiftui-dev-1", "swiftui-dev-2"] },
+    "testing":    { "chief": "test-chief", "workers": ["unit-tester", "ui-tester"] },
+    "debugging":  { "chief": "debug-chief", "workers": ["debugger"] },
+    "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] }
+  },
+  "shared": ["apple-docs"],
+  "pipeline": [
+    { "stage": "evaluation", "gate": "human", "haltOn": "no-go" },
+    { "stage": "planning" },
+    { "stage": "ux" },
+    { "stage": "backend" },
+    { "stage": "frontend" },
+    { "stage": "testing" },
+    { "stage": "debugging" },
+    { "stage": "marketing", "gate": "human" }
+  ]
+}
