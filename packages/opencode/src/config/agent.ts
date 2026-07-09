@@ -71,6 +71,11 @@ const AgentSchema = Schema.StructWithRest(
     maxSteps: Schema.optional(PositiveInt).annotate({ description: "@deprecated Use 'steps' field instead." }),
     permission: Schema.optional(ConfigPermission.Info),
     requirements: Schema.optional(Requirements), // kilocode_change
+    // kilocode_change start - agent-organization: declared subordinates expand to task permissions
+    subordinates: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+      description: "Agent names this agent may spawn via the task tool (expands to ordered task permission rules)",
+    }),
+    // kilocode_change end
   }),
   [Schema.Record(Schema.String, Schema.Any)],
 )
@@ -95,6 +100,7 @@ const KNOWN_KEYS = new Set([
   "disable",
   "tools",
   "requirements", // kilocode_change
+  "subordinates", // kilocode_change
 ])
 
 // Post-parse normalisation:
@@ -118,6 +124,18 @@ const normalize = (agent: Schema.Schema.Type<typeof AgentSchema>): Schema.Schema
     }
     permission[tool] = action
   }
+
+  // kilocode_change start - expand subordinates into ordered task rules ("*" deny first;
+  // last-match-wins evaluation makes the later specific allows win). Explicit
+  // permission.task in the same file takes precedence via the assign below.
+  if (agent.subordinates?.length) {
+    permission.task = {
+      "*": "deny",
+      ...globalThis.Object.fromEntries(agent.subordinates.map((name) => [name, "allow" as const])),
+    }
+  }
+  // kilocode_change end
+
   globalThis.Object.assign(permission, agent.permission)
 
   // kilocode_change start - preserve null delete sentinel (?? would collapse null to maxSteps)
