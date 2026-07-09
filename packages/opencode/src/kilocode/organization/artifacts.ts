@@ -19,7 +19,12 @@ export namespace OrgArtifacts {
     const file = deliverablePath(projectDir, runID, stage)
     const text = await Bun.file(file)
       .text()
-      .catch(() => undefined)
+      .catch((e: unknown) => {
+        if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return undefined
+        throw new Error(`Failed to read deliverable ${file}: ${e instanceof Error ? e.message : String(e)}`, {
+          cause: e,
+        })
+      })
     if (text === undefined) return { ok: false, reason: `deliverable not found at ${file}` }
     if (text.trim().length < MIN_LENGTH) {
       return {

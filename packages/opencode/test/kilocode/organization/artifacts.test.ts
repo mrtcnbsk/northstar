@@ -14,6 +14,15 @@ describe("OrgArtifacts", () => {
     await using tmp = await tmpdir()
     const result = await OrgArtifacts.validate(tmp.path, "run1", "evaluation")
     expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toContain("not found")
+  })
+
+  test("validate rejects on non-ENOENT read errors instead of reporting not found", async () => {
+    await using tmp = await tmpdir()
+    const file = OrgArtifacts.deliverablePath(tmp.path, "run1", "evaluation")
+    // A directory at the deliverable path fails to read with EISDIR, not ENOENT.
+    await mkdir(file, { recursive: true })
+    await expect(OrgArtifacts.validate(tmp.path, "run1", "evaluation")).rejects.toThrow("Failed to read deliverable")
   })
 
   test("validate fails when too short", async () => {
