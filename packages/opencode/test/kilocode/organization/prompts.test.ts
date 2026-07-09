@@ -31,4 +31,14 @@ describe("OrgPrompts.stagePrompt", () => {
     expect(prompt).toContain("REVISION REQUESTED")
     expect(prompt).toContain("add dark mode screens")
   })
+
+  test("empty priorDeliverables falls back to the first-stage note", () => {
+    const prompt = OrgPrompts.stagePrompt({ ...input, priorDeliverables: [] })
+    expect(prompt).toContain("(none — you are the first stage)")
+  })
+
+  test("empty shared falls back to the none note", () => {
+    const prompt = OrgPrompts.stagePrompt({ ...input, shared: [] })
+    expect(prompt).toContain("(none)")
+  })
 })

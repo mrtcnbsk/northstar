@@ -17,19 +17,21 @@ export namespace OrgPrompts {
       ? input.priorDeliverables.map((p) => `- ${p.stage}: ${p.path}`).join("\n")
       : "- (none — you are the first stage)"
     const revise = input.reviseNote
-      ? `\n## REVISION REQUESTED\nThe user reviewed your previous deliverable and asks:\n${input.reviseNote}\nUpdate the deliverable accordingly.\n`
+      ? `\n## REVISION REQUESTED\nThe user reviewed your previous deliverable and asks:\n<note>\n${input.reviseNote}\n</note>\nRead the current deliverable at the path below before updating it.\nUpdate the deliverable accordingly.\n`
       : ""
     return `You are running the "${input.stage}" stage of an organization pipeline.
 
 ## App idea
+<idea>
 ${input.idea}
+</idea>
 
 ## Prior deliverables (read these first with the read tool)
 ${priors}
 ${revise}
 ## Your team
 Delegate concrete work to your workers via the task tool (you may run independent
-tasks in parallel with background=true when available): ${input.workers.join(", ")}.
+tasks in parallel with background=true): ${input.workers.join(", ")}.
 For Apple platform/API/HIG questions consult: ${input.shared.join(", ") || "(none)"}.
 Do not do the workers' work yourself; decompose, delegate, verify, integrate.
 
@@ -37,7 +39,7 @@ Do not do the workers' work yourself; decompose, delegate, verify, integrate.
 Write your department's deliverable to exactly this file:
 ${input.deliverablePath}
 It must be substantial markdown: decisions, produced outputs, file paths of any
-code you had written, and open risks.
+code your team produced, and open risks.
 
 ## Completion protocol
 When the deliverable is written and verified, end your final message with the
