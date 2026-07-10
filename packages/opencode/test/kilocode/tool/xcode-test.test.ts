@@ -1,6 +1,7 @@
 // kilocode_change - new file
 import { describe, expect, test } from "bun:test"
-import { Effect, Layer, Stream } from "effect"
+import { Effect, Fiber, Layer, Stream } from "effect"
+import * as TestClock from "effect/testing/TestClock"
 import { ChildProcessSpawner } from "effect/unstable/process"
 import * as Sink from "effect/Sink"
 import * as PlatformError from "effect/PlatformError"
@@ -15,9 +16,11 @@ import {
   MAX_RETAINED_TAIL_BYTES,
   parseXcodeTestOutput,
   StreamingXcodeTestParser,
+  TEST_TIMEOUT_MS,
   XcodeTestTool,
 } from "../../../src/kilocode/tool/xcode-test"
 import { testEffect } from "../../lib/effect"
+import { withTmpdirInstance } from "../../fixture/fixture"
 
 const ALL_PASS_FIXTURE = `
 Command line invocation:
@@ -344,12 +347,19 @@ const harness = testEffect(
   Layer.mergeAll(AppFileSystem.defaultLayer, Truncate.defaultLayer, Config.defaultLayer, Agent.defaultLayer),
 )
 
-function fakeHandle(all: ChildProcessSpawner.ChildProcessHandle["all"], exit = 0) {
+function fakeHandle(
+  all: ChildProcessSpawner.ChildProcessHandle["all"],
+  exit = 0,
+  overrides: {
+    exitCode?: ChildProcessSpawner.ChildProcessHandle["exitCode"]
+    kill?: ChildProcessSpawner.ChildProcessHandle["kill"]
+  } = {},
+) {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(0),
-    exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exit)),
+    exitCode: overrides.exitCode ?? Effect.succeed(ChildProcessSpawner.ExitCode(exit)),
     isRunning: Effect.succeed(true),
-    kill: () => Effect.void,
+    kill: overrides.kill ?? (() => Effect.void),
     stdin: Sink.drain,
     stdout: Stream.empty,
     stderr: Stream.empty,
@@ -498,6 +508,53 @@ describe("XcodeTestTool execute: extraArgs validation", () => {
       expect(summary.status).toBe("tests_passed")
       expect(summary.ok).toBe(true)
     }),
+  )
+})
+// kilocode_change end
+
+// kilocode_change start - W2.7: kill-orDie parity (mirror crash-symbolicate's never-crash invariant)
+describe("XcodeTestTool execute: timeout + failing kill", () => {
+  // Pins the never-crash invariant on the timeout+kill-failure path: xcodebuild test runs past the
+  // timeout AND the kill of the hung process itself fails. execute() must still return a structured
+  // ok:false result and must NOT throw/defect out (an orDie on the kill would escape the outer
+  // defect-blind Effect.catch and crash the worker). Uses harness.effect (TestClock-backed) so
+  // TestClock.adjust fires the 10-minute timeout instantly, plus withTmpdirInstance() to supply the
+  // InstanceState the tool's output-truncation step needs. Red against the old orDie, green after.
+  harness.effect("timeout + a FAILING kill still returns a structured ok:false result, never crashes", () =>
+    Effect.gen(function* () {
+      // Handle whose process never exits (exitCode hangs → the exit race arm loses to the timer)
+      // and whose kill FAILS — the exact combination that would let orDie escape as a defect.
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.succeed(
+          fakeHandle(Stream.empty, 0, {
+            exitCode: Effect.never,
+            kill: () =>
+              Effect.fail(
+                PlatformError.systemError({
+                  _tag: "PermissionDenied",
+                  module: "Command",
+                  method: "kill",
+                  pathOrDescriptor: "xcodebuild",
+                  description: "kill xcodebuild EPERM",
+                }),
+              ),
+          }),
+        ),
+      )
+      const fiber = yield* runExecute(spawner).pipe(Effect.forkChild)
+      yield* Effect.yieldNow
+      // Advance virtual time past the test timeout so the timeout branch (with its failing kill)
+      // fires deterministically.
+      yield* TestClock.adjust(`${TEST_TIMEOUT_MS + 1000} millis`)
+
+      // The fiber must complete with a value (not die): joining it does not raise.
+      const result = yield* Fiber.join(fiber)
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      // Timeout on a run with no test signal surfaces as tests_failed (nonzero exit, no Test Case).
+      expect(summary.status).toBe("tests_failed")
+      expect(result.metadata.ok).toBe(false)
+    }).pipe(withTmpdirInstance()),
   )
 })
 // kilocode_change end

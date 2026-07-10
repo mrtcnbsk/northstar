@@ -353,7 +353,11 @@ export const XcodeBuildTool = Tool.define(
               ])
               parser.finish()
               if (race.kind === "timeout") {
-                yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.orDie)
+                // Best-effort kill: the outer Effect.catch (beta.66) does not catch defects, so an
+                // orDie here would let a failed kill escape and crash execute() on the real-timeout
+                // path. Swallow the entire cause (failure AND defect) so the structured timeout
+                // result below is produced independent of whether the kill actually succeeded.
+                yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.catchCause(() => Effect.void))
                 const note = `\n\n[xcode_build] terminated after exceeding timeout ${BUILD_TIMEOUT_MS} ms`
                 parser.push(note)
                 parser.finish()
