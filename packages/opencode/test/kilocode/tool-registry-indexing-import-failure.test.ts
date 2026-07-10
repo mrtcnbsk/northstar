@@ -45,6 +45,7 @@ function infos() {
     image: info("generate_image"),
     xcodeBuild: info("xcode_build"),
     xcodeTest: info("xcode_test"),
+    crashSymbolicate: info("crash_symbolicate"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),

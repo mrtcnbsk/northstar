@@ -412,6 +412,7 @@ describe("kilocode tool registry indexing", () => {
       terminal: def("interactive_terminal"),
       xcodeBuild: def("xcode_build"),
       xcodeTest: def("xcode_test"),
+      crashSymbolicate: def("crash_symbolicate"),
       orgStart: def("org_start"),
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
@@ -434,6 +435,7 @@ describe("kilocode tool registry indexing", () => {
         "interactive_terminal",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra(tools, { experimental: { codebase_search: true } }).map((tool) => tool.id)).toEqual(
@@ -447,6 +449,7 @@ describe("kilocode tool registry indexing", () => {
           "interactive_terminal",
           "xcode_build",
           "xcode_test",
+          "crash_symbolicate",
           ...orgIDs,
         ],
       )
@@ -465,6 +468,7 @@ describe("kilocode tool registry indexing", () => {
         "interactive_terminal",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
 
@@ -481,6 +485,7 @@ describe("kilocode tool registry indexing", () => {
           "agent_manager",
           "xcode_build",
           "xcode_test",
+          "crash_symbolicate",
           ...orgIDs,
         ],
       )
@@ -502,6 +507,7 @@ describe("kilocode tool registry indexing", () => {
         "notebook_execute",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra({ ...tools, semantic: undefined }, {}).map((tool) => tool.id)).toEqual([
@@ -513,6 +519,7 @@ describe("kilocode tool registry indexing", () => {
         "agent_manager",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
 
@@ -524,6 +531,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
 
@@ -535,6 +543,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
 
@@ -546,6 +555,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "xcode_build",
         "xcode_test",
+        "crash_symbolicate",
         ...orgIDs,
       ])
     } finally {

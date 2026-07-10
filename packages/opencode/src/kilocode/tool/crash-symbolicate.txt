@@ -1,0 +1,17 @@
+Symbolicate a raw Apple crash log (iOS/macOS crash-reporter format) using `atos`, turning bare hex addresses into symbol names and file:line locations.
+
+Parses the crash log's "Binary Images:" section (to find the crashed app's image and its load address) and its backtrace frames (`<n>  <image>  0x<addr> ...`), then runs `atos -o <dSYM binary> -l <loadAddress> <addr...>` against every frame that belongs to the app's own image. System-framework frames (UIKitCore, libdyld, libsystem_kernel, etc.) are left unresolved by design — the dSYM only covers the app's own binary.
+
+Parameters:
+- `crashLog`: raw crash log text, OR a filesystem path to a `.crash`/`.ips`/`.txt` file containing one (if the string looks like an existing path, its contents are read; otherwise it is treated as literal crash text).
+- `dsymPath`: path to the `.dSYM` bundle, or directly to the binary inside `Contents/Resources/DWARF/`. When given the bundle, the tool locates the binary automatically.
+- `arch` (optional): CPU architecture for `atos -arch`. Defaults to `arm64`, or whatever the crash log's "Code Type" field indicates when parseable.
+- `loadAddress` (optional): override the app image's load address instead of parsing it from the crash log's Binary Images section.
+
+Returns `{ ok, framesResolved, framesTotal, symbolicated, unresolvedNote? }`. `symbolicated` is the backtrace with app frames replaced by their resolved `symbol (file:line)` where atos succeeded; frames atos could not resolve (or system frames outside the dSYM) are left as the original raw line.
+
+Requires Xcode's command-line tools (`atos`) to be installed; this is Apple-native and ships with Xcode, not a separate install. Depends on the dSYM actually matching the crashed binary (same build UUID) — a mismatched dSYM causes atos to fail silently per-address, which surfaces here as an unresolved frame, not a tool error.
+
+GRACEFUL DEGRADATION: this tool never fails hard. If `dsymPath` is missing/invalid, if `atos` is not installed (spawn error), or if resolution fails for some/all frames, it returns `ok: false` (or `ok: true` with partial resolution) plus the original raw trace and a `note`/`unresolvedNote` explaining what could not be done — never an error that aborts the caller.
+
+Crash log input is bounded (first 256KB / first 500 frames) to protect against pathological or corrupted logs.
