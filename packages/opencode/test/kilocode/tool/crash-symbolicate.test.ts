@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { Effect, Layer, Stream } from "effect"
+import { Effect, Fiber, Layer, Stream } from "effect"
+import * as TestClock from "effect/testing/TestClock"
 import { ChildProcessSpawner } from "effect/unstable/process"
 import * as Sink from "effect/Sink"
 import * as PlatformError from "effect/PlatformError"
@@ -21,8 +22,10 @@ import {
   resolveCrashLogText,
   resolveDsymBinary,
   MAX_FRAMES,
+  SYMBOLICATE_TIMEOUT_MS,
 } from "../../../src/kilocode/tool/crash-symbolicate"
 import { testEffect } from "../../lib/effect"
+import { withTmpdirInstance } from "../../fixture/fixture"
 
 // A realistic iOS crash-reporter log: app image (Keel) + several system images, a crashed thread
 // mixing app frames and system frames, and a second uncrashed thread (to prove thread-scoping).
@@ -270,12 +273,19 @@ const harness = testEffect(
   Layer.mergeAll(AppFileSystem.defaultLayer, Truncate.defaultLayer, Config.defaultLayer, Agent.defaultLayer),
 )
 
-function fakeHandle(all: ChildProcessSpawner.ChildProcessHandle["all"], exit = 0) {
+function fakeHandle(
+  all: ChildProcessSpawner.ChildProcessHandle["all"],
+  exit = 0,
+  overrides: {
+    exitCode?: ChildProcessSpawner.ChildProcessHandle["exitCode"]
+    kill?: ChildProcessSpawner.ChildProcessHandle["kill"]
+  } = {},
+) {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(0),
-    exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exit)),
+    exitCode: overrides.exitCode ?? Effect.succeed(ChildProcessSpawner.ExitCode(exit)),
     isRunning: Effect.succeed(true),
-    kill: () => Effect.void,
+    kill: overrides.kill ?? (() => Effect.void),
     stdin: Sink.drain,
     stdout: Stream.empty,
     stderr: Stream.empty,
@@ -480,5 +490,52 @@ Binary Images:
       expect(summary.framesResolved).toBe(0)
       expect(summary.note).toContain("system frames")
     }),
+  )
+
+  // Pins the never-crash invariant on the timeout+kill-failure path: atos runs past the timeout,
+  // AND the kill of the hung process itself fails. execute() must still return a structured
+  // ok:false timeout result and must NOT throw/defect out (which would crash the debug worker).
+  // Uses harness.effect (TestClock-backed) so TestClock.adjust fires the 30s timeout instantly
+  // (no real wall-clock wait), plus withTmpdirInstance() to supply the InstanceState the tool's
+  // output-truncation step needs. Mirrors command-timeout.test.ts's TestClock pattern.
+  harness.effect("timeout + a FAILING kill still returns a structured ok:false result, never crashes", () =>
+    Effect.gen(function* () {
+      // Handle whose process never exits (exitCode hangs → the exit race arm loses to the timer)
+      // and whose kill FAILS — the exact combination that would let orDie escape as a defect.
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.succeed(
+          fakeHandle(Stream.empty, 0, {
+            exitCode: Effect.never,
+            kill: () =>
+              Effect.fail(
+                PlatformError.systemError({
+                  _tag: "PermissionDenied",
+                  module: "Command",
+                  method: "kill",
+                  pathOrDescriptor: "atos",
+                  description: "kill atos EPERM",
+                }),
+              ),
+          }),
+        ),
+      )
+      const fiber = yield* runExecute(spawner, {
+        crashLog: CRASH_LOG_FIXTURE,
+        dsymPath: path.join(dsymDir, "Keel.app.dSYM"),
+      }).pipe(Effect.forkChild)
+      yield* Effect.yieldNow
+      // Advance virtual time past the symbolication timeout so the timeout branch (with its
+      // failing kill) fires deterministically.
+      yield* TestClock.adjust(`${SYMBOLICATE_TIMEOUT_MS + 1000} millis`)
+
+      // The fiber must complete with a value (not die): joining it does not raise.
+      const result = yield* Fiber.join(fiber)
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.framesResolved).toBe(0)
+      expect(summary.note.toLowerCase()).toContain("timed out")
+      // Raw trace is still returned intact — all 5 frames present as raw lines.
+      expect(summary.symbolicated.split("\n")).toHaveLength(5)
+    }).pipe(withTmpdirInstance()),
   )
 })

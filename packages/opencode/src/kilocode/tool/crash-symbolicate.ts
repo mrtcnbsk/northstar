@@ -338,7 +338,7 @@ export const CrashSymbolicateTool = Tool.define(
           const args = ["-o", dsymBinary, "-arch", arch, "-l", loadAddress, ...addresses]
           const command = ChildProcess.make("atos", args, { stdin: "ignore" })
 
-          type Ran = { kind: "ran"; output: string; exitCode: number }
+          type Ran = { kind: "ran"; output: string; exitCode: number; timedOut: boolean }
           type SpawnFailed = { kind: "spawn_failed"; error: string }
 
           const run = Effect.scoped(
@@ -358,9 +358,14 @@ export const CrashSymbolicateTool = Tool.define(
                 timeout.pipe(Effect.as({ kind: "timeout" as const, code: 1 })),
               ])
               if (race.kind === "timeout") {
-                yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.orDie)
+                // Best-effort kill: this tool's whole contract is "never crash the debug worker",
+                // so a kill that itself fails/defects must NOT escape. Effect.catch (beta.66) does
+                // not catch defects, so orDie here would let a failed kill crash execute() on the
+                // real-timeout path. Swallow the entire cause (failure AND defect) and continue —
+                // the structured return below is independent of the kill outcome.
+                yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.catchCause(() => Effect.void))
               }
-              return { kind: "ran", output, exitCode: race.code } satisfies Ran
+              return { kind: "ran", output, exitCode: race.code, timedOut: race.kind === "timeout" } satisfies Ran
             }),
           ).pipe(
             Effect.catch((e) =>
@@ -380,6 +385,18 @@ export const CrashSymbolicateTool = Tool.define(
             )
             const metadata = { ...summary, durationMs }
             return { title, output: JSON.stringify(metadata), metadata }
+          }
+
+          if (outcome.timedOut) {
+            // atos ran past the timeout and was (best-effort) killed. Whatever partial output it
+            // produced is unreliable, so return the raw trace with a clear timeout note rather than
+            // half-merged results — and, per the never-crash contract, this return is independent
+            // of whether the kill above actually succeeded.
+            const summary = {
+              ...rawSummary(`Symbolication timed out after ${SYMBOLICATE_TIMEOUT_MS / 1000}s. Returning the raw (unsymbolicated) trace.`),
+              durationMs,
+            }
+            return { title, output: JSON.stringify(summary), metadata: summary }
           }
 
           const merged = mergeAtosOutput(appFrames, outcome.output)
