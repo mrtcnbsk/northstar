@@ -64,6 +64,12 @@ export function OrgRunDetailRoute() {
   const [url, setUrl] = createSignal(fallback())
   const project = () => params.project ?? ""
   const runID = () => params.runID ?? ""
+  // Servers we've already tried to recover FROM via rediscovery. The org-run detail endpoint can
+  // fail while /global/health + /project (what discovery validates) still succeed, so a naive
+  // forget→rediscover→re-pin cycle would re-select the same failing server forever, re-scanning
+  // ~40 URLs each pass. Bounding recovery to one attempt per distinct URL breaks that loop and
+  // lets the error surface. Non-reactive on purpose (mutating it must not re-run the effect).
+  const attemptedRecovery = new Set<string>()
   const query = createMemo<{ input: ProjectQuery; runID: string } | undefined>(() => {
     const target = clean(url()) || fallback()
     if (!target || !project() || !runID()) return undefined
@@ -108,10 +114,14 @@ export function OrgRunDetailRoute() {
     if (!detail.error || !discoverable(search())) return
     const cached = loadCached()
     if (!cached || cached !== url()) return
+    if (attemptedRecovery.has(cached)) return
+    attemptedRecovery.add(cached)
     forgetCached()
-    setUrl("")
     void discover().then((value) => {
-      if (!value) return
+      // Only switch when discovery finds a DIFFERENT server. If it re-selects the same failing
+      // server (or finds none), keep url=cached so the error card renders — never blank the url,
+      // which would strand the route on a permanent loading screen.
+      if (!value || value === cached) return
       saveCached(value)
       setUrl(value)
     })
