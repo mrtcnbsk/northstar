@@ -162,6 +162,12 @@ export namespace OrgRunner {
    * later call too). Returns the Advance to hand back to the caller: either the original
    * "incomplete" (a retry remains) or a "halted" (retries exhausted).
    *
+   * incompleteAttempts is reset to 0 on two transitions so a fresh phase gets a fresh retry
+   * budget: (a) when a revise iteration begins (in `decide`), and (b) on successful stage
+   * completion (in `advance`). Without the reset, a transient first-pass incomplete would carry
+   * into a later revise loop and fail it early with a misleading reason. The `cause` param keeps
+   * the two paths' failure messages honest — never-produced vs. revise-churn.
+   *
    * Cost-during-retry: a failing stage's chief session never reaches the completion cost-recording
    * path (that only runs once validation.ok), so retries could otherwise accrue untracked spend.
    * When a taskID is present we cheaply record its cost into the same per-session `costs` map used
@@ -177,6 +183,9 @@ export namespace OrgRunner {
     runID: string,
     run: OrgState.Run,
     stage: string,
+    /** Names the true cause so the failure message doesn't mislead: a stage that never produced
+     * a deliverable vs. a revise loop where the chief keeps re-emitting the same file. */
+    cause: "never-produced" | "revise-unchanged",
     incomplete: Extract<Advance, { kind: "incomplete" }>,
   ): Promise<Advance> {
     const record = run.stages[stage]
@@ -208,7 +217,10 @@ export namespace OrgRunner {
       }
 
       if (rec.incompleteAttempts > budget.retries) {
-        const reason = `stage "${stage}" failed after ${rec.incompleteAttempts} attempts (deliverable never completed)`
+        const reason =
+          cause === "never-produced"
+            ? `stage "${stage}" failed after ${rec.incompleteAttempts} incomplete chief runs (deliverable never produced)`
+            : `stage "${stage}" failed after ${rec.incompleteAttempts} unchanged revise attempts (chief produced the same deliverable)`
         rec.status = "failed"
         s.status = "halted"
         s.haltReason = reason
@@ -303,7 +315,9 @@ export namespace OrgRunner {
       }
       const validation = await OrgArtifacts.validate(projectDir, runID, stage)
       if (!validation.ok) {
-        return retryOrFail(deps, projectDir, org, runID, run, stage, {
+        // Shares incompleteAttempts with the revise-unchanged site below, but means something
+        // different: here the deliverable was never produced (first-pass chief stall).
+        return retryOrFail(deps, projectDir, org, runID, run, stage, "never-produced", {
           kind: "incomplete",
           stage,
           reason: validation.reason,
@@ -314,7 +328,11 @@ export namespace OrgRunner {
       }
       // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
       if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
-        return retryOrFail(deps, projectDir, org, runID, run, stage, {
+        // Shares incompleteAttempts with the never-produced site above, but means something
+        // different: here the deliverable exists and is valid, the chief just re-emitted the same
+        // content in a revise loop. incompleteAttempts was reset when this revise iteration began
+        // (in decide), so revise churn gets its own fresh retry budget.
+        return retryOrFail(deps, projectDir, org, runID, run, stage, "revise-unchanged", {
           kind: "incomplete",
           stage,
           reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
@@ -349,6 +367,7 @@ export namespace OrgRunner {
         }
         rec.reviseBaseline = undefined // changed content accepted; baseline consumed
         rec.reviseNote = undefined // lives and dies with the baseline
+        rec.incompleteAttempts = 0 // stage completed: any later revise loop starts with a fresh retry budget
         rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
 
         // Budget checks run after cost is recorded but before the gate/completed/next decision
@@ -445,6 +464,7 @@ export namespace OrgRunner {
         record.status = "running"
         record.reviseBaseline = reviseBaseline
         record.completedAt = undefined // the pre-revise completion timestamp is stale now
+        record.incompleteAttempts = 0 // fresh revise iteration: revise churn gets its own retry budget, not the pre-completion count
         // the costs map is left as-is: it reflects real spend so far; the session's own key is overwritten on next completion.
       }
     })

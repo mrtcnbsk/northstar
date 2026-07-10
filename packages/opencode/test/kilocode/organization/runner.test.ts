@@ -257,17 +257,17 @@ describe("OrgRunner full flows", () => {
     const third = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
     expect(third.kind).toBe("halted")
     if (third.kind !== "halted") throw new Error("unreachable")
-    expect(third.reason).toContain('stage "evaluation" failed after 3 attempts')
+    expect(third.reason).toContain('stage "evaluation" failed after 3 incomplete chief runs (deliverable never produced)')
 
     state = await OrgState.read(tmp.path, run.runID)
     expect(state.stages["evaluation"].incompleteAttempts).toBe(3)
     expect(state.stages["evaluation"].status).toBe("failed")
     expect(state.status).toBe("halted")
-    expect(state.haltReason).toContain('stage "evaluation" failed after 3 attempts')
+    expect(state.haltReason).toContain('stage "evaluation" failed after 3 incomplete chief runs')
 
     const entries = await OrgAudit.read(tmp.path, run.runID)
     expect(entries.at(-1)).toMatchObject({ stage: "evaluation", decision: "stop" })
-    expect(entries.at(-1)?.note).toContain('failed after 3 attempts')
+    expect(entries.at(-1)?.note).toContain('deliverable never produced')
 
     // the W0.4 failed-short-circuit defensively still catches it on the next advance
     const after = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
@@ -301,7 +301,7 @@ describe("OrgRunner full flows", () => {
     const second = await OrgRunner.advance(deps, tmp.path, ORG_LOW_RETRIES, run.runID, { taskID: "ses_a" })
     expect(second.kind).toBe("halted")
     if (second.kind !== "halted") throw new Error("unreachable")
-    expect(second.reason).toContain('stage "evaluation" failed after 2 attempts')
+    expect(second.reason).toContain('stage "evaluation" failed after 2 incomplete chief runs (deliverable never produced)')
 
     state = await OrgState.read(tmp.path, run.runID)
     expect(state.stages["evaluation"].status).toBe("failed")
@@ -318,13 +318,14 @@ describe("OrgRunner full flows", () => {
     let state = await OrgState.read(tmp.path, run.runID)
     expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
 
-    // 2nd chief run: deliverable now appears -> proceeds to gate; incompleteAttempts unchanged
+    // 2nd chief run: deliverable now appears -> proceeds to gate; completion resets incompleteAttempts to 0
+    // (so any later revise loop starts with a fresh retry budget, not the transient count).
     await writeDeliverable(tmp.path, run.runID, "evaluation")
     const second = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
     expect(second.kind).toBe("gate")
 
     state = await OrgState.read(tmp.path, run.runID)
-    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(0)
     expect(state.stages["evaluation"].status).toBe("awaiting_approval")
   })
 
@@ -372,6 +373,85 @@ describe("OrgRunner full flows", () => {
     // retries were nowhere near exhausted (budget.retries: 5) - the budget ceiling caught it first
     expect(state.stages["evaluation"].incompleteAttempts).toBe(2)
     expect(state.stages["evaluation"].status).not.toBe("failed")
+  })
+
+  test("a revise loop that never changes the deliverable fails with a revise-specific reason", async () => {
+    await using tmp = await tmpdir()
+    // default budget.retries is 2: a revise iteration tolerates 2 unchanged re-runs before failing.
+    const run = await OrgRunner.start(tmp.path, ORG, "idea revise fail")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" }) // -> gate
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct
+
+    // chief keeps re-emitting the SAME deliverable (unchanged since revise baseline)
+    // 1st unchanged re-run -> incomplete (revise attempt 1 of 2)
+    const first = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    if (first.kind !== "incomplete") throw new Error("unreachable")
+    expect(first.reason).toContain("unchanged")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+
+    // 2nd unchanged re-run -> incomplete (revise attempt 2 of 2)
+    const second = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("incomplete")
+
+    // 3rd unchanged re-run -> exceeds budget.retries (2) -> fails with the REVISE-specific reason
+    const third = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(third.kind).toBe("halted")
+    if (third.kind !== "halted") throw new Error("unreachable")
+    expect(third.reason).toContain("unchanged revise")
+    expect(third.reason).toContain("chief produced the same deliverable")
+    expect(third.reason).not.toContain("never produced")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].status).toBe("failed")
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.at(-1)?.note).toContain("unchanged revise")
+  })
+
+  test("a transient incomplete that then completes gives a later revise loop a FRESH retry budget", async () => {
+    await using tmp = await tmpdir()
+    // budget.retries is 2. A transient incomplete (attempts=1) then completes. The revise loop that
+    // follows must tolerate the FULL retries+1 unchanged runs before failing - the reset means it is
+    // NOT penalized by the earlier transient incomplete.
+    const run = await OrgRunner.start(tmp.path, ORG, "idea revise reset")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+
+    // one transient incomplete: chief stalled once (incompleteAttempts -> 1)
+    const stall = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(stall.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+
+    // then the deliverable appears and the stage completes to its gate -> reset to 0
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const gate = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(gate.kind).toBe("gate")
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(0)
+
+    // now revise; the chief keeps re-emitting the unchanged deliverable
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(0) // decide reset it too
+
+    // it must take the FULL retries+1 (= 3) unchanged runs to fail, not fewer.
+    const r1 = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(r1.kind).toBe("incomplete") // revise attempt 1 of 2
+    const r2 = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(r2.kind).toBe("incomplete") // revise attempt 2 of 2 - would ALREADY be failed if the earlier transient counted
+    const r3 = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(r3.kind).toBe("halted") // 3rd exceeds retries -> fails
+    if (r3.kind !== "halted") throw new Error("unreachable")
+    expect(r3.reason).toContain("unchanged revise")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(3)
+    expect(state.stages["evaluation"].status).toBe("failed")
   })
 
   test("advance and decide with a mismatched pipeline throw", async () => {
