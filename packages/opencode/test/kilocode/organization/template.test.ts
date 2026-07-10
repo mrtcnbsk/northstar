@@ -101,6 +101,21 @@ describe("org-template consistency", () => {
     }
   })
 
+  test("chiefs name at least one specialist consultant in their prompt body (discoverability)", async () => {
+    const { org, agents } = await loadTemplate()
+    for (const dept of Object.values(org.departments)) {
+      const chief = agents[dept.chief]
+      const subs = (chief as { subordinates?: readonly string[] }).subordinates ?? []
+      const consultants = subs.filter((s) => !dept.workers.includes(s) && !org.shared.includes(s))
+      expect(consultants.length, `chief ${dept.chief} must have consultants beyond workers/shared`).toBeGreaterThan(0)
+      const prompt = chief.prompt ?? ""
+      expect(
+        consultants.some((c) => prompt.includes(c)),
+        `chief ${dept.chief} prompt must mention at least one consultant by name (${consultants.join(", ")})`,
+      ).toBe(true)
+    }
+  })
+
   test("chief edit permission actually allows deliverable writes (relative path, real evaluator)", async () => {
     const { org, agents } = await loadTemplate()
     const { Permission } = await import("../../../src/permission")

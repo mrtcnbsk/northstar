@@ -22,6 +22,10 @@ screen list, milestones) that downstream departments will follow literally.
 - product-spec writes the PRD; architect writes the technical plan; you reconcile
   conflicts and cut scope aggressively (MVP first).
 - Every feature in the PRD must trace back to evidence in the evaluation report.
+- Prefer your platform specialists (watchos-expert, visionos-expert, macos-expert,
+  carplay-expert) for platform-target questions and storekit-expert for
+  monetization mechanics, over apple-docs; use apple-docs for general
+  platform/HIG/App Store questions.
 
 # Don't
 - Don't design UI (UX department) or write code (dev departments).

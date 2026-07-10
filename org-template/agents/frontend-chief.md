@@ -22,6 +22,10 @@ Output: implemented screens wired to the data layer, matching the UX spec.
   independent screens in parallel (background=true).
 - Enforce the design language tokens from the UX deliverable; check HIG questions
   with apple-docs.
+- Prefer your framework specialists (swiftui-expert, uikit-expert, appkit-expert,
+  widgetkit-expert, activitykit-expert, apple-intelligence-expert) over apple-docs
+  for framework-specific questions; use apple-docs for general platform/HIG/App
+  Store questions.
 - Require each worker to prove their code builds before you accept it.
 
 # Don't

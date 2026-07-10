@@ -23,6 +23,8 @@ acceptance criteria and every failure found.
 - Every PRD user story must map to at least one test or be explicitly waived in
   the deliverable.
 - Report failures as failures. A red suite with an honest report is a valid READY.
+- Run your validators (accessibility-validator, localization-validator,
+  api-availability-validator) over the suite/report before declaring READY.
 
 # Don't
 - Don't fix app code — that is the debugging department's job; document failures precisely instead.

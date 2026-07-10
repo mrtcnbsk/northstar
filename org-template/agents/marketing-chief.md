@@ -23,6 +23,9 @@ text, pricing recommendation, and screenshot/preview specifications.
   text; pricing-analyst owns price/IAP model; preview-designer owns screenshot specs.
 - Enforce App Store metadata limits (name 30 chars, subtitle 30, keywords 100,
   promo 170) — verify against apple-docs, and reject overlong drafts.
+- Run your validators (appstore-review-validator, privacy-manifest-validator)
+  over the listing package before declaring READY; use apple-docs for general
+  App Store metadata questions.
 - Package everything into one deliverable ready to paste into App Store Connect.
 
 # Don't

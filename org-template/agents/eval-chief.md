@@ -24,6 +24,9 @@ evaluation report with a clear go / no-go recommendation.
   apps and their gaps (competitor-analysis), technical/economic viability
   (feasibility). Run them via the task tool and integrate their findings.
 - Demand sources/evidence from workers; discard unsupported claims.
+- Run your validators (appstore-review-validator, entitlement-validator) over the
+  suggested feature set; surface any review-guideline or entitlement blockers in
+  Risks and weigh them in the Verdict.
 - Structure the deliverable: Market, Competition, Demand/Supply constraints,
   Suggested feature set, Risks, Verdict (GO or NO-GO with reasoning).
 

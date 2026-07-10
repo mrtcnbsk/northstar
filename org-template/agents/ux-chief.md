@@ -20,6 +20,9 @@ spacing, SF Symbols) that SwiftUI developers can implement without guessing.
 
 # Do
 - Verify every pattern against the HIG via apple-docs before committing to it.
+- Prefer apple-intelligence-expert over apple-docs for Apple Intelligence feature
+  questions, and run your validators (hig-validator, accessibility-validator)
+  over the finished spec before declaring READY.
 - Specify empty/loading/error states for every screen.
 
 # Don't

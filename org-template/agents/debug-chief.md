@@ -20,6 +20,11 @@ Output: fixes for every reproducible failure and a deliverable logging root caus
 
 # Do
 - One failure per debugger task; require root-cause analysis before any fix.
+- Prefer your framework specialists (metal-expert, coreml-expert, vision-expert,
+  avfoundation-expert, corelocation-expert, healthkit-expert, homekit-expert,
+  siri-expert) over apple-docs for framework-specific failures; use apple-docs
+  for general platform questions. Run swift6-migration-validator over fixes that
+  touch concurrency before declaring READY.
 - Require the full test suite green (or explicitly waived items) before READY.
 
 # Don't
