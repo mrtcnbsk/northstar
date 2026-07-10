@@ -20,6 +20,7 @@ import { Cause, Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as SandboxPolicy from "@/kilocode/sandbox/policy" // kilocode_change
+import { OrgDepth } from "@/kilocode/organization/depth" // kilocode_change
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -158,7 +159,10 @@ export const TaskTool = Tool.define(
       KiloTask.validate(next, params.subagent_type)
       // kilocode_change end
 
-      const canTask = KiloTask.nestedTask() // kilocode_change - Kilo disallows subagents spawning subagents
+      const canTask = KiloTask.nestedTask(next) // kilocode_change - manager subagents (subordinates) may delegate
+      // kilocode_change start - enforce max delegation depth (CEO -> chief -> worker)
+      yield* OrgDepth.guard((id) => sessions.get(SessionID.make(id)), ctx.sessionID)
+      // kilocode_change end
       const canTodo = next.permission.some((rule) => rule.permission === "todowrite")
 
       const session = params.task_id
@@ -188,7 +192,7 @@ export const TaskTool = Tool.define(
             parentAgent,
             subagent: next,
           }),
-          KiloTask.permissions(rules),
+          KiloTask.permissions(rules, { canTask }),
         )
         session.permission = permission
         yield* sessions.setPermission({ sessionID: session.id, permission })
@@ -214,7 +218,7 @@ export const TaskTool = Tool.define(
               action: "allow" as const,
               permission: item,
             })) ?? [],
-            KiloTask.permissions(rules),
+            KiloTask.permissions(rules, { canTask }),
           ),
           // kilocode_change end
         }))

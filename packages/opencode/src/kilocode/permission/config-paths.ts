@@ -13,7 +13,7 @@ export namespace ConfigProtection {
    * Subdirectories under CONFIG_DIRS that are NOT config files (e.g. plan files).
    * Paths under these subdirs are exempt from config protection.
    */
-  const EXCLUDED_SUBDIRS = ["plans/"]
+  const EXCLUDED_SUBDIRS = ["plans/", "org/"]
 
   /**
    * Root-level config files that must be protected.

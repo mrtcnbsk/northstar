@@ -9,6 +9,7 @@ import { InteractiveTerminalTool } from "./interactive-terminal"
 import { NotebookEditTool, NotebookExecuteTool, NotebookReadTool } from "./notebook-host"
 import { MemoryRecallTool } from "./memory-recall"
 import { MemorySaveTool } from "./memory-save"
+import { OrgStartTool, OrgAdvanceTool, OrgDecisionTool, OrgStatusTool } from "@/kilocode/organization/tools"
 import * as Tool from "../../tool/tool"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect } from "effect"
@@ -63,13 +64,47 @@ export namespace KiloToolRegistry {
       const process = yield* BackgroundProcessTool
       const image = yield* GenerateImageTool
       const terminal = yield* InteractiveTerminalTool
-      if (!notebook) return { codebase, recall, managerModels, memory, save, manager, process, image, terminal }
+      const orgStart = yield* OrgStartTool
+      const orgAdvance = yield* OrgAdvanceTool
+      const orgDecision = yield* OrgDecisionTool
+      const orgStatus = yield* OrgStatusTool
+      if (!notebook)
+        return {
+          codebase,
+          recall,
+          managerModels,
+          memory,
+          save,
+          manager,
+          process,
+          image,
+          terminal,
+          orgStart,
+          orgAdvance,
+          orgDecision,
+          orgStatus,
+        }
       const tools = yield* Effect.all({
         notebookRead: NotebookReadTool,
         notebookEdit: NotebookEditTool,
         notebookExecute: NotebookExecuteTool,
       }).pipe(Effect.provideService(Notebook.Service, notebook))
-      return { codebase, recall, managerModels, memory, save, manager, process, image, terminal, ...tools }
+      return {
+        codebase,
+        recall,
+        managerModels,
+        memory,
+        save,
+        manager,
+        process,
+        image,
+        terminal,
+        orgStart,
+        orgAdvance,
+        orgDecision,
+        orgStatus,
+        ...tools,
+      }
     })
   }
 
@@ -86,6 +121,10 @@ export namespace KiloToolRegistry {
       process: Tool.Info
       image: Tool.Info
       terminal?: Tool.Info
+      orgStart: Tool.Info
+      orgAdvance: Tool.Info
+      orgDecision: Tool.Info
+      orgStatus: Tool.Info
       notebookRead?: Tool.Info
       notebookEdit?: Tool.Info
       notebookExecute?: Tool.Info
@@ -103,6 +142,10 @@ export namespace KiloToolRegistry {
         manager: Tool.init(tools.manager),
         process: Tool.init(tools.process),
         image: Tool.init(tools.image),
+        orgStart: Tool.init(tools.orgStart),
+        orgAdvance: Tool.init(tools.orgAdvance),
+        orgDecision: Tool.init(tools.orgDecision),
+        orgStatus: Tool.init(tools.orgStatus),
       })
       const terminal = tools.terminal ? yield* Tool.init(tools.terminal) : undefined
       const notebooks =
@@ -157,6 +200,7 @@ export namespace KiloToolRegistry {
 
   /** Hide human-driven tools from agents that cannot interact with the user directly. */
   export function available(tool: Tool.Def, agent: Agent.Info) {
+    if (tool.id.startsWith("org_")) return agent.mode === "primary"
     if (tool.id !== "interactive_terminal") return true
     return agent.mode === "primary"
   }
@@ -174,6 +218,10 @@ export namespace KiloToolRegistry {
       process: Tool.Def
       image: Tool.Def
       terminal?: Tool.Def
+      orgStart: Tool.Def
+      orgAdvance: Tool.Def
+      orgDecision: Tool.Def
+      orgStatus: Tool.Def
       notebookRead?: Tool.Def
       notebookEdit?: Tool.Def
       notebookExecute?: Tool.Def
@@ -198,6 +246,10 @@ export namespace KiloToolRegistry {
       tools.notebookExecute
         ? [tools.notebookRead, tools.notebookEdit, tools.notebookExecute]
         : []),
+      tools.orgStart,
+      tools.orgAdvance,
+      tools.orgDecision,
+      tools.orgStatus,
     ]
   }
 

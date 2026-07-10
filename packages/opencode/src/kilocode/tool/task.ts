@@ -36,9 +36,22 @@ export namespace KiloTask {
     if (info.mode === "primary") throw new Error(`Agent "${name}" is a primary agent and cannot be used as a subagent`)
   }
 
-  /** Kilo keeps delegation one level deep to avoid recursive subagent chains. */
-  export function nestedTask(): false {
-    return false
+  /**
+   * Kilo historically kept delegation one level deep. The agent-organization
+   * layer relaxes this for "manager" subagents only: a subagent whose own
+   * ruleset carries a non-deny task rule with a NON-WILDCARD pattern
+   * (produced by the `subordinates` frontmatter field, which emits
+   * specific-pattern allows like "swiftui-dev-1") may spawn its declared
+   * subordinates. Wildcard rules are ignored on purpose: the user's GLOBAL
+   * permission config (e.g. `permission: { task: "allow" | "ask" }`) merges
+   * into every agent's ruleset as `{task, *, allow|ask}` and must not
+   * silently promote plain workers to managers. Depth is separately capped
+   * by OrgDepth.guard in the task tool.
+   */
+  export function nestedTask(subagent: Agent.Info): boolean {
+    return subagent.permission.some(
+      (rule) => rule.permission === "task" && rule.action !== "deny" && rule.pattern !== "*",
+    )
   }
 
   /**
@@ -70,9 +83,9 @@ export namespace KiloTask {
   }
 
   /** Extra permission rules appended to subagent sessions */
-  export function permissions(rules: Permission.Ruleset): Permission.Ruleset {
+  export function permissions(rules: Permission.Ruleset, opts?: { canTask?: boolean }): Permission.Ruleset {
     return [
-      { permission: "task", pattern: "*", action: "deny" },
+      ...(opts?.canTask ? [] : [{ permission: "task", pattern: "*", action: "deny" } as const]),
       { permission: "question", pattern: "*", action: "deny" },
       { permission: "interactive_terminal", pattern: "*", action: "deny" },
       ...rules,
