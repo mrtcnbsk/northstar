@@ -36,6 +36,13 @@ export namespace OrgState {
     reviseBaseline: z.string().optional(),
     /** The user's revise note, persisted past the re-instruct (which clears decisionNote) so an unresumable fresh session can still be briefed; lives and dies with reviseBaseline. */
     reviseNote: z.string().optional(),
+    /** Set together with the once-per-run cost-escalation gate (see OrgRunner.settleRunningStage);
+     * the persisted home for the note transient GateItems used to carry directly. Needed because
+     * under maxConcurrency>1 an earlier-in-pipeline stage's plain gate can be the serialized blocker
+     * on the call the escalation actually fires, so the note must survive to be re-surfaced once
+     * THIS stage's own gate is later selected as the blocker. Cleared when the gated stage is
+     * resolved (decide) so a later re-gate never carries a stale note. */
+    escalationNote: z.string().optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
   })

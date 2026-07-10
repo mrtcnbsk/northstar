@@ -1211,4 +1211,68 @@ describe("OrgRunner budget enforcement", () => {
     // hard ceiling took precedence: escalation must not have been marked as a gate outcome
     expect(state.stages["evaluation"].status).not.toBe("awaiting_approval")
   })
+
+  test("escalation note survives a concurrent EARLIER plain gate: B's note surfaces once A is resolved", async () => {
+    await using tmp = await tmpdir()
+    // maxConcurrency:2 fan-out: plan (root) -> A (gate:human, earlier in pipeline), B (no gate,
+    // later in pipeline), both requiring plan. Threshold 5 so B's completion (cost 6) crosses it
+    // while A settles to a PLAIN gate (no note) first in pipeline order. Reproduces the confirmed
+    // finding: the blocker-selection keeps the earliest gate by pipeline index, so A's plain gate
+    // (no note) would overwrite B's note-carrying escalation gate before the fix.
+    const FANOUT_BUDGET_ORG = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        plan: { chief: "plan-chief", workers: ["architect"] },
+        A: { chief: "a-chief", workers: ["reviewer"] },
+        B: { chief: "b-chief", workers: ["builder"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [
+        { stage: "plan" },
+        { stage: "A", requires: ["plan"], gate: "human" },
+        { stage: "B", requires: ["plan"] },
+      ],
+      maxConcurrency: 2,
+      budget: { run: 100, stage: 100, escalationThreshold: 5, retries: 2 },
+    })
+    const run = await OrgRunner.start(tmp.path, FANOUT_BUDGET_ORG, "idea fanout escalation")
+    const costOf = async (id: string) => (id === "ses_plan" ? 0 : id === "ses_b" ? 6 : 0)
+    const costDeps = { costOf }
+
+    // plan runs and completes cheaply -> A and B fan out (2 slots).
+    await OrgRunner.advance(costDeps, tmp.path, FANOUT_BUDGET_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const fan = await OrgRunner.advance(costDeps, tmp.path, FANOUT_BUDGET_ORG, run.runID, { taskID: "ses_plan" })
+    expect(fan.instruct.map((i) => i.stage).sort()).toEqual(["A", "B"])
+
+    // settle A: its own gate:human fires, no escalation note (A's cost is 0, below threshold).
+    await writeDeliverable(tmp.path, run.runID, "A")
+    const afterA = await OrgRunner.advance(costDeps, tmp.path, FANOUT_BUDGET_ORG, run.runID, { taskID: "ses_a" })
+    expect(afterA.gate).toBeDefined()
+    expect(afterA.gate!.stage).toBe("A")
+    expect(afterA.gate!.note).toBeUndefined()
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].status).toBe("awaiting_approval")
+    expect(state.stages["B"].status).toBe("running")
+
+    // settle B: crosses the escalation threshold (cost 6 >= 5) -> escalated=true, B -> awaiting_approval.
+    // A is STILL awaiting (earlier in pipeline order) so A's plain gate is the batch's single blocker
+    // this call -- B's escalation must not be lost even though it isn't surfaced THIS call.
+    await writeDeliverable(tmp.path, run.runID, "B")
+    const afterB = await OrgRunner.advance(costDeps, tmp.path, FANOUT_BUDGET_ORG, run.runID, { taskID: "ses_b" })
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.escalated).toBe(true)
+    expect(state.stages["B"].status).toBe("awaiting_approval")
+    expect(afterB.gate!.stage).toBe("A") // A still earliest in pipeline order
+
+    // resolve A -> the next advance must surface B's gate WITH the escalation note.
+    await OrgRunner.decide(tmp.path, FANOUT_BUDGET_ORG, run.runID, "approve")
+    const afterResolveA = await OrgRunner.advance(costDeps, tmp.path, FANOUT_BUDGET_ORG, run.runID, {})
+    expect(afterResolveA.gate).toBeDefined()
+    expect(afterResolveA.gate!.stage).toBe("B")
+    expect(afterResolveA.gate!.note).toBeDefined()
+    expect(afterResolveA.gate!.note).toContain("escalation threshold")
+    expect(afterResolveA.gate!.note).toContain("6")
+    expect(afterResolveA.gate!.note).toContain("5")
+  })
 })

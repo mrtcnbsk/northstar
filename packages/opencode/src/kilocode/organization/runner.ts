@@ -296,6 +296,22 @@ export namespace OrgRunner {
   }
 
   /**
+   * Build a GateItem for `stage`, reading its escalation note (if any) from the persisted
+   * `escalationNote` field rather than carrying it only transiently. This is the single site every
+   * gate blocker is constructed from (both the settle-loop escalate/human gates and the
+   * awaiting-fold's plain-gate fallback), so a note-carrying escalation stage surfaces its note
+   * whenever ITS gate is the selected blocker — even on a LATER `advance` call, after an
+   * earlier-in-pipeline stage's plain gate was the blocker on the call the escalation actually fired.
+   */
+  function gateItemFor(run: OrgState.Run, projectDir: string, runID: string, stage: string): GateItem {
+    return {
+      stage,
+      deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage),
+      note: run.stages[stage].escalationNote,
+    }
+  }
+
+  /**
    * Settle ONE running stage that carries a taskID this call — the pre-wave per-stage completion
    * block, extracted VERBATIM so its every invariant (revise re-instruct, validate → retryOrFail
    * never-produced, revise-staleness → retryOrFail revise-unchanged, and the atomic
@@ -405,6 +421,7 @@ export namespace OrgRunner {
         s.escalated = true
         if (pipelineStage.gate !== "human") {
           rec.status = "awaiting_approval"
+          rec.escalationNote = `cost $${runTotal} reached the $${budget.escalationThreshold} escalation threshold — review before continuing`
           budgetOutcome = { kind: "escalate", runTotal }
         }
       }
@@ -420,23 +437,10 @@ export namespace OrgRunner {
       return { run, result: { kind: "halted", reason: budgetOutcome.reason } }
     }
     if (budgetOutcome?.kind === "escalate") {
-      return {
-        run,
-        result: {
-          kind: "gate",
-          item: {
-            stage,
-            deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage),
-            note: `cost $${budgetOutcome.runTotal} reached the $${budget.escalationThreshold} escalation threshold — review before continuing`,
-          },
-        },
-      }
+      return { run, result: { kind: "gate", item: gateItemFor(run, projectDir, runID, stage) } }
     }
     if (pipelineStage.gate === "human") {
-      return {
-        run,
-        result: { kind: "gate", item: { stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) } },
-      }
+      return { run, result: { kind: "gate", item: gateItemFor(run, projectDir, runID, stage) } }
     }
     return { run, result: "completed" }
   }
@@ -530,12 +534,14 @@ export namespace OrgRunner {
     // fresh gate until org_decision. Fold the first such stage (pipeline order) into the blocker
     // slot if no earlier settle-produced blocker already claimed it — this preserves the pre-wave
     // "repeated advance while awaiting keeps returning the gate" idempotency and the late-taskID
-    // gate persistence. A plain awaiting gate carries no escalation note.
+    // gate persistence. gateItemFor reads the persisted escalationNote, so a stage that escalated on
+    // an earlier call (when a different, earlier-in-pipeline stage's plain gate won the blocker slot)
+    // still surfaces its note once ITS gate is finally selected here.
     for (const stage of OrgState.awaitingStages(org, run)) {
       // Skip a stage that this call's settle already surfaced (e.g. its escalation gate, which
       // carries the note); only PRE-EXISTING awaiting stages need this fallback.
       if (blocker?.item.stage === stage) continue
-      const item: GateItem = { stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) }
+      const item = gateItemFor(run, projectDir, runID, stage)
       if (!blocker || byPipelineIndex(stage, blocker.item.stage) < 0) blocker = { kind: "gate", item }
     }
 
@@ -603,6 +609,9 @@ export namespace OrgRunner {
       const record = s.stages[gated.stage]
       record.decision = decision
       record.decisionNote = note
+      // A resolved gate never carries a stale note into a later re-gate of this stage (e.g. a
+      // subsequent revise -> re-completion -> new gate, or another escalation crossing).
+      record.escalationNote = undefined
       if (decision === "approve") {
         record.status = "completed"
       } else if (decision === "no-go") {
