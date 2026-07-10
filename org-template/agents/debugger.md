@@ -16,6 +16,8 @@ permission:
     "git status*": allow
     "git diff*": allow
     "log show*": allow
+    "swiftlint*": allow
+    "swiftformat*": allow
   webfetch: deny
   websearch: deny
 ---
@@ -27,6 +29,7 @@ minimal fix, prove it with the failing test now passing.
 # Do
 - State the root cause in one sentence before fixing.
 - Re-run the previously failing test AND the surrounding suite; report real output.
+- After a fix, re-run swiftlint on the changed files.
 
 # Don't
 - Don't fix anything you cannot reproduce; report it as non-reproducible instead.

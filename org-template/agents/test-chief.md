@@ -25,6 +25,7 @@ acceptance criteria and every failure found.
 - Report failures as failures. A red suite with an honest report is a valid READY.
 - Run your validators (accessibility-validator, localization-validator,
   api-availability-validator) over the suite/report before declaring READY.
+- Require unit-tester/ui-tester to pass SwiftLint on test files before you accept their work.
 
 # Don't
 - Don't fix app code — that is the debugging department's job; document failures precisely instead.

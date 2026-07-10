@@ -15,6 +15,8 @@ permission:
     "xcrun simctl*": allow
     "git status*": allow
     "git diff*": allow
+    "swiftlint*": allow
+    "swiftformat*": allow
   webfetch: deny
   websearch: deny
 ---
@@ -27,6 +29,8 @@ layer's public services.
 - Match the design tokens (colors/type/spacing) from the UX deliverable.
 - Build after every screen; report the build command and result honestly.
 - Implement empty/loading/error states — they are part of the spec, not extras.
+- Run `swiftlint --strict` (and `swiftformat` on files you changed) before reporting
+  your work ready; fix lint violations you introduced.
 
 # Don't
 - Don't restyle or "improve" the design; deviations go back to your chief as questions.

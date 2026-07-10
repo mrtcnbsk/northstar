@@ -15,6 +15,8 @@ permission:
     "xcrun simctl*": allow
     "git status*": allow
     "git diff*": allow
+    "swiftlint*": allow
+    "swiftformat*": allow
   webfetch: deny
   websearch: deny
 ---
@@ -27,6 +29,8 @@ plan specifies: models, persistence, migrations, service protocols.
 - Build after every meaningful change (xcodebuild or swift build) and fix errors
   before reporting; include the passing build command output summary in your report.
 - Keep types small and invariants inside the types.
+- Run `swiftlint --strict` (and `swiftformat` on files you changed) before reporting
+  your work ready; fix lint violations you introduced.
 
 # Don't
 - Don't touch view code; frontend owns it.

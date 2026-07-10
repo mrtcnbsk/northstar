@@ -34,6 +34,17 @@ const XCODEBUILD_WORKERS = ["swiftui-dev-1", "swiftui-dev-2", "data-layer-dev", 
 // Subset that also allows `swift build` / `swift test` (ui-tester does not).
 const SWIFT_WORKERS = ["swiftui-dev-1", "swiftui-dev-2", "data-layer-dev", "unit-tester", "debugger"]
 
+// kilocode_change start - W2.4: SwiftLint/SwiftFormat allowlist workers
+// Every edit-capable dev/test/debug worker gets swiftlint (lint-check their own work).
+const SWIFTLINT_WORKERS = ["swiftui-dev-1", "swiftui-dev-2", "data-layer-dev", "unit-tester", "ui-tester", "debugger"]
+
+// Only workers that own app/production code get swiftformat (test workers lint but don't reformat).
+const SWIFTFORMAT_WORKERS = ["swiftui-dev-1", "swiftui-dev-2", "data-layer-dev", "debugger"]
+
+// Consultants (no bash at all) must stay denied even though they sit in the same departments.
+const CONSULTANTS_NO_BASH = ["apple-docs", "swiftui-expert", "swiftdata-expert"]
+// kilocode_change end
+
 describe("worker bash allowlists match real Xcode/Swift/xcrun commands", () => {
   test("every edit-capable dev/test/debug worker allows a real xcodebuild invocation", async () => {
     const agents = await loadAgents()
@@ -98,6 +109,92 @@ describe("worker bash allowlists match real Xcode/Swift/xcrun commands", () => {
           `worker ${name} always-allow suggestion "${suggestion}" for "${command}" must itself be allowed`,
         ).toBe("allow")
       }
+    }
+  })
+  // kilocode_change end
+
+  // kilocode_change start - W2.4: SwiftLint/SwiftFormat allowlist coverage
+  test("swiftlint-granted dev/test/debug workers allow a real swiftlint invocation", async () => {
+    const agents = await loadAgents()
+    for (const name of SWIFTLINT_WORKERS) {
+      const worker = agents[name]
+      expect(worker, `worker ${name} must exist in the template`).toBeTruthy()
+      const command = "swiftlint lint --strict"
+      expect(evaluateBash(worker.permission, command), `worker ${name} must allow: ${command}`).toBe("allow")
+    }
+  })
+
+  test("swiftformat-granted app/debug workers allow a real swiftformat invocation", async () => {
+    const agents = await loadAgents()
+    for (const name of SWIFTFORMAT_WORKERS) {
+      const worker = agents[name]
+      const command = "swiftformat Sources/App/ContentView.swift"
+      expect(evaluateBash(worker.permission, command), `worker ${name} must allow: ${command}`).toBe("allow")
+    }
+  })
+
+  test("test-only workers (unit-tester, ui-tester) have no swiftformat allow rule", async () => {
+    const agents = await loadAgents()
+    for (const name of ["unit-tester", "ui-tester"]) {
+      const worker = agents[name]
+      const command = "swiftformat Tests/AppTests/FooTests.swift"
+      expect(evaluateBash(worker.permission, command), `worker ${name} must deny: ${command}`).toBe("deny")
+    }
+  })
+
+  test("consultants (no bash tools) still deny swiftlint/swiftformat", async () => {
+    const agents = await loadAgents()
+    for (const name of CONSULTANTS_NO_BASH) {
+      const worker = agents[name]
+      expect(worker, `consultant ${name} must exist in the template`).toBeTruthy()
+      expect(evaluateBash(worker.permission, "swiftlint lint --strict"), `consultant ${name} must deny swiftlint`).toBe(
+        "deny",
+      )
+      expect(
+        evaluateBash(worker.permission, "swiftformat File.swift"),
+        `consultant ${name} must deny swiftformat`,
+      ).toBe("deny")
+    }
+  })
+
+  test("swiftlint/swiftformat-granted workers still cannot edit .kilo/org/** deliverables", async () => {
+    const { Permission } = await import("../../../src/permission")
+    const agents = await loadAgents()
+    for (const name of SWIFTLINT_WORKERS) {
+      const worker = agents[name]
+      const ruleset = Permission.fromConfig(worker.permission ?? {})
+      expect(
+        Permission.evaluate("edit", ".kilo/org/runs/20260710-120000-idea/deliverables/evaluation.md", ruleset).action,
+        `worker ${name} must not be able to edit .kilo/org/**`,
+      ).toBe("deny")
+    }
+  })
+
+  test("a non-allowlisted command is still denied for swiftlint/swiftformat-granted workers", async () => {
+    const agents = await loadAgents()
+    for (const name of SWIFTLINT_WORKERS) {
+      const worker = agents[name]
+      expect(evaluateBash(worker.permission, "npm install"), `worker ${name} must deny: npm install`).toBe("deny")
+    }
+  })
+
+  test("arity-derived always-allow suggestion for swiftlint/swiftformat is itself allowed by the worker ruleset", async () => {
+    const agents = await loadAgents()
+    for (const name of SWIFTLINT_WORKERS) {
+      const worker = agents[name]
+      const suggestion = alwaysPattern("swiftlint lint --strict")
+      expect(
+        evaluateBash(worker.permission, suggestion),
+        `worker ${name} always-allow suggestion "${suggestion}" for swiftlint must itself be allowed`,
+      ).toBe("allow")
+    }
+    for (const name of SWIFTFORMAT_WORKERS) {
+      const worker = agents[name]
+      const suggestion = alwaysPattern("swiftformat Sources/App/ContentView.swift")
+      expect(
+        evaluateBash(worker.permission, suggestion),
+        `worker ${name} always-allow suggestion "${suggestion}" for swiftformat must itself be allowed`,
+      ).toBe("allow")
     }
   })
   // kilocode_change end

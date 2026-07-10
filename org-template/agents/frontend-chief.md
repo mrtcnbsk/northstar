@@ -27,6 +27,7 @@ Output: implemented screens wired to the data layer, matching the UX spec.
   for framework-specific questions; use apple-docs for general platform/HIG/App
   Store questions.
 - Require each worker to prove their code builds before you accept it.
+- Require swiftui-dev-1/swiftui-dev-2 to pass SwiftLint (`--strict`) before you accept their work.
 
 # Don't
 - Don't write code yourself; decompose, delegate, review, integrate.

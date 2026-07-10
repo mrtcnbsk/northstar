@@ -13,6 +13,7 @@ permission:
     "xcrun simctl*": allow
     "git status*": allow
     "git diff*": allow
+    "swiftlint*": allow
   webfetch: deny
   websearch: deny
 ---
@@ -24,6 +25,7 @@ You write and run XCUITest tests for the critical user flows named in the PRD.
 - One test per journey; use accessibility identifiers, adding them to views only
   if missing (smallest possible diff).
 - Run on the simulator and report real results.
+- Run `swiftlint --strict` on test files you changed before reporting your work ready.
 
 # Don't
 - Don't test cosmetic details; journeys and state transitions only.
