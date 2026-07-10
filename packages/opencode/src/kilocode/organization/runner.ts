@@ -153,6 +153,88 @@ export namespace OrgRunner {
     }
   }
 
+  /**
+   * Bounded auto-retry: called at each point `advance` is about to return "incomplete" for a
+   * stage whose chief task actually ran this call (record.taskID present — a bare re-instruct
+   * with no taskID never reaches here). Increments the stage's incompleteAttempts and, once that
+   * exceeds the resolved budget.retries, marks the stage "failed" and halts the run immediately
+   * (the W0.4 failed-short-circuit at the top of `advance` then defensively catches it on any
+   * later call too). Returns the Advance to hand back to the caller: either the original
+   * "incomplete" (a retry remains) or a "halted" (retries exhausted).
+   *
+   * Cost-during-retry: a failing stage's chief session never reaches the completion cost-recording
+   * path (that only runs once validation.ok), so retries could otherwise accrue untracked spend.
+   * When a taskID is present we cheaply record its cost into the same per-session `costs` map used
+   * on completion, so a money-burning retry loop can still trip the run budget ceiling even though
+   * it never completes. This does NOT re-run the stage-cap or escalation checks (those stay
+   * completion-only by design) — only the run's hard ceiling, since that's the one a runaway loop
+   * can quietly blow through.
+   */
+  async function retryOrFail(
+    deps: Deps,
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    run: OrgState.Run,
+    stage: string,
+    incomplete: Extract<Advance, { kind: "incomplete" }>,
+  ): Promise<Advance> {
+    const record = run.stages[stage]
+    if (!record.taskID) return incomplete // bare re-instruct with no chief run: not a retry attempt
+
+    const cost = await deps.costOf(record.taskID)
+    const budget = OrgSchema.resolveBudget(org)
+    let budgetHalted: { reason: string } | undefined
+    let failed = false
+    run = await OrgState.update(projectDir, runID, (s) => {
+      const rec = s.stages[stage]
+      rec.incompleteAttempts = (rec.incompleteAttempts ?? 0) + 1
+
+      if (cost !== undefined) {
+        const seeded =
+          rec.costs ?? (rec.cost !== undefined && rec.costTaskID !== undefined ? { [rec.costTaskID]: rec.cost } : {})
+        rec.costs = { ...seeded, [record.taskID!]: cost }
+        rec.cost = undefined
+        rec.costTaskID = undefined
+      }
+
+      const runTotal = Object.values(s.stages).reduce((sum, st) => sum + stageCost(st), 0)
+      if (runTotal > budget.run) {
+        const reason = `budget ceiling exceeded: run $${runTotal} / cap $${budget.run}`
+        s.status = "halted"
+        s.haltReason = reason
+        budgetHalted = { reason }
+        return
+      }
+
+      if (rec.incompleteAttempts > budget.retries) {
+        const reason = `stage "${stage}" failed after ${rec.incompleteAttempts} attempts (deliverable never completed)`
+        rec.status = "failed"
+        s.status = "halted"
+        s.haltReason = reason
+        failed = true
+      }
+    })
+
+    if (budgetHalted) {
+      await OrgAudit.append(projectDir, runID, {
+        ts: new Date().toISOString(),
+        stage,
+        decision: "stop",
+        note: budgetHalted.reason,
+      })
+      return { kind: "halted", reason: budgetHalted.reason }
+    }
+
+    if (failed) {
+      const reason = run.haltReason!
+      await OrgAudit.append(projectDir, runID, { ts: new Date().toISOString(), stage, decision: "stop", note: reason })
+      return { kind: "halted", reason }
+    }
+
+    return incomplete
+  }
+
   export async function advance(
     deps: Deps,
     projectDir: string,
@@ -221,25 +303,25 @@ export namespace OrgRunner {
       }
       const validation = await OrgArtifacts.validate(projectDir, runID, stage)
       if (!validation.ok) {
-        return {
+        return retryOrFail(deps, projectDir, org, runID, run, stage, {
           kind: "incomplete",
           stage,
           reason: validation.reason,
           resumeTaskID: record.taskID,
           chief: org.departments[stage].chief,
           taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
-        }
+        })
       }
       // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
       if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
-        return {
+        return retryOrFail(deps, projectDir, org, runID, run, stage, {
           kind: "incomplete",
           stage,
           reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
           resumeTaskID: record.taskID,
           chief: org.departments[stage].chief,
           taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
-        }
+        })
       }
       const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
       const budget = OrgSchema.resolveBudget(org)

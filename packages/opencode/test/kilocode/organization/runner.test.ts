@@ -233,6 +233,147 @@ describe("OrgRunner full flows", () => {
     expect(state.stages["planning"].status).toBe("pending")
   })
 
+  test("stage retries up to budget.retries on repeated incomplete, then fails and halts", async () => {
+    await using tmp = await tmpdir()
+    // default budget.retries is 2: allows 2 retries (3 total chief runs) before giving up.
+    const run = await OrgRunner.start(tmp.path, ORG, "idea retry one")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // instruct
+
+    // 1st chief run: deliverable never appears -> incomplete (attempt 1, retry 1 of 2)
+    const first = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+    expect(state.stages["evaluation"].status).toBe("running")
+
+    // 2nd chief run: still incomplete -> incomplete (attempt 2, retry 2 of 2)
+    const second = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("incomplete")
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(2)
+    expect(state.stages["evaluation"].status).toBe("running")
+
+    // 3rd chief run: still incomplete -> exceeds budget.retries (2) -> fails + halts
+    const third = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(third.kind).toBe("halted")
+    if (third.kind !== "halted") throw new Error("unreachable")
+    expect(third.reason).toContain('stage "evaluation" failed after 3 attempts')
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(3)
+    expect(state.stages["evaluation"].status).toBe("failed")
+    expect(state.status).toBe("halted")
+    expect(state.haltReason).toContain('stage "evaluation" failed after 3 attempts')
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.at(-1)).toMatchObject({ stage: "evaluation", decision: "stop" })
+    expect(entries.at(-1)?.note).toContain('failed after 3 attempts')
+
+    // the W0.4 failed-short-circuit defensively still catches it on the next advance
+    const after = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(after.kind).toBe("halted")
+    if (after.kind !== "halted") throw new Error("unreachable")
+    expect(after.reason).toContain('stage "evaluation" failed')
+  })
+
+  test("budget.retries override of 1 fails the stage after a single retry", async () => {
+    await using tmp = await tmpdir()
+    const ORG_LOW_RETRIES = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation", gate: "human", haltOn: "no-go" }, { stage: "planning" }],
+      budget: { retries: 1 },
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_LOW_RETRIES, "idea retry two")
+    await OrgRunner.advance(deps, tmp.path, ORG_LOW_RETRIES, run.runID, {})
+
+    // 1st chief run: incomplete (attempt 1, retry 1 of 1)
+    const first = await OrgRunner.advance(deps, tmp.path, ORG_LOW_RETRIES, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+
+    // 2nd chief run: exceeds budget.retries (1) -> fails + halts
+    const second = await OrgRunner.advance(deps, tmp.path, ORG_LOW_RETRIES, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("halted")
+    if (second.kind !== "halted") throw new Error("unreachable")
+    expect(second.reason).toContain('stage "evaluation" failed after 2 attempts')
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].status).toBe("failed")
+  })
+
+  test("a stage that completes on a retry proceeds normally with no failure", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea retry three")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+
+    // 1st chief run: incomplete (attempt 1, retry 1 of 2)
+    const first = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+
+    // 2nd chief run: deliverable now appears -> proceeds to gate; incompleteAttempts unchanged
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const second = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("gate")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+    expect(state.stages["evaluation"].status).toBe("awaiting_approval")
+  })
+
+  test("a bare advance with no taskID (re-instruct only) does not burn a retry attempt", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea retry four")
+    const first = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // instruct, no taskID
+    expect(first.kind).toBe("instruct")
+    // advancing again with no taskID re-returns instruct without recording any chief run
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts ?? 0).toBe(0)
+  })
+
+  test("cost accrued during a retry loop can trip the run budget ceiling before retries are exhausted", async () => {
+    await using tmp = await tmpdir()
+    const ORG_RETRY_BUDGET = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation" }, { stage: "planning" }],
+      budget: { run: 10, stage: 100, escalationThreshold: 100, retries: 5 },
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_RETRY_BUDGET, "idea retry five")
+    await OrgRunner.advance(deps, tmp.path, ORG_RETRY_BUDGET, run.runID, {})
+
+    // each incomplete retry accrues cost 6 for the SAME session id; run ceiling is 10.
+    const costDeps = { costOf: async () => 6 }
+    const first = await OrgRunner.advance(costDeps, tmp.path, ORG_RETRY_BUDGET, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_a: 6 })
+
+    // 2nd incomplete: same session's cumulative cost grows to 11 -> overwrite -> runTotal 11 > cap 10 -> halted on BUDGET
+    const costDeps2 = { costOf: async () => 11 }
+    const second = await OrgRunner.advance(costDeps2, tmp.path, ORG_RETRY_BUDGET, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("halted")
+    if (second.kind !== "halted") throw new Error("unreachable")
+    expect(second.reason).toContain("budget ceiling exceeded")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("halted")
+    // retries were nowhere near exhausted (budget.retries: 5) - the budget ceiling caught it first
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(2)
+    expect(state.stages["evaluation"].status).not.toBe("failed")
+  })
+
   test("advance and decide with a mismatched pipeline throw", async () => {
     await using tmp = await tmpdir()
     const run = await OrgRunner.start(tmp.path, ORG, "idea nine")
