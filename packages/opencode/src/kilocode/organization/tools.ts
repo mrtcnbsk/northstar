@@ -124,14 +124,19 @@ export const OrgAdvanceTool = Tool.define(
                 then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
               })
             }
-            case "gate":
+            case "gate": {
+              const baseInstructions =
+                "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision."
               return result(`gate: ${advance.stage}`, {
                 action: "human_gate",
                 stage: advance.stage,
                 deliverable: advance.deliverablePath,
-                instructions:
-                  "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision.",
+                ...(advance.note ? { budget_note: advance.note } : {}),
+                instructions: advance.note
+                  ? `${baseInstructions} This gate was triggered by budget: ${advance.note}. Tell the user the cumulative spend before asking for a decision.`
+                  : baseInstructions,
               })
+            }
             case "incomplete": {
               const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
               return result(`incomplete: ${advance.stage}`, {
@@ -230,7 +235,19 @@ export const OrgStatusTool = Tool.define(
             return result("organization", { organization: org, runs, issues })
           }
           const status = yield* tryOrg(() => OrgRunner.status(dir, org, params.run_id!))
-          return result(`run ${params.run_id}`, status)
+          const budget = OrgSchema.resolveBudget(org)
+          const spent = status.totalCost
+          return result(`run ${params.run_id}`, {
+            ...status,
+            budget: {
+              run: budget.run,
+              stage: budget.stage,
+              escalationThreshold: budget.escalationThreshold,
+              retries: budget.retries,
+              spent,
+              remaining: Math.max(0, budget.run - spent),
+            },
+          })
         }).pipe(Effect.orDie),
     }
   }),

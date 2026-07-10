@@ -271,6 +271,8 @@ export namespace OrgRunner {
 
         // Budget checks run after cost is recorded but before the gate/completed/next decision
         // downstream reacts to. Hard ceiling takes precedence over the soft escalation gate.
+        // Ceiling is enforced POST-stage: a stage that overshoots completes and records its cost
+        // before this halt fires; mid-stage spend is not observable to the runner.
         const runTotal = Object.values(s.stages).reduce((sum, st) => sum + stageCost(st), 0)
         const stageTotal = stageCost(rec)
         if (runTotal > budget.run) {
