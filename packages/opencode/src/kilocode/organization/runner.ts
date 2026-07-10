@@ -10,6 +10,8 @@ export namespace OrgRunner {
   export interface Deps {
     /** Look up accumulated cost of a chief's task session. Injected; DB-backed in tools.ts. */
     costOf: (taskID: string) => Promise<number | undefined>
+    /** Current time in epoch ms. Injected for deterministic timeout tests; defaults to Date.now. */
+    now?: () => number
   }
 
   /** One stage to run NOW: the CEO spawns these as parallel task-tool calls in a single turn. */
@@ -223,6 +225,11 @@ export namespace OrgRunner {
    * it never completes. This does NOT re-run the stage-cap or escalation checks (those stay
    * completion-only by design) — only the run's hard ceiling, since that's the one a runaway loop
    * can quietly blow through.
+   *
+   * `cause: "timeout"` (W4.5) is a variant of "never-produced" — the deliverable is still invalid,
+   * but the stage also blew past its declared `timeoutMs` — worded distinctly so the failure reason
+   * points at a chronically-slow-and-empty stage rather than a generic incomplete. `timeoutMs` is
+   * only required (and only used for the message) when cause is "timeout".
    */
   async function retryOrFail(
     deps: Deps,
@@ -232,9 +239,11 @@ export namespace OrgRunner {
     run: OrgState.Run,
     stage: string,
     /** Names the true cause so the failure message doesn't mislead: a stage that never produced
-     * a deliverable vs. a revise loop where the chief keeps re-emitting the same file. */
-    cause: "never-produced" | "revise-unchanged",
+     * a deliverable, one that blew past its timeout while still invalid, vs. a revise loop where
+     * the chief keeps re-emitting the same file. */
+    cause: "never-produced" | "timeout" | "revise-unchanged",
     incomplete: IncompleteItem,
+    timeoutMs?: number,
   ): Promise<{ run: OrgState.Run; result: { kind: "incomplete"; item: IncompleteItem } | { kind: "halted"; reason: string } }> {
     const record = run.stages[stage]
     if (!record.taskID) return { run, result: { kind: "incomplete", item: incomplete } } // bare re-instruct with no chief run: not a retry attempt
@@ -268,7 +277,9 @@ export namespace OrgRunner {
         const reason =
           cause === "never-produced"
             ? `stage "${stage}" failed after ${rec.incompleteAttempts} incomplete chief runs (deliverable never produced)`
-            : `stage "${stage}" failed after ${rec.incompleteAttempts} unchanged revise attempts (chief produced the same deliverable)`
+            : cause === "timeout"
+              ? `stage "${stage}" failed after ${rec.incompleteAttempts} attempts (exceeded its ${timeoutMs}ms timeout without a valid deliverable)`
+              : `stage "${stage}" failed after ${rec.incompleteAttempts} unchanged revise attempts (chief produced the same deliverable)`
         rec.status = "failed"
         s.status = "halted"
         s.haltReason = reason
@@ -364,15 +375,28 @@ export namespace OrgRunner {
     }
     const validation = await OrgArtifacts.validate(projectDir, runID, stage)
     if (!validation.ok) {
-      // Shares incompleteAttempts with the revise-unchanged site below, but means something
-      // different: here the deliverable was never produced (first-pass chief stall).
-      return retryOrFail(deps, projectDir, org, runID, run, stage, "never-produced", {
+      // W4.5: a stage whose deliverable is STILL invalid after blowing past its declared
+      // timeoutMs gets a clearer "timeout" failure reason instead of the generic
+      // "never-produced" — same retry mechanics/budget, only the cause + message differ. Only
+      // reachable here (validation-FAILED branch), so a stage that produced a valid deliverable
+      // is never timed out regardless of how long it took.
+      const started = record.startedAt ? Date.parse(record.startedAt) : undefined
+      const now = (deps.now ?? Date.now)()
+      const timedOut =
+        pipelineStage.timeoutMs !== undefined && started !== undefined && now - started > pipelineStage.timeoutMs
+      const incomplete: IncompleteItem = {
         stage,
         reason: validation.reason,
         resumeTaskID: record.taskID,
         chief: org.departments[stage].chief,
         taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
-      })
+      }
+      // Shares incompleteAttempts with the revise-unchanged site below, but means something
+      // different: here the deliverable was never produced (first-pass chief stall) — or, when
+      // timedOut, never produced AND the stage's timeoutMs elapsed.
+      return timedOut
+        ? retryOrFail(deps, projectDir, org, runID, run, stage, "timeout", incomplete, pipelineStage.timeoutMs)
+        : retryOrFail(deps, projectDir, org, runID, run, stage, "never-produced", incomplete)
     }
     // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
     if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {

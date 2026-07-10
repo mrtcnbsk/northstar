@@ -1486,3 +1486,175 @@ describe("OrgRunner conditional `when` skipping (W4.4)", () => {
     expect(state.stages["other"].status).toBe("running")
   })
 })
+
+describe("OrgRunner per-stage timeoutMs (W4.5)", () => {
+  // Single-stage org (gate: "human" so a completed stage doesn't auto-advance past what we assert)
+  // with a configurable timeoutMs on the "evaluation" stage; each test overrides budget as needed.
+  function orgWithTimeout(timeoutMs: number | undefined, retries?: number) {
+    return OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation", gate: "human", timeoutMs }],
+      budget: retries !== undefined ? { retries } : undefined,
+    })
+  }
+
+  test("timeout fires: invalid deliverable past timeoutMs routes to the timeout retry path and halts mentioning 'timeout'", async () => {
+    await using tmp = await tmpdir()
+    const org = orgWithTimeout(1000, 1) // budget.retries: 1 -> fails on the 2nd timing-out chief run
+    const run = await OrgRunner.start(tmp.path, org, "idea timeout one")
+
+    const started = "2026-01-01T00:00:00.000Z"
+    const T = Date.parse(started)
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = started
+      s.stages["evaluation"].attempts = 1
+    })
+
+    // now is 5000ms after startedAt: exceeds the 1000ms timeout.
+    const clockDeps = { costOf: async () => 0.1, now: () => T + 5000 }
+
+    // 1st timing-out chief run: retry 1 of 1 -> incomplete
+    const first = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+    expect(state.stages["evaluation"].status).toBe("running")
+
+    // Reset startedAt for the retried run (the stage doesn't restart automatically here since we
+    // manipulated state directly instead of going through advance's toRun loop; keep the same
+    // started/now so the timeout still applies on the 2nd chief run).
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].startedAt = started
+    })
+
+    // 2nd timing-out chief run: exceeds budget.retries (1) -> fails + halts, mentioning "timeout"
+    const second = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("halted")
+    if (second.kind !== "halted") throw new Error("unreachable")
+    expect(second.reason).toContain("timeout")
+    expect(second.reason).toContain('stage "evaluation" failed after 2 attempts')
+    expect(second.reason).toContain("1000ms timeout")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(2)
+    expect(state.stages["evaluation"].status).toBe("failed")
+    expect(state.status).toBe("halted")
+    expect(state.haltReason).toContain("timeout")
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.at(-1)).toMatchObject({ stage: "evaluation", decision: "stop" })
+    expect(entries.at(-1)?.note).toContain("timeout")
+  })
+
+  test("completes before timeout: a VALID deliverable completes normally even with timeoutMs set", async () => {
+    await using tmp = await tmpdir()
+    const org = orgWithTimeout(100000)
+    const run = await OrgRunner.start(tmp.path, org, "idea timeout two")
+
+    const started = "2026-01-01T00:00:00.000Z"
+    const T = Date.parse(started)
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = started
+      s.stages["evaluation"].attempts = 1
+    })
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+
+    // now is only 1000ms after startedAt: well under the 100000ms timeout.
+    const clockDeps = { costOf: async () => 0.1, now: () => T + 1000 }
+    const result = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(result.kind).toBe("gate") // valid deliverable -> gates normally, never touches the timeout path
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].status).toBe("awaiting_approval")
+  })
+
+  test("no timeoutMs: invalid deliverable follows today's never-produced path, message unchanged, never a timeout", async () => {
+    await using tmp = await tmpdir()
+    const org = orgWithTimeout(undefined, 1)
+    const run = await OrgRunner.start(tmp.path, org, "idea timeout three")
+
+    const started = "2026-01-01T00:00:00.000Z"
+    const T = Date.parse(started)
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = started
+      s.stages["evaluation"].attempts = 1
+    })
+
+    // "now" is far past any reasonable timeout, but timeoutMs is absent so it must never apply.
+    const clockDeps = { costOf: async () => 0.1, now: () => T + 999999999 }
+
+    const first = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete")
+
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].startedAt = started
+    })
+    const second = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("halted")
+    if (second.kind !== "halted") throw new Error("unreachable")
+    expect(second.reason).not.toContain("timeout")
+    expect(second.reason).toContain('stage "evaluation" failed after 2 incomplete chief runs (deliverable never produced)')
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.haltReason).not.toContain("timeout")
+    expect(state.haltReason).toContain("deliverable never produced")
+  })
+
+  test("timeout uses the retry budget: with budget.retries 1, a timing-out stage retries once then halts (attempts accounting matches never-produced)", async () => {
+    await using tmp = await tmpdir()
+    const org = orgWithTimeout(500, 1)
+    const run = await OrgRunner.start(tmp.path, org, "idea timeout four")
+
+    const started = "2026-01-01T00:00:00.000Z"
+    const T = Date.parse(started)
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = started
+      s.stages["evaluation"].attempts = 1
+    })
+    const clockDeps = { costOf: async () => 0.1, now: () => T + 10000 }
+
+    const first = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(first.kind).toBe("incomplete") // attempt 1 of 1 retry: same accounting shape as never-produced
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
+    expect(state.stages["evaluation"].status).toBe("running")
+
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].startedAt = started
+    })
+    const second = await advance1(clockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(second.kind).toBe("halted") // exceeds budget.retries (1) -> fails + halts, same shape as never-produced exhaustion
+    if (second.kind !== "halted") throw new Error("unreachable")
+    expect(second.reason).toContain("timeout")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].incompleteAttempts).toBe(2)
+    expect(state.stages["evaluation"].status).toBe("failed")
+  })
+
+  test("no injected now: deps.now defaults to Date.now, timeoutMs check still works with a real (very past) startedAt", async () => {
+    await using tmp = await tmpdir()
+    const org = orgWithTimeout(1, 1) // 1ms timeout: any real elapsed time trips it
+    const run = await OrgRunner.start(tmp.path, org, "idea timeout five")
+
+    // startedAt far in the past: with no injected `now`, Date.now() - Date.parse(started) is huge.
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = "2020-01-01T00:00:00.000Z"
+      s.stages["evaluation"].attempts = 1
+    })
+
+    const noClockDeps = { costOf: async () => 0.1 } // no `now` -> defaults to Date.now
+    const result = await advance1(noClockDeps, tmp.path, org, run.runID, { taskID: "ses_a" })
+    expect(result.kind).toBe("incomplete")
+    if (result.kind !== "incomplete") throw new Error("unreachable")
+    expect(result.reason).toBeDefined()
+  })
+})
