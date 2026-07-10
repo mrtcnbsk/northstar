@@ -3,7 +3,10 @@ description: UI test worker — XCUITest flows for critical user journeys (run-v
 mode: subagent
 model: anthropic/claude-sonnet-5
 permission:
-  edit: allow
+  edit:
+    "*": allow
+    ".kilo/org/**": deny
+    "**/.kilo/org/**": deny
   bash:
     "*": deny
     "xcodebuild*": allow

@@ -5,21 +5,7 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
 
 ## MUST-FIX (Wave 1'in İLK işi — gerçek run iddiasından önce)
 
-- **W0-R1 — Org yazma yolu gerçek run'larda ÖLÜ (v1'den beri gizli Critical).**
-  `ceo.md`'nin `edit/bash: deny`'ı ve şeflerin `edit "*": deny`'ı, session türetimiyle
-  (`subagent-permissions.ts:28` parentAgentDenies + `kilocode/tool/task.ts` `inherited()`)
-  her alt session'a `"*" deny` olarak taşınıyor; değerlendirme findLast (session kuralları
-  sonda) olduğundan şefin deliverables allow'unu ve worker'ın edit/bash allow'unu YENİYOR.
-  Kanıt (gerçek template + gerçek evaluator): şef deliverable yazamıyor, worker app kodu
-  yazamıyor, worker `swift build` çalıştıramıyor → her gerçek run 1. stage'de
-  "deliverable missing" ile ölür. W0.4c seam testi yalnız AGENT ruleset'ini ölçtüğü için
-  yeşil. Fix, birleşik-seam testiyle şunları pinlemeli: şef deliverable=allow,
-  şef state.json=deny, worker app-kodu=allow, worker `.kilo/org/**`=deny.
-  (Eski #10 ve aşağıdaki W0-R3 bu maddenin kabul kriterlerine katlandı.)
-- **W0-R3 (W0-R1'e bağlı) — worker şablonlarına açık `.kilo/org/**` edit deny.**
-  Bugün tartışmasız (kimse yazamıyor); W0-R1 düzeltilir düzeltilmez worker'ların blanket
-  edit allow'u state.json'a delege yazmayı mümkün kılar (W0.4 review notu). W0-R1
-  fix'iyle AYNI commit'te kapatılmalı.
+(boş — W0-R1 ve W0-R3 Wave 1'de kapatıldı, aşağıya bak.)
 
 ## TRACK (takip — düzeltilecek)
 
@@ -43,6 +29,32 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   sonra; append hatası (disk dolu) kararı persist edip tool'u fail ettirir, retry
   "no stage awaiting approval" der. Warning-note'a düşürülmeli. Ayrıca
   `OrgAudit.Entry.decision` serbest string (enum + "stop" olabilir).
+
+## Wave 1'de kapatıldı (feat/wave-1-budget, W1.0)
+
+- **W0-R1 — Org yazma yolu gerçek run'larda ÖLÜ (v1'den beri gizli Critical) — FIXED.**
+  Kök neden: `ceo.md`'nin `edit/bash: deny`'ı ve şeflerin `edit "*": deny`'ı, session
+  türetimiyle (`subagent-permissions.ts` `parentAgentDenies` + `kilocode/tool/task.ts`
+  `inherited()`) her alt session'a `"*" deny` olarak taşınıyordu; değerlendirme findLast
+  (session kuralları sonda) olduğundan şefin deliverables allow'unu ve worker'ın edit/bash
+  allow'unu YENİYORDU. Fix: yeni `KiloTask.declaredSubordinate(parent, child)` yüklemi —
+  parent'ın KENDİ ruleset'i task-deny-by-default + child için spesifik (wildcard olmayan)
+  bir allow taşıyorsa (yani `subordinates` frontmatter'ının ürettiği imza), o org edge'inde
+  parent'ın AGENT-seviyesi deny'ları artık child session'a taşınmıyor. Session-seviyesi
+  deny'lar ve plan-family (`ask`/`plan`/`architect`) forwarding'i DEĞİŞMEDİ — yalnız bu
+  spesifik ilişki gevşetildi. Birleşik-seam matrix testi (10 vaka,
+  `test/kilocode/organization/write-path.test.ts`) tam CEO→şef→worker yazma yolunu pinliyor.
+  **Bilinen sınır: fix'ten ÖNCE başlamış ve persist edilmiş run'ların session'ları
+  zehirli ruleset'i korur** — `task_id` ile resume, session permission'ını APPEND eder,
+  asla eski `"*" deny` kurallarını silmez. Yalnız fix'ten SONRA başlayan taze run'lar
+  (fresh session, `session.create`) düzeltilmiş yazma yoluna sahiptir. Eski bir run'ı
+  resume etmek isteyen kullanıcı yeni bir run başlatmalı.
+- **W0-R3 (W0-R1'e bağlı) — worker şablonlarına açık `.kilo/org/**` edit deny — FIXED.**
+  Altı edit-capable worker (data-layer-dev, swiftui-dev-1, swiftui-dev-2, unit-tester,
+  ui-tester, debugger) artık `edit: {"*": allow, ".kilo/org/**": deny,
+  "**/.kilo/org/**": deny}` taşıyor (deny kuralları LAST — findLast org yollarını kazanır;
+  son kuralın pattern'i "*" olmadığından edit tool'u worker'a hâlâ sunuluyor). W0-R1 fix'iyle
+  AYNI commit'te kapatıldı.
 
 ## Wave 0'da kapatıldı (feat/wave-0-hardening, 13 commit)
 
@@ -72,6 +84,12 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   CEO turn'ünü bloklar); persist edilen halt asıl mekanizma. Background şefler için doğru.
 - `orgEnabledCache` eviction'ı gerçek LRU değil (512 root pratikte imkânsız).
 - W0.6 "escapeFence usage notes" genişletmesi yapılmadı (guard satırları + testler var) — kozmetik.
+- **(W1.0)** Elle yazılmış, org şablonu OLMAYAN "manager" agent'lar (task-allowlist şekli:
+  kendi ruleset'i task-deny-by-default + spesifik non-wildcard allow) da bu relaxation'a
+  girer — `declaredSubordinate` yalnız İMZAYA bakıyor, "bu agent org-template'ten mi geldi"
+  diye bakmıyor. Kabul edilen davranış: aynı imza aynı güven ilişkisini ifade ediyor (kullanıcı
+  bilinçli olarak dar bir task-allowlist + child'a devredilen edit yetkisi kurmuş demektir).
+  Aynı güven alanı (trust domain) içinde çalıştığı için ek bir gate gerekmiyor.
 
 ## Ortam notları
 

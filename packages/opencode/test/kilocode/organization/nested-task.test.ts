@@ -7,6 +7,12 @@ function agent(permission: Agent.Info["permission"]): Agent.Info {
   return { name: "x", mode: "subagent", permission, options: {} } as Agent.Info
 }
 
+// kilocode_change start - W1.0: declaredSubordinate gate tests
+function namedAgent(name: string, permission: Agent.Info["permission"]): Agent.Info {
+  return { name, mode: "subagent", permission, options: {} } as Agent.Info
+}
+// kilocode_change end
+
 describe("KiloTask.nestedTask", () => {
   test("false for a plain worker (no task rules)", () => {
     expect(KiloTask.nestedTask(agent([]))).toBe(false)
@@ -66,6 +72,58 @@ describe("deriveSubagentSessionPermission canTask (unified on KiloTask.nestedTas
   })
   // kilocode_change end
 })
+
+// kilocode_change start - W1.0: KiloTask.declaredSubordinate gate (5 combos)
+describe("KiloTask.declaredSubordinate", () => {
+  test("false when there is no parent", () => {
+    expect(KiloTask.declaredSubordinate(undefined, "worker")).toBe(false)
+  })
+
+  test("false for plan-family parents even with a manufactured manager signature", () => {
+    const plan = namedAgent("plan", [
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "general", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(plan, "general")).toBe(false)
+
+    const ask = namedAgent("ask", [
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "general", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(ask, "general")).toBe(false)
+
+    const architect = namedAgent("architect", [
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "general", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(architect, "general")).toBe(false)
+  })
+
+  test("false when parent's own task,* evaluation is not deny (global-config wildcard allow shape)", () => {
+    const parent = namedAgent("chief", [
+      { permission: "task", pattern: "*", action: "allow" },
+      { permission: "task", pattern: "worker", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(false)
+  })
+
+  test("false when deny-by-default but no matching specific allow for this child", () => {
+    const parent = namedAgent("chief", [
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "other-worker", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(false)
+  })
+
+  test("true for the full manager signature: task deny-by-default + specific non-wildcard allow", () => {
+    const parent = namedAgent("chief", [
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "worker", action: "allow" },
+    ])
+    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(true)
+  })
+})
+// kilocode_change end
 
 describe("transitive permission ceiling across 3 levels (existing derive logic composes)", () => {
   test("a CEO edit deny survives CEO -> chief -> worker", () => {

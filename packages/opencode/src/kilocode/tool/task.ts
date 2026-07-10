@@ -5,6 +5,7 @@ import { Permission } from "@/permission"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Global } from "@opencode-ai/core/global"
 import * as Log from "@opencode-ai/core/util/log"
+import { Wildcard } from "@opencode-ai/core/util/wildcard" // kilocode_change - declaredSubordinate pattern matching
 import { ModelID, ProviderID } from "@/provider/schema"
 import type { Session } from "../../session/session"
 import type { Agent } from "../../agent/agent"
@@ -54,6 +55,27 @@ export namespace KiloTask {
     )
   }
 
+  // kilocode_change start - W1.0: declared-subordinate deny relaxation (restores org write path)
+  const PLAN_FAMILY = new Set(["ask", "plan", "architect"]) // keep in sync with plan-mode agent names
+
+  /** True when `parent` explicitly manages `child` as a declared subordinate:
+   * parent's own ruleset is task-deny-by-default with a specific non-wildcard allow
+   * matching the child. This is the signature the `subordinates` frontmatter expansion
+   * emits; global user config cannot manufacture it on ordinary agents (their merged
+   * ruleset ends with the defaults' allow, so evaluate(task,"*") is non-deny), and
+   * plan-family agents are excluded by name. Used to skip forwarding parent AGENT-level
+   * denies on org edges — parent SESSION denies always forward. */
+  export function declaredSubordinate(parent: Agent.Info | undefined, child: string): boolean {
+    if (!parent) return false
+    if (PLAN_FAMILY.has(parent.name.toLowerCase())) return false
+    if (Permission.evaluate("task", "*", parent.permission).action !== "deny") return false
+    const rule = parent.permission.findLast(
+      (r) => r.permission === "task" && r.pattern !== "*" && Wildcard.match(child, r.pattern),
+    )
+    return rule?.action === "allow"
+  }
+  // kilocode_change end
+
   /**
    * Build inherited permission ceilings from the calling agent.
    * Merges the static agent definition with the session's accumulated permissions
@@ -67,13 +89,26 @@ export namespace KiloTask {
    *
    * The caller must resolve `caller` (Agent.Info) and `session` (Session.Info)
    * before calling. This function is pure/synchronous.
+   *
+   * kilocode_change - W1.0: when `caller` explicitly declares `subagent` as a managed
+   * subordinate (see `declaredSubordinate`), the caller's own AGENT ruleset is excluded
+   * from the merge — only the parent SESSION's accumulated permissions still apply. This
+   * is what lets a chief's `edit: deny "*"` (needed so the chief itself cannot write app
+   * code) stop from forwarding into a worker session that must be able to write it.
    */
   export function inherited(input: {
     caller: Agent.Info
     session: Session.Info
     mcp: Config.Info["mcp"]
+    subagent?: Agent.Info // kilocode_change - W1.0
   }): Permission.Ruleset {
-    const rules = Permission.merge(input.caller.permission ?? [], input.session.permission ?? [])
+    // kilocode_change start - W1.0: skip the caller's own ruleset on a declared-subordinate edge
+    const skipCallerRuleset = declaredSubordinate(input.caller, input.subagent?.name ?? "")
+    const rules = Permission.merge(
+      skipCallerRuleset ? [] : (input.caller.permission ?? []),
+      input.session.permission ?? [],
+    )
+    // kilocode_change end
     const prefixes = Object.keys(input.mcp ?? {}).map((k) => k.replace(/[^a-zA-Z0-9_-]/g, "_") + "_")
     const isMcp = (p: string) => prefixes.some((prefix) => p.startsWith(prefix))
     return rules.filter(

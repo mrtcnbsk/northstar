@@ -3,7 +3,10 @@ description: Debugger worker — root-cause analysis and minimal fixes (build/te
 mode: subagent
 model: anthropic/claude-sonnet-5
 permission:
-  edit: allow
+  edit:
+    "*": allow
+    ".kilo/org/**": deny
+    "**/.kilo/org/**": deny
   bash:
     "*": deny
     "swift build*": allow
