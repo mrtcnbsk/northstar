@@ -131,14 +131,23 @@ export namespace OrgState {
     return runID.includes("/") || runID.includes("\\") || runID.includes("..")
   }
 
+  /**
+   * Thrown by `read` when a run genuinely does not exist (traversal-rejected runID, or ENOENT on
+   * its state.json). Distinguishes "not found" from "found but corrupt/unreadable" (a plain Error
+   * or a Zod/SyntaxError from a malformed/schema-invalid state.json) so callers -- e.g. the
+   * org-runs HTTP API -- can map the former to 404 and the latter to a 500 instead of silently
+   * masking corruption as absence. Message text is unchanged from before this type existed.
+   */
+  export class NotFound extends Error {}
+
   export async function read(projectDir: string, runID: string): Promise<Run> {
-    if (isTraversal(runID)) throw new Error(`Unknown org run "${runID}": expected ${stateFile(projectDir, runID)}`)
+    if (isTraversal(runID)) throw new NotFound(`Unknown org run "${runID}": expected ${stateFile(projectDir, runID)}`)
     const file = stateFile(projectDir, runID)
     const text = await Bun.file(file)
       .text()
       .catch((e: unknown) => {
         if ((e as NodeJS.ErrnoException)?.code === "ENOENT") {
-          throw new Error(`Unknown org run "${runID}": expected ${file}`)
+          throw new NotFound(`Unknown org run "${runID}": expected ${file}`)
         }
         throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
       })

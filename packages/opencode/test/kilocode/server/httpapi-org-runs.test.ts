@@ -1,4 +1,6 @@
 // kilocode_change - new file
+import path from "path"
+import { promises as fs } from "node:fs"
 import { afterEach, describe, expect, test } from "bun:test"
 import { ConfigProvider, Layer } from "effect"
 import { HttpRouter } from "effect/unstable/http"
@@ -175,5 +177,106 @@ describe("HttpApi org-runs", () => {
       headers: { "x-kilo-directory": tmp.path },
     })
     expect(response.status).toBe(404)
+  })
+
+  test("GET /org-runs skips a run with truncated (unparsable) state.json, keeps healthy runs, newest first", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+
+    const completedID = await seedCompletedRun(tmp.path)
+    await new Promise((r) => setTimeout(r, 1100))
+    const awaitingID = await seedAwaitingRun(tmp.path)
+
+    // A third run directory whose state.json is truncated mid-write -- simulates a crash during save.
+    const corruptID = "20260709-999999-corrupt-truncated"
+    await Bun.write(path.join(tmp.path, ".kilo", "org", "runs", corruptID, "state.json"), "{ not json")
+
+    const response = await api.request(OrgRunsPaths.list, {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(200)
+    const body = rec(await response.json())
+    const runs = body.runs as Json[]
+    expect(runs.map((r) => r.runID)).toEqual([awaitingID, completedID])
+    expect(runs.some((r) => r.runID === corruptID)).toBe(false)
+  })
+
+  test("GET /org-runs skips a run whose state.json is valid JSON but schema-invalid", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+
+    const completedID = await seedCompletedRun(tmp.path)
+    await new Promise((r) => setTimeout(r, 1100))
+    const awaitingID = await seedAwaitingRun(tmp.path)
+
+    const invalidID = "20260709-999998-schema-invalid"
+    await Bun.write(
+      path.join(tmp.path, ".kilo", "org", "runs", invalidID, "state.json"),
+      JSON.stringify({ runID: invalidID, status: "bogus-status" }),
+    )
+
+    const response = await api.request(OrgRunsPaths.list, {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(200)
+    const body = rec(await response.json())
+    const runs = body.runs as Json[]
+    expect(runs.map((r) => r.runID)).toEqual([awaitingID, completedID])
+    expect(runs.some((r) => r.runID === invalidID)).toBe(false)
+  })
+
+  test("GET /org-runs skips a stray run subdirectory with no state.json at all", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+
+    const completedID = await seedCompletedRun(tmp.path)
+
+    const strayID = "20260709-999997-stray-empty-dir"
+    await fs.mkdir(path.join(tmp.path, ".kilo", "org", "runs", strayID), { recursive: true })
+
+    const response = await api.request(OrgRunsPaths.list, {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(200)
+    const body = rec(await response.json())
+    const runs = body.runs as Json[]
+    expect(runs.map((r) => r.runID)).toEqual([completedID])
+  })
+
+  test("GET /org-runs/:runID returns 500 (not 404) for a run that exists but has corrupt state.json", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+
+    const corruptID = "20260709-999996-corrupt-detail"
+    await Bun.write(path.join(tmp.path, ".kilo", "org", "runs", corruptID, "state.json"), "{ not json")
+
+    const response = await api.request(OrgRunsPaths.detail.replace(":runID", corruptID), {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(500)
+    const text = await response.text()
+    // Must not leak the absolute filesystem path of state.json in the response body.
+    expect(text).not.toContain(tmp.path)
+    expect(text).not.toContain("state.json")
+  })
+
+  test("GET /org-runs/:runID degrades gracefully when approvals.json is corrupt: 200 with empty audit", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+    const runID = await seedAwaitingRun(tmp.path)
+
+    // Corrupt the audit file after seeding a healthy run.
+    await Bun.write(path.join(tmp.path, ".kilo", "org", "runs", runID, "approvals.json"), "{ not json")
+
+    const response = await api.request(OrgRunsPaths.detail.replace(":runID", runID), {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(200)
+    const body = rec(await response.json())
+    expect(body.audit).toEqual([])
+    const run = rec(body.run)
+    expect(run.runID).toBe(runID)
+    const stages = body.stages as Json[]
+    expect(stages.length).toBe(2)
   })
 })
