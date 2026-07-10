@@ -13,7 +13,7 @@ import { described } from "@/server/routes/instance/httpapi/groups/metadata"
 // zod OrgState/OrgAudit schemas so the API surface is decoupled from internal storage details.
 
 const OrgRunStatus = Schema.Literals(["active", "halted", "completed"])
-const StageStatus = Schema.Literals(["pending", "running", "awaiting_approval", "completed", "failed"])
+const StageStatus = Schema.Literals(["pending", "running", "awaiting_approval", "completed", "skipped", "failed"])
 
 const OrgRunSummary = Schema.Struct({
   runID: Schema.String,

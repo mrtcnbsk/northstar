@@ -3,10 +3,17 @@ import path from "path"
 import { readdir } from "node:fs/promises"
 import z from "zod"
 import { Filesystem } from "../../util/filesystem"
-import type { OrgSchema } from "./schema"
+import { OrgSchema } from "./schema"
 
 export namespace OrgState {
-  export const StageStatus = z.enum(["pending", "running", "awaiting_approval", "completed", "failed"])
+  export const StageStatus = z.enum([
+    "pending",
+    "running",
+    "awaiting_approval",
+    "completed",
+    "skipped",
+    "failed",
+  ])
   export type StageStatus = z.output<typeof StageStatus>
 
   export const Stage = z.object({
@@ -75,6 +82,47 @@ export namespace OrgState {
       currentStage: current?.[0] ?? null,
       stageCount: entries.length,
     }
+  }
+
+  /** A requirement is satisfied for readiness purposes once its stage is completed OR skipped. */
+  function isSatisfied(run: Run, stageName: string): boolean {
+    const status = run.stages[stageName]?.status
+    return status === "completed" || status === "skipped"
+  }
+
+  /**
+   * Stage names whose status is "pending" and whose every resolved `requires` entry is
+   * "completed" or "skipped" (a stage with `requires: []` is ready as soon as it's pending).
+   * Pure - no I/O. Iterates in `org.pipeline` order for deterministic output.
+   */
+  export function readyStages(org: OrgSchema.Organization, run: Run): string[] {
+    const requiresGraph = OrgSchema.resolveRequires(org)
+    return org.pipeline
+      .filter((p) => run.stages[p.stage]?.status === "pending")
+      .filter((p) => (requiresGraph[p.stage] ?? []).every((dep) => isSatisfied(run, dep)))
+      .map((p) => p.stage)
+  }
+
+  /** Stage names currently "running", in pipeline order. Pure - no I/O. */
+  export function runningStages(org: OrgSchema.Organization, run: Run): string[] {
+    return org.pipeline.filter((p) => run.stages[p.stage]?.status === "running").map((p) => p.stage)
+  }
+
+  /** Stage names currently "awaiting_approval", in pipeline order. Pure - no I/O. */
+  export function awaitingStages(org: OrgSchema.Organization, run: Run): string[] {
+    return org.pipeline.filter((p) => run.stages[p.stage]?.status === "awaiting_approval").map((p) => p.stage)
+  }
+
+  /**
+   * Stage names that are "pending" but NOT ready - at least one resolved `requires` entry is not
+   * yet completed/skipped. Pure - no I/O. Iterates in `org.pipeline` order.
+   */
+  export function blockedStages(org: OrgSchema.Organization, run: Run): string[] {
+    const requiresGraph = OrgSchema.resolveRequires(org)
+    return org.pipeline
+      .filter((p) => run.stages[p.stage]?.status === "pending")
+      .filter((p) => !(requiresGraph[p.stage] ?? []).every((dep) => isSatisfied(run, dep)))
+      .map((p) => p.stage)
   }
 
   export function runsDir(projectDir: string): string {
