@@ -186,4 +186,60 @@ describe("org-template consistency", () => {
     }
   })
   // kilocode_change end
+
+  // kilocode_change start - W2.6: xcode_build/xcode_test/crash_symbolicate pre-grants
+  const BUILD_TOOL_GRANTS: Record<string, ("xcode_build" | "xcode_test" | "crash_symbolicate")[]> = {
+    "swiftui-dev-1": ["xcode_build"],
+    "swiftui-dev-2": ["xcode_build"],
+    "data-layer-dev": ["xcode_build"],
+    "unit-tester": ["xcode_build", "xcode_test"],
+    "ui-tester": ["xcode_build", "xcode_test"],
+    debugger: ["xcode_build", "xcode_test", "crash_symbolicate"],
+  }
+  const BUILD_TOOL_KEYS = ["xcode_build", "xcode_test", "crash_symbolicate"] as const
+
+  test("dev/test/debug workers hold exactly their granted xcode_build/xcode_test/crash_symbolicate keys (real evaluator)", async () => {
+    const { agents } = await loadTemplate()
+    const { Permission } = await import("../../../src/permission")
+    for (const [name, granted] of Object.entries(BUILD_TOOL_GRANTS)) {
+      const worker = agents[name]
+      expect(worker, `worker ${name} must exist in the template`).toBeTruthy()
+      const ruleset = Permission.fromConfig(worker.permission ?? {})
+      for (const key of BUILD_TOOL_KEYS) {
+        const expected = granted.includes(key) ? "allow" : "ask"
+        expect(
+          Permission.evaluate(key, "*", ruleset).action,
+          `worker ${name} permission "${key}" expected ${expected}`,
+        ).toBe(expected)
+      }
+    }
+  })
+
+  test("consultants/chiefs/CEO do not hold xcode_build/xcode_test/crash_symbolicate grants (default ask, real evaluator)", async () => {
+    const { org, agents } = await loadTemplate()
+    const { Permission } = await import("../../../src/permission")
+    const granted = new Set(Object.keys(BUILD_TOOL_GRANTS))
+    for (const [name, agent] of Object.entries(agents)) {
+      if (granted.has(name)) continue
+      const ruleset = Permission.fromConfig(agent.permission ?? {})
+      for (const key of BUILD_TOOL_KEYS) {
+        expect(
+          Permission.evaluate(key, "*", ruleset).action,
+          `agent ${name} must not hold "${key}" (not a dev/test/debug worker)`,
+        ).not.toBe("allow")
+      }
+    }
+    // Sanity: the grant map itself only names actual dev/test/debug workers, not chiefs/CEO/consultants.
+    const chiefs = new Set(Object.values(org.departments).map((d) => d.chief))
+    for (const name of granted) {
+      expect(chiefs.has(name), `${name} in BUILD_TOOL_GRANTS must not be a chief`).toBe(false)
+      expect(name === org.ceo, `${name} in BUILD_TOOL_GRANTS must not be the CEO`).toBe(false)
+    }
+  })
+
+  test("roster stays green: still 58 agents after the W2.6 permission/prompt edits", async () => {
+    const { agents } = await loadTemplate()
+    expect(Object.keys(agents).length).toBe(58)
+  })
+  // kilocode_change end
 })

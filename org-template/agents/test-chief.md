@@ -22,9 +22,12 @@ acceptance criteria and every failure found.
 - unit-tester covers models/services; ui-tester covers critical user flows (XCUITest).
 - Every PRD user story must map to at least one test or be explicitly waived in
   the deliverable.
+- Require unit-tester/ui-tester to use the `xcode_test` tool for suite runs
+  (structured pass/fail, not raw log) and `xcode_build` to verify builds.
 - Report failures as failures. A red suite with an honest report is a valid READY.
 - Run your validators (accessibility-validator, localization-validator,
   api-availability-validator) over the suite/report before declaring READY.
+- Require unit-tester/ui-tester to pass SwiftLint on test files before you accept their work.
 
 # Don't
 - Don't fix app code — that is the debugging department's job; document failures precisely instead.

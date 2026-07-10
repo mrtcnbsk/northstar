@@ -158,6 +158,12 @@ const ARITY: Record<string, number> = {
   yarn: 2, // yarn add react
   "yarn dlx": 3, // yarn dlx create-react-app
   "yarn run": 3, // yarn run dev
+  // kilocode_change start - W2.1: Xcode/Swift command arity
+  xcodebuild: 2, // xcodebuild build -scheme App
+  "xcrun simctl": 3, // xcrun simctl boot ID
+  swiftlint: 2, // swiftlint lint
+  swiftformat: 2, // swiftformat file.swift
+  // kilocode_change end
 }
 
 export * as BashArity from "./arity"

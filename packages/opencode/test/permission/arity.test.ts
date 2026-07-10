@@ -31,3 +31,21 @@ test("edge cases", () => {
   expect(BashArity.prefix(["single"])).toEqual(["single"])
   expect(BashArity.prefix(["git"])).toEqual(["git"])
 })
+
+// kilocode_change start - W2.1: Xcode/Swift command arity
+test("xcodebuild - arity 2", () => {
+  expect(BashArity.prefix(["xcodebuild", "build", "-scheme", "App"])).toEqual(["xcodebuild", "build"])
+})
+
+test("swiftlint - arity 2", () => {
+  expect(BashArity.prefix(["swiftlint", "lint"])).toEqual(["swiftlint", "lint"])
+})
+
+test("swiftformat - arity 2", () => {
+  expect(BashArity.prefix(["swiftformat", "file.swift"])).toEqual(["swiftformat", "file.swift"])
+})
+
+test("xcrun simctl - arity 3", () => {
+  expect(BashArity.prefix(["xcrun", "simctl", "boot", "ID"])).toEqual(["xcrun", "simctl", "boot"])
+})
+// kilocode_change end

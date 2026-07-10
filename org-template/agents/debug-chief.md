@@ -25,7 +25,10 @@ Output: fixes for every reproducible failure and a deliverable logging root caus
   siri-expert) over apple-docs for framework-specific failures; use apple-docs
   for general platform questions. Run swift6-migration-validator over fixes that
   touch concurrency before declaring READY.
+- Require debugger to use `xcode_build`/`xcode_test` to verify fixes and
+  `crash_symbolicate` to resolve crash traces — structured tools over raw log.
 - Require the full test suite green (or explicitly waived items) before READY.
+- Require debugger to re-run SwiftLint on changed files before you accept a fix.
 
 # Don't
 - Don't accept symptom-patches; if the root cause is unclear, the fix is not done.

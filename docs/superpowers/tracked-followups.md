@@ -110,6 +110,54 @@ aşınca HARD halt (bütçe haltReason + audit stop kaydı, sonraki advance halt
 run'da bir stage retries+1 chief run boyunca tamamlanamayınca "deliverable never produced" ile
 fail oluyor.
 
+## Wave 2'de kapatıldı (feat/wave-2-build, W2.1-W2.7)
+
+Wave 2 = build & test runtime: şef/worker'ların gerçek Xcode toolchain'ini yapılandırılmış,
+agent'ın işlem yapabileceği sonuçlarla sürdüğü tool katmanı.
+
+- **W2.1 — arity girdileri.** Yeni tool'lar için tool-arity/registry girdileri.
+- **W2.2 — `xcode_build` yapılandırılmış tool.** `xcodebuild build`'i sürer; streaming,
+  bellek-sınırlı parser (`StreamingXcodeParser`, MAX_RETAINED_TAIL_BYTES tail + MAX_DIAGNOSTICS
+  cap; hiçbir diagnostic kaybolmaz — megabaytlarca gürültünün ardındaki hata bile yakalanır) →
+  `{ok, status:"build_succeeded"|"build_failed"|"spawn_failed"|"invalid_args", errors:[{file,line,column,severity,message}], warnings, rawLogPath}`.
+  Ham log yalnız gerektiğinde diske stream'lenir (temiz build hiç log yazmaz — disk hijyeni).
+- **W2.3 — `xcode_test` yapılandırılmış tool.** `xcodebuild test`'i sürer; ayrı streaming parser
+  (build-vs-test durum takibi aynı olmadığı için bilinçli yapısal kopya) →
+  `{ok, status:"tests_passed"|"tests_failed"|"build_failed"|"spawn_failed"|"invalid_args", passed, failed:[{test,file,line,message}], skipped, buildErrors, rawLogPath}`.
+  Nonzero exit her zaman kazanır (metin "TEST SUCCEEDED" dese bile); test-öncesi derleme hatası
+  `tests_failed` değil `build_failed` olarak raporlanır.
+- **W2.4 — swiftlint/swiftformat config.** Lint/format yapılandırması.
+- **W2.5 — `crash_symbolicate` graceful degradation.** Bir crash log + dSYM'i atos ile
+  sembolleştirir; atos yoksa / dSYM bulunamazsa / timeout olursa ASLA çökmez, ham (sembolsüz)
+  trace'i açık bir not ile döner (`framesResolved`, `unresolvedNote`). Never-crash sözleşmesi.
+- **W2.6 — tool grant'ları + argv denylist.** Worker'lara tool grant'ları; `xcode-argv.ts`
+  blast-radius doğrulaması — `-derivedDataPath`/`-resultBundlePath` gibi tehlikeli extraArg'lar,
+  path traversal ve mutlak yollar spawn'dan ÖNCE reddedilir (`{status:"invalid_args"}`, süreç
+  hiç başlatılmaz).
+- **W2.7 — kill-orDie parity fix + Wave 2 exit testi.** W2.5 review'unda crash-symbolicate.ts'te
+  bulunup düzeltilen gizli defekt (timeout dalındaki başarısız `handle.kill(...).pipe(Effect.orDie)`
+  — orDie, defect-kör `Effect.catch`'ten kaçıp tool'u çökertir) AYNEN xcode-build.ts (~satır 356)
+  ve xcode-test.ts (~satır 479) içinde de vardı. İkisi de crash-symbolicate'in düzeltilmiş,
+  defect-güvenli formuna (`.pipe(Effect.catchCause(() => Effect.void))`) geçirildi; timeout dalı
+  artık yapılandırılmış timeout sonucunu kill'in başarısından BAĞIMSIZ döndürüyor. Her iki tool'a
+  TestClock + başarısız-kill stub'lı timeout+kill-failure testi eklendi (eski orDie'a karşı RED,
+  fix sonrası GREEN — ikisi de doğrulandı). Ayrıca tool-seviyesi Wave 2 exit testi
+  (`test/kilocode/tool/wave2-exit.test.ts`, fixture-driven, Xcode gerektirmez): beş exit kriteri
+  bir arada — build_failed (işlenebilir errors), build_succeeded, tests_failed (failed+passed),
+  crash_symbolicate (framesResolved>0), argv denylist (invalid_args, spawn yok). Org-run-seviyesi
+  exit ispatı org suite'inde.
+
+**SNR-deferred (Wave 2'de bilinçli ertelendi):** log aggregation (birden çok tool çıktısının
+toplulaştırılması); SourceKit-LSP entegrasyonu; `xcode_test`'te swift-test (SwiftPM `swift test`)
+desteği — şu an yalnız `xcodebuild test`; XCTSkip skipped-count parse'ı (`skipped` hep 0 raporlanıyor,
+XCTSkip sayımı çıkarılmıyor). Hepsi ertelendi, doğruluk sorunu değil.
+
+**Gerçek-Xcode CI boşluğu (çözülmedi):** üç tool da TAMAMEN fixture-tested — ChildProcessSpawner
+stub'ı ile gerçek `xcodebuild`/`atos` süreci hiç çalıştırılmıyor. macOS+Xcode'lu bir CI job'ı (ya da
+yerel bir çalıştırma) bunları gerçek toolchain'e karşı egzersiz ederdi; bu ortamda (Xcode yok/CI yok)
+yapılmadı. Parser'lar gerçek xcodebuild/atos çıktı fixture'larına göre yazıldı ama canlı bir sürüm
+drift'ini yalnız gerçek bir çalıştırma yakalar.
+
 ## Wave 0'da kapatıldı (feat/wave-0-hardening, 13 commit)
 
 - **#1** derinlik guard'ı artık `ctx.ask`'ten ÖNCE (`guardFrom` fetch'lenmiş parent'ı
@@ -154,3 +202,21 @@ fail oluyor.
 - `bun.lock` yerel drift'i (kilo-jetbrains 7.4.4→7.4.5) commit'lere alınmıyor
   (Wave 0 commit'lerinde de yok — doğrulandı).
 - Tam test sweep'i `bun test` ile değil `bun run script/test-runner.ts` ile (izole runner).
+
+## TRACK (Wave 2 kapanış review'u — feat/wave-2-build, WAVE-MERGE: READY-WITH-TRACKED-FOLLOWUPS)
+
+- **W2-R1 (Minor) — SwiftLint/SwiftFormat ruleset dosyası YOK.** W2.4 `swiftlint*`/`swiftformat*`
+  allowlist grant'ları ve "pass `swiftlint --strict`" Do-line'ları ekledi ama repoda hiçbir
+  `.swiftlint.yml`/`.swiftformat` config yok. Worker'lar SwiftLint'i VARSAYILAN kurallarla çalıştırır
+  (ya da SwiftLint kurulu değilse no-op/fail). Plan'ın "config-first"i "agent'ları yapılandır, tool
+  yazma" demekti — yani plan LAFZINA uygun ve graceful degrade ediyor. Yine de ruleset'siz bir
+  "--strict" gate okunduğundan daha yumuşak. Takip: baseline bir ruleset ship et ya da
+  "proje kendi ruleset'ini sağlar" diye açıkça belgele. Merge blocker değil.
+- **W2-R2 (TRACK, mimari) — paylaşılan `xcodebuild-exec` primitive'i çıkar.** xcode-build.ts ve
+  xcode-test.ts spawn/scoped-run/drain/raceAll-timeout/lazy-disk-sink/`catchCause`-kill iskeletini
+  + neredeyse özdeş streaming parser'ı kopyalıyor. Wave close'da copy-not-extract SAVUNULABİLİR
+  (parser'lar gerçekten farklı; crash_symbolicate zaten basit exec kullanıyor — yalnız 2/3 call
+  site birleşir). Ama parity fix (W2.7) bu iskelete İKİ KEZ elle uygulandı; Wave 3 dördüncü bir
+  xcodebuild-şekilli tool eklemeden ÖNCE `run(command,{timeoutMs,onChunk,sink}) → Ran|SpawnFailed`
+  (catchCause-kill gömülü) primitive'ini çıkarmak ROI-pozitif olur. Doğruluk sorunu değil (kod
+  doğru, test'li, taze senkronize).

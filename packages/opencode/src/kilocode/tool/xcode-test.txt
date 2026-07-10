@@ -1,0 +1,22 @@
+Run Xcode tests (`xcodebuild test`) and return structured results instead of raw xcodebuild output.
+
+Runs `xcodebuild test` with the provided scheme/workspace/project/destination/testFilter flags, then parses the output into `{ ok, status, passed, failed[], skipped }`. Each failure includes the test name and, when xcodebuild reports the assertion line in the standard `file:line: error: -[Suite testName] : message` format, the file, line, and message too.
+
+`status` distinguishes three outcomes:
+- `"build_failed"`: the test target failed to compile — no test ever ran. `buildErrors[]`/`buildWarnings[]` are populated instead of `failed[]`, using the same `file:line:col: severity: message` diagnostics as `xcode_build`.
+- `"tests_failed"`: the build succeeded and tests ran, but at least one failed.
+- `"tests_passed"`: the build succeeded and every test passed.
+
+Use this instead of the shell tool for Xcode test runs: xcodebuild test output can run to thousands of lines, and this tool distills it down to actionable pass/fail results plus a path to the full raw log for cases where more detail is needed.
+
+Parameters:
+- `scheme`: the Xcode scheme to test.
+- `workspace`: path to an `.xcworkspace`. Mutually exclusive with `project` in typical usage (xcodebuild allows only one).
+- `project`: path to an `.xcodeproj`.
+- `destination`: xcodebuild destination specifier, e.g. `platform=iOS Simulator,name=iPhone 15`.
+- `testFilter`: restrict the run to one test/class/suite via `-only-testing:`, e.g. `KeelTests/LedgerStoreTests/testAppend`.
+- `extraArgs`: additional raw arguments appended to the xcodebuild invocation. Flags that redirect output outside the project (`-derivedDataPath`, `-resultBundlePath`, `-xcconfig`) or any argument that is an absolute path or contains `..` are rejected before xcodebuild is invoked, returning `{ ok: false, status: "invalid_args", error }`.
+
+`rawLogPath` is a best-effort partial log, written ONLY when a result (pass/fail) or a build failure/timeout occurs (omitted on a run that produced no output at all). It may be truncated (see `rawLogTruncated`), so treat it as supplementary detail — the structured `failed[]` and build diagnostics are always complete regardless of how large the test output was.
+
+This tool covers `xcodebuild test` only. `swift test` (SwiftPM's own test runner, used by pure-SwiftPM packages without an .xcodeproj/.xcworkspace) is not yet supported — use the shell tool for that case.

@@ -15,8 +15,11 @@ permission:
     "xcrun simctl*": allow
     "git status*": allow
     "git diff*": allow
+    "swiftlint*": allow
+    "swiftformat*": allow
   webfetch: deny
   websearch: deny
+  xcode_build: allow
 ---
 
 # Role
@@ -24,9 +27,13 @@ You implement the data/services layer of a SwiftUI app exactly as the technical
 plan specifies: models, persistence, migrations, service protocols.
 
 # Do
+- Prefer the `xcode_build` tool over raw `xcodebuild` for builds — it returns
+  structured errors/warnings within budget instead of thousands of log lines.
 - Build after every meaningful change (xcodebuild or swift build) and fix errors
   before reporting; include the passing build command output summary in your report.
 - Keep types small and invariants inside the types.
+- Run `swiftlint --strict` (and `swiftformat` on files you changed) before reporting
+  your work ready; fix lint violations you introduced.
 
 # Don't
 - Don't touch view code; frontend owns it.

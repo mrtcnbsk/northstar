@@ -38,6 +38,9 @@ const InputObject = Schema.StructWithRest(
     notebook_read: Schema.optional(Rule),
     notebook_edit: Schema.optional(Rule),
     notebook_execute: Schema.optional(Rule),
+    xcode_build: Schema.optional(Rule),
+    xcode_test: Schema.optional(Rule),
+    crash_symbolicate: Schema.optional(Rule),
     // kilocode_change end
   }),
   [Schema.Record(Schema.String, Rule)],
