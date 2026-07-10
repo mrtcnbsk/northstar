@@ -6,6 +6,7 @@ import { ChildProcess } from "effect/unstable/process"
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import * as Truncate from "@/tool/truncate"
+import { validateExtraArgs } from "./xcode-argv"
 import DESCRIPTION from "./xcode-test.txt"
 
 // Test runs can legitimately run long (large suites, UI tests, simulator boot time). 10 minutes
@@ -66,6 +67,19 @@ export type ParsedTest = {
   // Test Case results exist at all; reuses the build-diagnostic parse for that case.
   buildErrors: BuildDiagnostic[]
   buildWarnings: BuildDiagnostic[]
+}
+
+// Shared metadata shape across every execute() return path (invalid args, spawn failure, build/test
+// outcome) — Tool.define infers execute()'s return type from its first `return`, so every branch
+// must satisfy one common type rather than each narrowing independently.
+export type XcodeTestMeta = {
+  ok: boolean
+  status: "invalid_args" | "spawn_failed" | "build_failed" | "tests_failed" | "tests_passed"
+  error?: string
+  passed?: number
+  failedCount?: number
+  rawLogPath?: string
+  durationMs?: number
 }
 
 const BUILD_DIAGNOSTIC_RE = /^(.+?):(\d+):(\d+): (error|warning): (.+)$/
@@ -378,6 +392,16 @@ export const XcodeTestTool = Tool.define(
           const cwd = instance.directory
           const args = buildTestArgs(params)
 
+          // Reject path-escaping/blast-radius-widening extraArgs BEFORE prompting for permission
+          // or spawning xcodebuild: this is a hard input-validation failure, not something a
+          // permission grant should be able to bless. See xcode-argv.ts for the denylist rationale.
+          const argvError = validateExtraArgs(params.extraArgs)
+          if (argvError) {
+            const title = params.scheme ? `xcodebuild test: ${params.scheme}` : "xcodebuild test"
+            const metadata: XcodeTestMeta = { ok: false, status: "invalid_args", error: argvError }
+            return { title, output: JSON.stringify(metadata), metadata }
+          }
+
           yield* ctx.ask({
             permission: "xcode_test",
             patterns: [params.scheme ?? "*"],
@@ -482,15 +506,6 @@ export const XcodeTestTool = Tool.define(
           const outcome: Ran | SpawnFailed = yield* run
           const durationMs = Date.now() - start
 
-          type XcodeTestMeta = {
-            ok: boolean
-            status: "spawn_failed" | "build_failed" | "tests_failed" | "tests_passed"
-            error?: string
-            passed?: number
-            failedCount?: number
-            rawLogPath?: string
-            durationMs: number
-          }
           const title = params.scheme ? `xcodebuild test: ${params.scheme}` : "xcodebuild test"
 
           if (outcome.kind === "spawn_failed") {

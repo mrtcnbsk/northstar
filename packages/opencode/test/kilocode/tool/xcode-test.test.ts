@@ -371,11 +371,11 @@ const baseCtx = {
   ask: () => Effect.void,
 }
 
-const runExecute = (spawner: ChildProcessSpawner.ChildProcessSpawner["Service"]) =>
+const runExecute = (spawner: ChildProcessSpawner.ChildProcessSpawner["Service"], params: Record<string, unknown> = { scheme: "Keel" }) =>
   Effect.gen(function* () {
     const info = yield* XcodeTestTool
     const tool = yield* info.init()
-    return yield* tool.execute({ scheme: "Keel" }, baseCtx as any)
+    return yield* tool.execute(params as any, baseCtx as any)
   }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
 
 describe("XcodeTestTool execute: spawn failure vs build failure vs test outcomes", () => {
@@ -454,3 +454,50 @@ describe("XcodeTestTool execute: spawn failure vs build failure vs test outcomes
     }),
   )
 })
+
+// kilocode_change start - W2.6: extraArgs blast-radius validation (see xcode-argv.ts)
+describe("XcodeTestTool execute: extraArgs validation", () => {
+  harness.instance("a disallowed extraArg (-resultBundlePath) yields status:invalid_args and NEVER spawns xcodebuild", () =>
+    Effect.gen(function* () {
+      let spawnCalled = false
+      const spawner = ChildProcessSpawner.make(() => {
+        spawnCalled = true
+        return Effect.succeed(fakeHandle(Stream.empty, 0))
+      })
+      const result = yield* runExecute(spawner, { scheme: "Keel", extraArgs: ["-resultBundlePath", "/tmp/evil"] })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.status).toBe("invalid_args")
+      expect(summary.error).toBe("disallowed extraArg: -resultBundlePath")
+      expect(spawnCalled).toBe(false)
+      expect(result.metadata.status).toBe("invalid_args")
+    }),
+  )
+
+  harness.instance("an absolute-path extraArg yields status:invalid_args and NEVER spawns xcodebuild", () =>
+    Effect.gen(function* () {
+      let spawnCalled = false
+      const spawner = ChildProcessSpawner.make(() => {
+        spawnCalled = true
+        return Effect.succeed(fakeHandle(Stream.empty, 0))
+      })
+      const result = yield* runExecute(spawner, { scheme: "Keel", extraArgs: ["/etc/passwd"] })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.status).toBe("invalid_args")
+      expect(spawnCalled).toBe(false)
+    }),
+  )
+
+  harness.instance("a benign extraArg (-quiet) is allowed through and xcodebuild is spawned normally", () =>
+    Effect.gen(function* () {
+      const all = Stream.make(encoder.encode(ALL_PASS_FIXTURE))
+      const spawner = ChildProcessSpawner.make(() => Effect.succeed(fakeHandle(all, 0)))
+      const result = yield* runExecute(spawner, { scheme: "Keel", extraArgs: ["-quiet"] })
+      const summary = JSON.parse(result.output)
+      expect(summary.status).toBe("tests_passed")
+      expect(summary.ok).toBe(true)
+    }),
+  )
+})
+// kilocode_change end

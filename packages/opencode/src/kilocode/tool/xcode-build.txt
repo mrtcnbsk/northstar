@@ -10,6 +10,6 @@ Parameters:
 - `project`: path to an `.xcodeproj`.
 - `configuration`: build configuration, defaults to `Debug`.
 - `destination`: xcodebuild destination specifier, e.g. `platform=iOS Simulator,name=iPhone 15`.
-- `extraArgs`: additional raw arguments appended to the xcodebuild invocation.
+- `extraArgs`: additional raw arguments appended to the xcodebuild invocation. Flags that redirect output outside the project (`-derivedDataPath`, `-resultBundlePath`, `-xcconfig`) or any argument that is an absolute path or contains `..` are rejected before xcodebuild is invoked, returning `{ ok: false, status: "invalid_args", error }`.
 
 `rawLogPath` is a best-effort partial log, written ONLY when diagnostics or a build failure/timeout occur (omitted on a clean, warning-free success). It may be truncated (see `rawLogTruncated`), so treat it as supplementary detail — the structured `errors[]` and `warnings[]` are always complete regardless of how large the build output was.

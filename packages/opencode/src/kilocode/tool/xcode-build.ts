@@ -6,6 +6,7 @@ import { ChildProcess } from "effect/unstable/process"
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import * as Truncate from "@/tool/truncate"
+import { validateExtraArgs } from "./xcode-argv"
 import DESCRIPTION from "./xcode-build.txt"
 
 // Builds can legitimately run long (clean builds, large workspaces, CI-grade schemes).
@@ -56,6 +57,19 @@ export type ParsedBuild = {
   warnings: Diagnostic[]
   errorTruncated: boolean
   warningTruncated: boolean
+}
+
+// Shared metadata shape across every execute() return path (invalid args, spawn failure, build
+// outcome) — Tool.define infers execute()'s return type from its first `return`, so every branch
+// must satisfy one common type rather than each narrowing independently.
+export type XcodeBuildMeta = {
+  ok: boolean
+  status: "invalid_args" | "spawn_failed" | "build_failed" | "build_succeeded"
+  error?: string
+  errorCount?: number
+  warningCount?: number
+  rawLogPath?: string
+  durationMs?: number
 }
 
 const DIAGNOSTIC_RE = /^(.+?):(\d+):(\d+): (error|warning): (.+)$/
@@ -252,6 +266,16 @@ export const XcodeBuildTool = Tool.define(
           const cwd = instance.directory
           const args = buildArgs(params)
 
+          // Reject path-escaping/blast-radius-widening extraArgs BEFORE prompting for permission
+          // or spawning xcodebuild: this is a hard input-validation failure, not something a
+          // permission grant should be able to bless. See xcode-argv.ts for the denylist rationale.
+          const argvError = validateExtraArgs(params.extraArgs)
+          if (argvError) {
+            const title = params.scheme ? `xcodebuild: ${params.scheme}` : "xcodebuild"
+            const metadata: XcodeBuildMeta = { ok: false, status: "invalid_args", error: argvError }
+            return { title, output: JSON.stringify(metadata), metadata }
+          }
+
           yield* ctx.ask({
             permission: "xcode_build",
             patterns: [params.scheme ?? "*"],
@@ -361,16 +385,6 @@ export const XcodeBuildTool = Tool.define(
           const outcome: Ran | SpawnFailed = yield* run
           const durationMs = Date.now() - start
 
-          // Shared metadata shape so both the spawn-failure and build branches unify to one type.
-          type XcodeMeta = {
-            ok: boolean
-            status: "spawn_failed" | "build_failed" | "build_succeeded"
-            error?: string
-            errorCount?: number
-            warningCount?: number
-            rawLogPath?: string
-            durationMs: number
-          }
           const title = params.scheme ? `xcodebuild: ${params.scheme}` : "xcodebuild"
 
           if (outcome.kind === "spawn_failed") {
@@ -381,7 +395,7 @@ export const XcodeBuildTool = Tool.define(
               error: outcome.error,
               durationMs,
             }
-            const metadata: XcodeMeta = { ok: false, status: "spawn_failed", error: outcome.error, durationMs }
+            const metadata: XcodeBuildMeta = { ok: false, status: "spawn_failed", error: outcome.error, durationMs }
             return { title, output: JSON.stringify(summary), metadata }
           }
 
@@ -404,7 +418,7 @@ export const XcodeBuildTool = Tool.define(
             durationMs,
           }
 
-          const metadata: XcodeMeta = {
+          const metadata: XcodeBuildMeta = {
             ok: parsed.ok,
             status,
             errorCount: parsed.errors.length,

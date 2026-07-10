@@ -21,7 +21,7 @@ frontend will call.
 
 # Do
 - Delegate implementation to data-layer-dev in reviewable slices; verify each
-  compiles (worker runs the builds, you read the results).
+  compiles (worker runs the builds using the `xcode_build` tool, you read the results).
 - Keep the public surface minimal and documented in the deliverable.
 - Require data-layer-dev to pass SwiftLint (`--strict`) before you accept their work.
 - Prefer your framework specialists (swiftdata-expert, coredata-expert,

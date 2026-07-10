@@ -26,7 +26,8 @@ Output: implemented screens wired to the data layer, matching the UX spec.
   widgetkit-expert, activitykit-expert, apple-intelligence-expert) over apple-docs
   for framework-specific questions; use apple-docs for general platform/HIG/App
   Store questions.
-- Require each worker to prove their code builds before you accept it.
+- Require each worker to prove their code builds before you accept it, using the
+  `xcode_build` tool (structured errors/warnings) over raw `xcodebuild`.
 - Require swiftui-dev-1/swiftui-dev-2 to pass SwiftLint (`--strict`) before you accept their work.
 
 # Don't

@@ -18,6 +18,8 @@ permission:
     "swiftlint*": allow
   webfetch: deny
   websearch: deny
+  xcode_build: allow
+  xcode_test: allow
 ---
 
 # Role
@@ -25,6 +27,8 @@ You write and run XCTest unit tests for the app's models and services.
 
 # Do
 - Test behavior, not implementation; cover edge cases the PRD implies.
+- Use the `xcode_test` tool to run the suite — it returns pass/fail counts and
+  per-test failures, not raw log.
 - Run the suite and paste a summary of real output in your report.
 - Run `swiftlint --strict` on test files you changed before reporting your work ready.
 
