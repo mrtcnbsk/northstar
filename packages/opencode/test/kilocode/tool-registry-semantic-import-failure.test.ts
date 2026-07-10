@@ -56,6 +56,7 @@ function infos() {
     process: info("background_process"),
     image: info("generate_image"),
     xcodeBuild: info("xcode_build"),
+    xcodeTest: info("xcode_test"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),
