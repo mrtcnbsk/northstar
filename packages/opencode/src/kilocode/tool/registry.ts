@@ -9,6 +9,7 @@ import { InteractiveTerminalTool } from "./interactive-terminal"
 import { NotebookEditTool, NotebookExecuteTool, NotebookReadTool } from "./notebook-host"
 import { MemoryRecallTool } from "./memory-recall"
 import { MemorySaveTool } from "./memory-save"
+import { XcodeBuildTool } from "./xcode-build"
 import {
   OrgStartTool,
   OrgAdvanceTool,
@@ -71,6 +72,7 @@ export namespace KiloToolRegistry {
       const process = yield* BackgroundProcessTool
       const image = yield* GenerateImageTool
       const terminal = yield* InteractiveTerminalTool
+      const xcodeBuild = yield* XcodeBuildTool
       const orgStart = yield* OrgStartTool
       const orgAdvance = yield* OrgAdvanceTool
       const orgDecision = yield* OrgDecisionTool
@@ -87,6 +89,7 @@ export namespace KiloToolRegistry {
           process,
           image,
           terminal,
+          xcodeBuild,
           orgStart,
           orgAdvance,
           orgDecision,
@@ -108,6 +111,7 @@ export namespace KiloToolRegistry {
         process,
         image,
         terminal,
+        xcodeBuild,
         orgStart,
         orgAdvance,
         orgDecision,
@@ -131,6 +135,7 @@ export namespace KiloToolRegistry {
       process: Tool.Info
       image: Tool.Info
       terminal?: Tool.Info
+      xcodeBuild: Tool.Info
       orgStart: Tool.Info
       orgAdvance: Tool.Info
       orgDecision: Tool.Info
@@ -153,6 +158,7 @@ export namespace KiloToolRegistry {
         manager: Tool.init(tools.manager),
         process: Tool.init(tools.process),
         image: Tool.init(tools.image),
+        xcodeBuild: Tool.init(tools.xcodeBuild),
         orgStart: Tool.init(tools.orgStart),
         orgAdvance: Tool.init(tools.orgAdvance),
         orgDecision: Tool.init(tools.orgDecision),
@@ -230,6 +236,7 @@ export namespace KiloToolRegistry {
       process: Tool.Def
       image: Tool.Def
       terminal?: Tool.Def
+      xcodeBuild: Tool.Def
       orgStart: Tool.Def
       orgAdvance: Tool.Def
       orgDecision: Tool.Def
@@ -259,6 +266,10 @@ export namespace KiloToolRegistry {
       tools.notebookExecute
         ? [tools.notebookRead, tools.notebookEdit, tools.notebookExecute]
         : []),
+      // Structured build tool: not gated to a specific client, and not hidden from subagents
+      // (see `available()`) — the build loop runs workers that need it just as much as the
+      // primary agent.
+      tools.xcodeBuild,
       tools.orgStart,
       tools.orgAdvance,
       tools.orgDecision,

@@ -43,6 +43,7 @@ function infos() {
     manager: info("agent_manager"),
     process: info("background_process"),
     image: info("generate_image"),
+    xcodeBuild: info("xcode_build"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),

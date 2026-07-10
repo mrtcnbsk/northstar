@@ -1,0 +1,15 @@
+Build an Xcode project or workspace and return structured results instead of raw xcodebuild output.
+
+Runs `xcodebuild build` with the provided scheme/workspace/project/configuration/destination flags, then parses the output into `{ ok, errorCount, warningCount, errors[], warnings[] }`. Each error/warning includes file, line, column, severity, and message when xcodebuild reports them in the standard `file:line:col: severity: message` format.
+
+Use this instead of the shell tool for Xcode builds: xcodebuild output can run to thousands of lines, and this tool distills it down to the actionable diagnostics plus a path to the full raw log for cases where more detail is needed.
+
+Parameters:
+- `scheme`: the Xcode scheme to build.
+- `workspace`: path to an `.xcworkspace`. Mutually exclusive with `project` in typical usage (xcodebuild allows only one).
+- `project`: path to an `.xcodeproj`.
+- `configuration`: build configuration, defaults to `Debug`.
+- `destination`: xcodebuild destination specifier, e.g. `platform=iOS Simulator,name=iPhone 15`.
+- `extraArgs`: additional raw arguments appended to the xcodebuild invocation.
+
+The full raw build log is always written to disk; its path is returned as `rawLogPath` so it can be inspected if the structured summary is not enough.

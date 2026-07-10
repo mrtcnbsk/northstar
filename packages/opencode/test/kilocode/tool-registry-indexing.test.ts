@@ -410,6 +410,7 @@ describe("kilocode tool registry indexing", () => {
       process: def("background_process"),
       image: def("generate_image"),
       terminal: def("interactive_terminal"),
+      xcodeBuild: def("xcode_build"),
       orgStart: def("org_start"),
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
@@ -430,6 +431,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "background_process",
         "interactive_terminal",
+        "xcode_build",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra(tools, { experimental: { codebase_search: true } }).map((tool) => tool.id)).toEqual(
@@ -441,6 +443,7 @@ describe("kilocode tool registry indexing", () => {
           "recall",
           "background_process",
           "interactive_terminal",
+          "xcode_build",
           ...orgIDs,
         ],
       )
@@ -457,6 +460,7 @@ describe("kilocode tool registry indexing", () => {
         "recall",
         "background_process",
         "interactive_terminal",
+        "xcode_build",
         ...orgIDs,
       ])
 
@@ -471,6 +475,7 @@ describe("kilocode tool registry indexing", () => {
           "background_process",
           "agent_manager_models",
           "agent_manager",
+          "xcode_build",
           ...orgIDs,
         ],
       )
@@ -490,6 +495,7 @@ describe("kilocode tool registry indexing", () => {
         "notebook_read",
         "notebook_edit",
         "notebook_execute",
+        "xcode_build",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra({ ...tools, semantic: undefined }, {}).map((tool) => tool.id)).toEqual([
@@ -499,6 +505,7 @@ describe("kilocode tool registry indexing", () => {
         "background_process",
         "agent_manager_models",
         "agent_manager",
+        "xcode_build",
         ...orgIDs,
       ])
 
@@ -508,6 +515,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        "xcode_build",
         ...orgIDs,
       ])
 
@@ -517,6 +525,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        "xcode_build",
         ...orgIDs,
       ])
 
@@ -526,6 +535,7 @@ describe("kilocode tool registry indexing", () => {
         "kilo_memory_recall",
         "kilo_memory_save",
         "recall",
+        "xcode_build",
         ...orgIDs,
       ])
     } finally {
