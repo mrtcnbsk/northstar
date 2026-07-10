@@ -587,6 +587,37 @@ describe("tool.task model resolution", () => {
       ),
     ),
   )
+
+  it.live("cost ties broken deterministically by lexicographic model key regardless of discovery order", () =>
+    run({
+      agent: "worker",
+      variant: inherited,
+      config: { subagent_model: "missing-provider/missing-model", subagent_variant: subVariant },
+      // Two equal-priced (1/2) capable candidates. `zzz` is inserted FIRST so object-iteration
+      // order alone would surface it — the stable tiebreak in rank() must instead resolve to the
+      // lexicographically-first key ("aaa-tie-provider/tie-model"), proving the pick is
+      // reproducible independent of provider-discovery order.
+      catalogOverride: {
+        provider: {
+          "zzz-tie-provider": custom("zzz-tie-provider", "tie-model", [], { cost: { input: 1, output: 2 } }),
+          "aaa-tie-provider": custom("aaa-tie-provider", "tie-model", [], { cost: { input: 1, output: 2 } }),
+          "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant], {
+            cost: { input: 10, output: 20 },
+          }),
+        },
+        disabled_providers: ["kilo"],
+      },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.prompt).toEqual({
+            providerID: ProviderID.make("aaa-tie-provider"),
+            modelID: ModelID.make("tie-model"),
+          })
+        }),
+      ),
+    ),
+  )
   // kilocode_change end
 
   it.live("deliberate pin invariant: healthy configured subagent model is used unchanged, never re-ranked by cost", () =>
@@ -597,9 +628,12 @@ describe("tool.task model resolution", () => {
     }).pipe(
       Effect.tap((result) =>
         Effect.sync(() => {
-          // sub-provider/sub-model (cost 0/0 in the shared catalog) is healthy/available, so it
-          // must be used as-is even though cheap-fallback-provider also costs less than parent —
-          // cost-awareness only applies to the FALLBACK selection, never a working configured pin.
+          // sub-provider/sub-model is priced input:8/output:9 in the shared catalog — NOT the
+          // cheapest (cheap-fallback-provider at 1/2 is cheaper). It is selected purely because
+          // it is HEALTHY/available and therefore returned pre-ranking, unchanged. That is the
+          // whole deliberate-pin invariant: cost-awareness only applies to the FALLBACK
+          // selection, never to a working configured pin — a cheaper catalog model must NOT
+          // displace it.
           expect(result.prompt).toEqual(sub)
           expect(result.model).toEqual(sub)
         }),

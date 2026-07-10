@@ -199,12 +199,24 @@ export namespace KiloTask {
     for (const [providerID, provider] of Object.entries(providers) as Array<[ProviderID, Provider.Info]>) {
       for (const [modelID, info] of Object.entries(provider.models)) {
         if (!info.capabilities.toolcall) continue // subagents must be able to call tools
-        if (info.status === "deprecated") continue // not a "capable" candidate for fresh delegation
+        // The `deprecated` filter is defense-in-depth: Provider.list() already strips deprecated
+        // + alpha upstream (provider.ts ~1568-1569); `beta` models stay eligible by design. The
+        // real safety guarantee is that list() returns only the CONNECTED/authed catalog, so the
+        // cheapest survivor here is very likely actually callable — not an unauthed-provider
+        // model that would only fail later at call time.
+        if (info.status === "deprecated") continue
         const price = (info.cost?.input ?? 0) + (info.cost?.output ?? 0)
         candidates.push({ model: { providerID, modelID: ModelID.make(modelID) }, price })
       }
     }
-    candidates.sort((a, b) => a.price - b.price)
+    // Sort by price, then break ties on the model key ("providerID/modelID") so equal-priced
+    // picks are deterministic regardless of provider-discovery / object-iteration order.
+    candidates.sort((a, b) => {
+      if (a.price !== b.price) return a.price - b.price
+      const ak = key(a.model)
+      const bk = key(b.model)
+      return ak < bk ? -1 : ak > bk ? 1 : 0
+    })
     return candidates.map((c) => c.model)
   }
 
