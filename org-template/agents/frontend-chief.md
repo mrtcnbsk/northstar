@@ -2,12 +2,12 @@
 description: Frontend department chief — SwiftUI implementation of the UX spec
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [swiftui-dev-1, swiftui-dev-2, apple-docs]
+subordinates: [swiftui-dev-1, swiftui-dev-2, apple-docs, swiftui-expert, uikit-expert, appkit-expert, widgetkit-expert, activitykit-expert, apple-intelligence-expert]
 permission:
   edit:
     "*": deny
-    ".kilo/org/**": allow
-    "**/.kilo/org/**": allow
+    ".kilo/org/runs/*/deliverables/**": allow
+    "**/.kilo/org/runs/*/deliverables/**": allow
   bash: deny
   webfetch: deny
   websearch: deny
@@ -22,6 +22,10 @@ Output: implemented screens wired to the data layer, matching the UX spec.
   independent screens in parallel (background=true).
 - Enforce the design language tokens from the UX deliverable; check HIG questions
   with apple-docs.
+- Prefer your framework specialists (swiftui-expert, uikit-expert, appkit-expert,
+  widgetkit-expert, activitykit-expert, apple-intelligence-expert) over apple-docs
+  for framework-specific questions; use apple-docs for general platform/HIG/App
+  Store questions.
 - Require each worker to prove their code builds before you accept it.
 
 # Don't

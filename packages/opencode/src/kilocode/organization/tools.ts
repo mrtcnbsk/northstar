@@ -4,6 +4,7 @@ import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
+import { SessionRunState } from "@/session/run-state"
 import { Config } from "@/config/config"
 import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
 import { OrgSchema } from "./schema"
@@ -138,11 +139,24 @@ export const OrgAdvanceTool = Tool.define(
                 stage: advance.stage,
                 reason: advance.reason,
                 ...(resumable ? { resume_task_id: advance.resumeTaskID } : {}),
-                ...(advance.resumeTaskID && !resumable
+                // kilocode_change - whenever no resumable session exists (unresumable id OR one was
+                // never recorded, e.g. a crash before the first advance-with-task_id), hand the CEO
+                // a full task_call so the fresh chief session is briefed with idea/priors context.
+                ...(!resumable && advance.chief && advance.taskPrompt
                   ? {
-                      note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
+                      task_call: {
+                        subagent_type: advance.chief,
+                        description: `${advance.stage} stage (fresh session)`,
+                        prompt: advance.taskPrompt,
+                      },
                     }
                   : {}),
+                ...(advance.resumeTaskID && !resumable
+                  ? {
+                      note: "previous chief session is not resumable; use the provided task_call to start a fresh, fully-briefed chief session",
+                    }
+                  : {}),
+                then: "when the chief's task returns, call org_advance again with task_id set to the task session id",
               })
             }
             case "halted":
@@ -217,6 +231,59 @@ export const OrgStatusTool = Tool.define(
           }
           const status = yield* tryOrg(() => OrgRunner.status(dir, org, params.run_id!))
           return result(`run ${params.run_id}`, status)
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const StopParameters = Schema.Struct({
+  run_id: Schema.String,
+  reason: Schema.String.annotate({ description: "Why the run is being stopped, verbatim from the user" }),
+})
+
+export const OrgStopTool = Tool.define(
+  "org_stop",
+  Effect.gen(function* () {
+    const runState = yield* SessionRunState.Service
+    return {
+      description:
+        "Emergency stop: immediately halts the organization run, regardless of what is currently in flight. Records the reason and best-effort cancels the running chief's session. Use when the user asks to stop or abort the run.",
+      parameters: StopParameters,
+      execute: (params: Schema.Schema.Type<typeof StopParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const { stage, taskID } = yield* tryOrg(() => OrgRunner.stop(dir, org, params.run_id, params.reason))
+          if (!stage) {
+            return result("stopped", { action: "stopped", reason: params.reason, note: "no stage was running" })
+          }
+          if (!taskID) {
+            return result("stopped", {
+              action: "stopped",
+              reason: params.reason,
+              note: `stage "${stage}" was running but no task session was recorded; nothing to cancel`,
+            })
+          }
+          // Best-effort: the halt is already persisted, so cancellation problems must degrade to
+          // a note rather than fail the stop. The startsWith guard mirrors org_advance's
+          // isResumable/costOf guards: the taskID was persisted verbatim from model input, and
+          // SessionID.make throws synchronously on non-"ses" strings — while evaluating the
+          // argument, before the catch below exists.
+          const cancelled = taskID.startsWith("ses")
+            ? yield* runState
+                .cancel(SessionID.make(taskID))
+                .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+            : false
+          return result("stopped", {
+            action: "stopped",
+            reason: params.reason,
+            ...(cancelled ? { cancelled_session: taskID } : {}),
+            note: cancelled
+              ? "the running chief's session was cancelled"
+              : "live session cancellation failed; the running chief will finish its current turn",
+          })
         }).pipe(Effect.orDie),
     }
   }),

@@ -167,6 +167,7 @@ function makeHttp() {
     Layer.provide(Git.defaultLayer),
     Layer.provide(Command.defaultLayer),
     Layer.provide(Auth.defaultLayer), // kilocode_change
+    Layer.provide(runState), // kilocode_change - required by org_stop
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),

@@ -28,17 +28,51 @@ export namespace OrgDepth {
     })
   }
 
+  function depthFrom(get: Getter, start: { parentID?: string | undefined }): Effect.Effect<number, unknown> {
+    return Effect.gen(function* () {
+      let depth = 0
+      let current = start
+      while (current.parentID && depth < MAX_WALK) {
+        depth++
+        current = yield* get(current.parentID)
+      }
+      return depth
+    })
+  }
+
+  function fail(depth: number): Effect.Effect<never, unknown> {
+    return Effect.fail(
+      new Error(
+        `Delegation depth limit reached: this session is already ${depth} level(s) deep ` +
+          `(max ${MAX_DELEGATION_DEPTH}). Deeper delegation is not permitted.`,
+      ),
+    )
+  }
+
+  /**
+   * Guard variant that walks from an already-fetched node instead of re-fetching
+   * the starting session. `start` is the node whose depth is being checked (i.e.
+   * the depth of `start` itself = hops from `start` to root); the spawn check is
+   * unchanged: spawning from `start` would create a session at depth+1.
+   */
+  export function guardFrom(get: Getter, start: { parentID?: string | undefined }): Effect.Effect<void, unknown> {
+    return Effect.gen(function* () {
+      const depth = yield* depthFrom(get, start)
+      if (depth + 1 > MAX_DELEGATION_DEPTH) {
+        return yield* fail(depth)
+      }
+    })
+  }
+
+  /**
+   * Fetch-then-guard convenience wrapper around guardFrom. Kept as public API
+   * for callers that only hold a session id; the task tool calls guardFrom
+   * directly with its already-fetched parent session to avoid a redundant fetch.
+   */
   export function guard(get: Getter, sessionID: string): Effect.Effect<void, unknown> {
     return Effect.gen(function* () {
-      const depth = yield* depthOf(get, sessionID)
-      if (depth + 1 > MAX_DELEGATION_DEPTH) {
-        return yield* Effect.fail(
-          new Error(
-            `Delegation depth limit reached: this session is already ${depth} level(s) deep ` +
-              `(max hierarchy: CEO -> chief -> worker). Workers cannot spawn subagents.`,
-          ),
-        )
-      }
+      const start = yield* get(sessionID)
+      yield* guardFrom(get, start)
     })
   }
 }

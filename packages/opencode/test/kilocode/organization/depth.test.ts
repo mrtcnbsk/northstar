@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { Effect } from "effect"
+import { Cause, Effect } from "effect"
 import { OrgDepth } from "../../../src/kilocode/organization/depth"
 
 type Node = { parentID?: string }
@@ -40,4 +40,46 @@ describe("OrgDepth", () => {
     const depth = await Effect.runPromise(OrgDepth.depthOf(getter(cyclic), "a"))
     expect(depth).toBe(OrgDepth.MAX_WALK)
   })
+
+  // kilocode_change start - guardFrom walks from an already-fetched node instead of re-fetching
+  // the starting session by id; task.ts uses this to avoid a redundant sessions.get(ctx.sessionID)
+  describe("guardFrom", () => {
+    test("allows spawning from a pre-fetched root or chief node", async () => {
+      await Effect.runPromise(OrgDepth.guardFrom(getter(tree), tree.root))
+      await Effect.runPromise(OrgDepth.guardFrom(getter(tree), tree.chief))
+    })
+
+    test("rejects spawning from a pre-fetched worker node (would exceed depth 2)", async () => {
+      const exit = await Effect.runPromiseExit(OrgDepth.guardFrom(getter(tree), tree.worker))
+      expect(exit._tag).toBe("Failure")
+    })
+
+    test("matches guard's result for the same session, without re-fetching by id", async () => {
+      // pass a node with no parentID field access needed beyond what's already fetched
+      const start = { parentID: tree.worker.parentID }
+      const viaGuard = await Effect.runPromiseExit(OrgDepth.guard(getter(tree), "worker"))
+      const viaGuardFrom = await Effect.runPromiseExit(OrgDepth.guardFrom(getter(tree), start))
+      // both must fail with the SAME squashed error message, not merely the same exit tag
+      const message = (exit: typeof viaGuard) => {
+        if (exit._tag !== "Failure") return "success"
+        const squashed = Cause.squash(exit.cause)
+        return squashed instanceof Error ? squashed.message : String(squashed)
+      }
+      expect(viaGuard._tag).toBe("Failure")
+      expect(message(viaGuardFrom)).toBe(message(viaGuard))
+      expect(message(viaGuardFrom)).toContain("Delegation depth limit reached")
+    })
+
+    test("error message is neutral (no 'Workers cannot spawn' wording) and reports depth/max", async () => {
+      const exit = await Effect.runPromiseExit(OrgDepth.guardFrom(getter(tree), tree.worker))
+      expect(exit._tag).toBe("Failure")
+      const squashed = exit._tag === "Failure" ? Cause.squash(exit.cause) : undefined
+      const message = squashed instanceof Error ? squashed.message : String(squashed)
+      expect(message).toContain("Delegation depth limit reached")
+      expect(message).toContain("already 2 level(s) deep")
+      expect(message).toContain(`max ${OrgDepth.MAX_DELEGATION_DEPTH}`)
+      expect(message).not.toContain("Workers cannot spawn")
+    })
+  })
+  // kilocode_change end
 })

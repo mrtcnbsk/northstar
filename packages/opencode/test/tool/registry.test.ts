@@ -18,6 +18,7 @@ import { Agent } from "@/agent/agent"
 import { BackgroundJob } from "@/background/job"
 import { Session } from "@/session/session"
 import { SessionStatus } from "@/session/status"
+import { SessionRunState } from "@/session/run-state" // kilocode_change - required by org_stop
 import { Provider } from "@/provider/provider"
 import { Git } from "@/git"
 import { LSP } from "@/lsp/lsp"
@@ -79,6 +80,7 @@ const registryLayer = (opts: RegistryLayerOptions = {}) =>
       Layer.provide(Command.defaultLayer), // kilocode_change
       Layer.provide(Auth.defaultLayer), // kilocode_change
       Layer.provide(MemoryService.layer), // kilocode_change
+      Layer.provide(SessionRunState.defaultLayer), // kilocode_change - required by org_stop
     )
 
 // Fake Plugin.Service that returns a single plugin whose `tool` map contains
