@@ -46,6 +46,37 @@ export namespace OrgState {
   })
   export type Run = z.output<typeof Run>
 
+  /**
+   * Total cost of a single stage: sum of per-session cumulative costs, falling back to the legacy
+   * single-slot `cost` field when `costs` is absent/empty (state.json written before per-session
+   * tracking existed). Mirrors the private stageCost in OrgRunner, but is state-only (no org needed).
+   */
+  export function stageCost(stage: Stage): number {
+    const values = Object.values(stage.costs ?? {})
+    if (values.length > 0) return values.reduce((sum, c) => sum + c, 0)
+    return stage.cost ?? 0
+  }
+
+  /**
+   * A read-only, org-free summary of a run derived purely from its self-contained state.json.
+   * Used by the observability HTTP API so it works even if organization.jsonc has changed or is
+   * absent. `stages` iterates in pipeline order because OrgState.create builds the stages record
+   * from org.pipeline in order and JS preserves object insertion order.
+   */
+  export function runSummary(run: Run) {
+    const entries = Object.entries(run.stages)
+    const totalCost = entries.reduce((sum, [, stage]) => sum + stageCost(stage), 0)
+    const awaitingGate = entries.some(([, stage]) => stage.status === "awaiting_approval")
+    // First non-terminal stage in pipeline order: the one that is running or awaiting a gate.
+    const current = entries.find(([, stage]) => stage.status === "running" || stage.status === "awaiting_approval")
+    return {
+      totalCost,
+      awaitingGate,
+      currentStage: current?.[0] ?? null,
+      stageCount: entries.length,
+    }
+  }
+
   export function runsDir(projectDir: string): string {
     return path.join(projectDir, ".kilo", "org", "runs")
   }

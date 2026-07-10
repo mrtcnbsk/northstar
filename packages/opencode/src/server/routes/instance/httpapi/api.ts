@@ -33,6 +33,7 @@ import { InteractiveTerminalApi } from "@/kilocode/server/httpapi/groups/interac
 import { KiloGatewayApi } from "@/kilocode/server/httpapi/groups/kilo-gateway"
 import { KilocodeApi } from "@/kilocode/server/httpapi/groups/kilocode"
 import { NetworkApi } from "@/kilocode/server/httpapi/groups/network"
+import { OrgRunsApi } from "@/kilocode/server/httpapi/groups/org-runs"
 import { RemoteApi } from "@/kilocode/server/httpapi/groups/remote"
 import { SandboxApi } from "@/kilocode/server/httpapi/groups/sandbox"
 import { SessionImportApi } from "@/kilocode/server/httpapi/groups/session-import"
@@ -82,6 +83,7 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(KiloGatewayApi)
   .addHttpApi(KilocodeApi)
   .addHttpApi(NetworkApi)
+  .addHttpApi(OrgRunsApi)
   .addHttpApi(RemoteApi)
   .addHttpApi(SandboxApi)
   .addHttpApi(SessionImportApi)
