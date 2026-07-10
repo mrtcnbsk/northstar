@@ -489,7 +489,14 @@ export namespace OrgRunner {
     projectDir: string,
     org: OrgSchema.Organization,
     runID: string,
-    input: { taskID?: string },
+    input: {
+      /** Single taskID (back-compat): assigned to the one running stage lacking one (see rules below). */
+      taskID?: string
+      /** W4.6: per-stage task results from a parallel fan-out — each taskID is assigned to its NAMED
+       * stage before settling, so each concurrently-completed branch settles with its OWN chief's
+       * cost/session. Takes precedence for the named stages; a bare `taskID` still works alongside. */
+      taskResults?: Array<{ stage: string; taskID: string }>
+    },
   ): Promise<Batch> {
     let run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
@@ -513,6 +520,18 @@ export namespace OrgRunner {
       }
     }
 
+    // W4.6: assign each per-stage task result to its NAMED stage's record first, so every
+    // concurrently-completed branch settles below with its own chief's session id (and thus its own
+    // cost). Only stages that actually exist in the run are touched (an unknown stage name is ignored,
+    // not fatal — the CEO reports what it spawned, but a stale name shouldn't reject the whole advance).
+    if (input.taskResults && input.taskResults.length > 0) {
+      run = await OrgState.update(projectDir, runID, (s) => {
+        for (const { stage, taskID } of input.taskResults!) {
+          if (s.stages[stage]) s.stages[stage].taskID = taskID
+        }
+      })
+    }
+
     // Record input.taskID onto the stage the CEO just finished. Resolution order (deterministic,
     // pipeline order):
     //   1. the first running stage that currently LACKS a taskID (fresh fan-out branch);
@@ -523,7 +542,8 @@ export namespace OrgRunner {
     //   3. else fall back to a taskID reported LATE for a stage already gated (the pre-wave "taskID
     //      reported at a gate is persisted" behavior) — first awaiting stage lacking one.
     // With maxConcurrency:1 there is at most one running stage, so rule 1-or-2 collapses to the
-    // pre-wave "assign to the running stage" exactly. W4.6 widens the input to per-branch task_ids.
+    // pre-wave "assign to the running stage" exactly. Runs AFTER taskResults so a single `taskID`
+    // fills whatever running stage taskResults left without one (the two inputs compose).
     if (input.taskID) {
       const running = OrgState.runningStages(org, run)
       const target =

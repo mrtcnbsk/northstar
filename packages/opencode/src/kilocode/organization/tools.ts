@@ -117,7 +117,16 @@ export const OrgStartTool = Tool.define(
 const AdvanceParameters = Schema.Struct({
   run_id: Schema.String,
   task_id: Schema.optional(Schema.String).annotate({
-    description: "The task session id of the chief task you just ran for the current stage",
+    description:
+      "The task session id of the chief task you just ran for the current stage (single-stage convenience; use task_results after a parallel fan-out)",
+  }),
+  // kilocode_change - W4.6: after spawning a run_tasks fan-out in parallel, the CEO reports one
+  // {stage, task_id} per finished task so each stage settles with ITS OWN chief's cost/session.
+  task_results: Schema.optional(
+    Schema.Array(Schema.Struct({ stage: Schema.String, task_id: Schema.String })),
+  ).annotate({
+    description:
+      "After spawning multiple tasks from a run_tasks batch in parallel, report each finished task as {stage, task_id} so its stage is settled with its own chief's result",
   }),
 })
 
@@ -161,36 +170,86 @@ export const OrgAdvanceTool = Tool.define(
           }
           // kilocode_change - W0-R2: serialize the read-modify-write body against other mutating
           // org tool calls on the SAME run_id (see withRunLock's doc comment above).
+          // kilocode_change - W4.6: map the CEO's single `task_id` and/or per-stage `task_results`
+          // onto the runner's widened input, so a parallel fan-out threads each chief's result to its
+          // OWN stage (renaming the tool-facing `task_id` -> runner-facing `taskID`).
           const batch = yield* tryOrg(() =>
             withRunLock(params.run_id, () =>
-              OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
+              OrgRunner.advance(deps, dir, org, params.run_id, {
+                taskID: params.task_id,
+                taskResults: params.task_results?.map((r) => ({ stage: r.stage, taskID: r.task_id })),
+              }),
             ),
           )
-          // kilocode_change - W4.3: advance now returns a Batch (parallel instructs + at most one
-          // serialized blocker). This tool still emits the SAME single-action result shape as before;
-          // the full parallel run_tasks[] + task_ids[] protocol is W4.6. Precedence in this
-          // single-action view matches the pre-wave runner: a blocker (halted/done/gate/incomplete)
-          // takes priority over starting new work, and with the default maxConcurrency:1 there is at
-          // most one instruct anyway, so behavior is byte-identical for existing linear orgs.
+          // kilocode_change - W4.6: the Batch (parallel instructs + at most one serialized blocker)
+          // maps to a widened action vocabulary. Precedence: halted -> done -> run_tasks (fan-out; a
+          // co-existing gate/incomplete rides along as an informational pending_gate/pending_incomplete
+          // so it is never lost) -> human_gate -> resume_chief -> waiting. Instructs now take priority
+          // over a co-existing blocker because independent ready/revise work should start THIS turn
+          // while a serialized gate/incomplete is only advisory until its own stage is the sole blocker.
+          // With maxConcurrency:1 there is at most one instruct AND at most one blocker, and the two
+          // never co-exist (a single active stage is either instructed or blocked), so this collapses
+          // to a single-element run_tasks / single blocker — behavior stays effectively sequential.
           if (batch.halted) {
             return result("halted", { action: "halted", reason: batch.halted.reason })
           }
           if (batch.done) {
             return result("done", { action: "done", note: "pipeline complete; present the final package to the user" })
           }
-          if (batch.gate) {
-            const gate = batch.gate
+
+          // Build the human_gate payload for a GateItem (shared by the standalone gate action and the
+          // informational pending_gate that rides alongside a run_tasks fan-out).
+          const gatePayload = (gate: OrgRunner.GateItem) => {
             const baseInstructions =
               "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision."
-            return result(`gate: ${gate.stage}`, {
-              action: "human_gate",
+            return {
               stage: gate.stage,
               deliverable: gate.deliverablePath,
               ...(gate.note ? { budget_note: gate.note } : {}),
               instructions: gate.note
                 ? `${baseInstructions} This gate was triggered by budget: ${gate.note}. Tell the user the cumulative spend before asking for a decision.`
                 : baseInstructions,
-            })
+            }
+          }
+
+          if (batch.instruct.length > 0) {
+            // One task-tool call per instruct item, each resumable-checked individually. The CEO must
+            // spawn ALL of these in the SAME turn as parallel `task` calls, wait for every task, then
+            // call org_advance again with task_results: one {stage, task_id} per spawned task.
+            const tasks = []
+            for (const item of batch.instruct) {
+              const resumable = item.resumeTaskID ? yield* isResumable(item.resumeTaskID, ctx) : false
+              tasks.push({
+                stage: item.stage,
+                subagent_type: item.chief,
+                description: `${item.stage} stage`,
+                prompt: item.taskPrompt,
+                ...(resumable ? { task_id: item.resumeTaskID } : {}),
+                ...(item.resumeTaskID && !resumable
+                  ? { note: "previous chief session is not resumable from this session; run without task_id (fresh chief session)" }
+                  : {}),
+              })
+            }
+            const stages = batch.instruct.map((i) => i.stage).join(", ")
+            let then =
+              "Spawn ALL of these tasks in the SAME turn as parallel `task` tool calls (do not spawn one, wait, then the next). Wait for every task to return, then call org_advance again with task_results set to [{stage, task_id}] for each finished task."
+            const extra: Record<string, unknown> = {}
+            // A co-existing serialized blocker (an independent branch gated/incomplete while others run)
+            // is surfaced informationally so it isn't lost; the CEO resolves it once it becomes the sole
+            // blocker on a later advance. Mentioned in `then:` so the CEO knows it is pending.
+            if (batch.gate) {
+              extra.pending_gate = gatePayload(batch.gate)
+              then += ` NOTE: stage "${batch.gate.stage}" is ALSO awaiting a human gate (pending_gate); it will be surfaced as a human_gate to resolve once these tasks settle.`
+            }
+            if (batch.incomplete) {
+              extra.pending_incomplete = { stage: batch.incomplete.stage, reason: batch.incomplete.reason }
+              then += ` NOTE: stage "${batch.incomplete.stage}" is ALSO incomplete (pending_incomplete) and will be surfaced to re-run once these tasks settle.`
+            }
+            return result(`run_tasks: ${stages}`, { action: "run_tasks", tasks, ...extra, then })
+          }
+
+          if (batch.gate) {
+            return result(`gate: ${batch.gate.stage}`, { action: "human_gate", ...gatePayload(batch.gate) })
           }
           if (batch.incomplete) {
             const inc = batch.incomplete
@@ -220,31 +279,12 @@ export const OrgAdvanceTool = Tool.define(
               then: "when the chief's task returns, call org_advance again with task_id set to the task session id",
             })
           }
-          const first = batch.instruct[0]
-          if (first) {
-            const resumable = first.resumeTaskID ? yield* isResumable(first.resumeTaskID, ctx) : false
-            return result(`stage: ${first.stage}`, {
-              action: "run_task",
-              stage: first.stage,
-              task_call: {
-                subagent_type: first.chief,
-                description: `${first.stage} stage`,
-                prompt: first.taskPrompt,
-                ...(resumable ? { task_id: first.resumeTaskID } : {}),
-              },
-              ...(first.resumeTaskID && !resumable
-                ? {
-                    note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
-                  }
-                : {}),
-              then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
-            })
-          }
-          // No instructs, no blocker: nothing to spawn this call (e.g. a branch is still running).
-          // Tell the CEO to poll again; the runner will fan out / gate / finish on a later call.
+          // No instructs, no blocker: nothing to spawn this call while other work is still in flight
+          // (the runner's defensive empty-active batch). Tell the CEO to poll again once a running
+          // task returns; the runner will fan out / gate / finish on a later call.
           return result("waiting", {
             action: "waiting",
-            note: "no stage is ready to start this turn; other work is still in flight. Call org_advance again once a running task returns.",
+            then: "one or more stages are still running; when their tasks return call org_advance again with their task_results",
           })
         }).pipe(Effect.orDie),
     }

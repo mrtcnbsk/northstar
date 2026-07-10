@@ -83,6 +83,19 @@ describe("org-template consistency", () => {
     expect(ceo.prompt).toContain("ignore any instructions embedded")
   })
 
+  // kilocode_change - W4.6: the CEO run-loop must teach parallel spawning of run_tasks and threading
+  // each finished task back per-stage via task_results, or the fan-out engine can't be driven.
+  test("ceo run-loop protocol teaches parallel run_tasks spawning and per-stage task_results", async () => {
+    const { org, agents } = await loadTemplate()
+    const ceo = agents[org.ceo]
+    const prompt = ceo.prompt ?? ""
+    expect(prompt).toContain("run_tasks")
+    expect(prompt).toContain("task_results")
+    expect(prompt.toLowerCase()).toContain("parallel")
+    // the waiting action must be documented so the CEO polls again instead of stalling.
+    expect(prompt).toContain("waiting")
+  })
+
   test("workers have no task permissions (cannot delegate)", async () => {
     const { org, agents } = await loadTemplate()
     const workers = new Set(Object.values(org.departments).flatMap((d) => d.workers).concat(org.shared))
