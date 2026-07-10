@@ -220,3 +220,90 @@ drift'ini yalnız gerçek bir çalıştırma yakalar.
   xcodebuild-şekilli tool eklemeden ÖNCE `run(command,{timeoutMs,onChunk,sink}) → Ran|SpawnFailed`
   (catchCause-kill gömülü) primitive'ini çıkarmak ROI-pozitif olur. Doğruluk sorunu değil (kod
   doğru, test'li, taze senkronize).
+
+  **NOT (Wave 3):** Wave 3 dördüncü bir xcodebuild-tool eklemedi → W2-R2 hâlâ ertelendi (geçerli).
+
+## Wave 3'te kapatıldı (feat/wave-3-observability, W3.1-W3.5)
+
+Wave 3 = gözlemlenebilirlik: org-run durumunu salt-okunur bir HTTP API üzerinden açıp ince bir
+kilo-console panelinde (liste + detay + maliyet paneli + kapı rozeti + polling) gösteren katman.
+Operatör-onaylı şekil: **API-first + ince panel**. DB migration YOK (dosyalar hızlı).
+
+- **W3.1 — salt-okunur org-runs HTTP API.** `groups/org-runs.ts` (HttpApi group + şemalar) +
+  `handlers/org-runs.ts` (OrgState/OrgAudit'ten disk okuyan view builder'lar) + api.ts/server.ts
+  wiring (kilocode_change fence'li). `GET /org-runs` (özet liste: runID/idea/status/createdAt/
+  totalCost/stageCount/currentStage/awaitingGate) + `GET /org-runs/:runID` (tam Run + audit +
+  per-stage view + totalCost). Maliyet matematiği OrgState.runSummary/stageCost'a delege — asla
+  yeniden türetilmiyor. `runID` path-traversal guard'ı (`isTraversal`, W3.2'de eklendi;
+  `/`, `\`, `..` reddeder). Gerçek-HTTP-katmanı testi (`httpapi-org-runs.test.ts`,
+  HttpRouter.toWebHandler + x-kilo-directory routing).
+- **W3.2 — SDK regen + console client fns.** openapi-ts ile `client.orgRuns.list/detail`
+  üretildi; `loadOrgRuns`/`loadOrgRunDetail` client wrapper'ları.
+- **W3.3 — console liste + detay rotaları.** `OrgRunsListRoute`/`OrgRunDetailRoute` + saf view
+  helper'ları (`org-runs-view.ts`: formatCost/stageTimeline/runStatusBadge/awaitingGateStages/
+  auditTrail) + 9 birim testi. Sidebar "Org Runs" linki.
+- **W3.4 — maliyet paneli + kapı rozeti + polling.** `OrgRunCostPanel` (per-stage maliyet tablosu
+  + toplam, kuruşuna kadar); saf `costRows`/`costTotal` helper'ları (`costTotal === totalCost`
+  kuruş-testi, kırmızı/yeşil zorlanarak load-bearing kanıtlandı); "AWAITING APPROVAL" rozeti +
+  `awaitingSince` (geçen süre); aktif run'da 3s polling (createEffect + setInterval, onCleanup ile
+  temizlenir, status "active" değilse kurulmaz). **CANLI DOĞRULANDI:** temiz 3s ritmi (10 istek/29s,
+  aralıklar 3016-3032ms), tamamlanmış run'da 0 polling. SSE bilinçli ertelendi (poll yeterli).
+- **W3.5 — exit testi + final review + merge.** `wave3-exit.test.ts`: exit kriterini çalıştırılabilir
+  kılıyor — çok-aşamalı run (biri awaiting_approval), 12.5+0.37+1.13=14.00 float-hata-açığa-çıkaran
+  maliyetlerle, hem `toBeCloseTo(x,10)` hem integer-cents ile "kuruşuna kadar" iddiası (perturbe→RED,
+  restore→GREEN). Canlı gerçek-sunucu ispatı: `kilo serve` + seed'li run'lar → liste/detay/maliyet
+  paneli/kapı rozeti tarayıcıda render edildi, state.json'a kuruşuna kadar eşleşti, 0 console hatası.
+
+**Wave-close review (5-boyut adversarial, 41 agent, 3-şüpheci refutation) — 2 gerçek bug bulundu, İKİSİ DE FIXED:**
+- **Bug A (Important) — tek bozuk run TÜM listeyi 500'lüyor — FIXED (`e0e6a8ad68`).** `OrgRunsView.list`
+  `Promise.all(ids.map(OrgState.read))`'ti; tek bir truncated/schema-invalid `state.json` (ya da
+  state.json'suz stray dir) tüm promise'i reddedip (handler `Effect.promise`, catch yok) HTTP 500
+  döndürüyordu → sağlıklı run'lar dahil hiçbiri listelenmiyor. Fix: per-run try/catch + `.filter(Boolean)`
+  izolasyonu (bozuk run atlanır, sağlıklılar döner). Ek: `OrgState.NotFound` sentinel'ı eklendi;
+  `detail` artık yok-olan run → 404, VAR-ama-bozuk run → 500 (`Effect.die`, generic gövde, path sızıntısı
+  yok — testle doğrulandı) ayrımı yapıyor (eski Minor #5: her hata 404'e maplenip bozukluğu "yok" gibi
+  gösteriyordu); bozuk `approvals.json` graceful degrade ediyor (boş audit). 9 test yeşil.
+- **Bug B (Important) — console discover-recovery sonsuz döngüsü — FIXED (`9db72d3f9f`).** Liste/detay
+  rotalarının hata-kurtarma effect'i (paylaşılan ProjectsRoute deseninden birebir kopya): bir sunucu
+  /global/health + /project'e cevap verirken org-runs isteği başarısız olmayı sürdürürse
+  forget→rediscover AYNI sunucuyu yeniden seçip her döngüde ~40 URL tarıyordu. Org rotaları
+  pre-existing rotalardan DAHA açık: discovery'yi /project'te doğrulayıp /org-runs (bağımsız
+  başarısız olabilen farklı endpoint) çekiyorlar. Fix: per-mount `Set` ile rediscovery'yi başarısız
+  sunucu başına TEK denemeye sınırla + retry'da url'i boşaltmayı bırak (böylece kalıcı-başarısız sunucu
+  hata kartını gösterir, döngü değil). **CANLI DOĞRULANDI:** 60s+ pencerelerde SIFIR runaway istek;
+  happy path ve pinned (?server=) mod etkilenmedi.
+
+## TRACK (Wave 3 kapanış review'u — feat/wave-3-observability)
+
+- **W3-R1 (Minor) — SDK `NullOr` alanları generated type'larda non-nullable.** Group şeması
+  `currentStage`/`startedAt`/`completedAt`/`decision`'ı `Schema.NullOr(...)` ilan ediyor ama
+  `packages/sdk/js/src/v2/gen/types.gen.ts` bunları düz `string` (nullable değil) üretiyor —
+  openapi-ts generation NullOr nullability'sini düşürüyor (repo-geneli generator sınırı, org'a özgü
+  değil). Tek tüketici (console) null'ları zaten normalize ediyor (crash yok); dış SDK tüketicileri
+  risk altında. Takip: openapi-ts nullability üretimini düzelt ya da alanları `optional(NullOr(...))`
+  gibi generator'ın doğru serialize ettiği bir konstrüktle ilan et. Merge blocker değil.
+- **W3-R2 (Minor) — maliyet paneli per-stage yuvarlama footing'i sub-cent maliyetlerde tutmuyor.**
+  Her satır bağımsız `toFixed(2)` ile yuvarlandığından, üç aşama 0.005'er ise satırlar "$0.01"×3
+  (görsel $0.03) ama Total `formatCost(0.015)` = "$0.01" gösterir — breakdown Total'a footing yapmaz.
+  Yalnız sub-cent aşama maliyetlerinde görülür (gerçek LLM maliyetleri asla sub-cent değil). BİLİNÇLİ
+  DÜZELTİLMEDİ: satırları yuvarlanmış-toplama footing'lemek "Total = API totalCost'a kuruşuna kadar
+  eşit" exit kriterini bozardı. Kozmetik, kabul edildi.
+- **W3-R3 (canlı doğrulamada keşfedildi) — console resource kalıcı 5xx'te LOADING'de takılıyor.**
+  `fetcher = window.fetch.bind(window)` (retry yok); kalıcı bir 500 tek istekte tamamlanıyor (12ms)
+  AMA SDK/resource katmanı bunu `runs.error` olarak yüzeye çıkarmıyor → resource sonsuza dek
+  `loading:true, err:null` (spinner), retry yok. Pre-existing, console-GENELİ (tüm rotalar, org'a özgü
+  değil). Bug B guard'ı bunu etkilemez (guard `runs.error`'a bakar, o hiç set olmaz). **Bug A fix'i
+  org listesi için pratik tetiği kaldırıyor** (bozuk run → atlanır → 200, artık 500 yok); yalnız başka
+  bir sebeple gerçek bir 500 hâlâ spinner'da takılır. Takip: 5xx'i hata olarak yüzeye çıkar / loading
+  timeout → hata kartı ekle (paylaşılan client/fetcher katmanında).
+- **W3-R4 (latent pattern) — discover-recovery döngü deseni paylaşılan rotalarda da var.** Aynı
+  effect `ProjectsRoute`/`ProjectConsoleRoute`/`profile/server.ts`'te birebir mevcut; orada daha az
+  açık (doğruladıkları endpoint'i = /project çekiyorlar, bağımsız başarısız olan farklı bir endpoint
+  değil). Org rotaları bounded-recovery guard'ını (W3, `9db72d3f9f`) aldı; paylaşılan rotalar almadı.
+  Takip: aynı guard'ı paylaşılan rotalara uygula ya da ortak bir recovery helper'ı çıkar. Pre-existing;
+  Wave 3 kapsamı dışı bilinçli tutuldu (paylaşılan console altyapısını refactor etmemek için).
+
+**SNR-deferred (Wave 3'te bilinçli ertelendi → Wave 4+):** SSE org-event publishing (polling +
+session-close refresh yeterli); org-runs DB tablosu (dosyalar hızlı, migration yok); per-stage
+latency/success histogramları; desktop/webhook bildirimleri (UI rozeti "kapı bir bildirim ateşler"i
+karşılıyor). Hiçbiri doğruluk sorunu değil.

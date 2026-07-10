@@ -259,6 +259,10 @@ export function ProjectConsoleRoute() {
     const q = search().toString()
     return `/projects/${encodeURIComponent(project())}/settings${q ? `?${q}` : ""}`
   })
+  const orgRuns = createMemo(() => {
+    const q = search().toString()
+    return `/projects/${encodeURIComponent(project())}/org-runs${q ? `?${q}` : ""}`
+  })
 
   function projectInput(): Query | undefined {
     const base = query()
@@ -872,6 +876,10 @@ export function ProjectConsoleRoute() {
           </section>
         </div>
         <div class="project-sidebar-bottom">
+          <A class="project-settings-link" href={orgRuns()}>
+            <span>Org Runs</span>
+            <small>Autonomous org-run pipelines</small>
+          </A>
           <A class="project-settings-link" href={settings()}>
             <span>Project Settings</span>
             <small>Project configuration</small>

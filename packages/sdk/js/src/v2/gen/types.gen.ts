@@ -1308,6 +1308,9 @@ export type PermissionConfig =
       notebook_read?: PermissionRuleConfig
       notebook_edit?: PermissionRuleConfig
       notebook_execute?: PermissionRuleConfig
+      xcode_build?: PermissionRuleConfig
+      xcode_test?: PermissionRuleConfig
+      crash_symbolicate?: PermissionRuleConfig
       [key: string]: PermissionRuleConfig | PermissionActionConfig | undefined
     }
 
@@ -1344,6 +1347,7 @@ export type AgentConfig = {
       id: string
     }>
   }
+  subordinates?: Array<string>
   [key: string]:
     | unknown
     | string
@@ -1376,6 +1380,7 @@ export type AgentConfig = {
           id: string
         }>
       }
+    | Array<string>
     | undefined
 }
 
@@ -2100,6 +2105,7 @@ export type Agent = {
       id: string
     }>
   }
+  subordinates?: Array<string>
   steps?: number
 }
 
@@ -2806,6 +2812,76 @@ export type AnacondaDesktopConflictError = {
 export type AnacondaDesktopOperationError = {
   operation: "open" | "sync"
   message: string
+}
+
+export type OrgRunSummary = {
+  runID: string
+  idea: string
+  status: "active" | "halted" | "completed"
+  createdAt: string
+  totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  stageCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  currentStage: string
+  awaitingGate: boolean
+}
+
+export type OrgRunsListResponse = {
+  runs: Array<OrgRunSummary>
+}
+
+export type OrgRunStage = {
+  status: "pending" | "running" | "awaiting_approval" | "completed" | "failed"
+  taskID?: string
+  cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  costTaskID?: string
+  costs?: {
+    [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  attempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  incompleteAttempts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  decision?: "approve" | "no-go" | "revise"
+  decisionNote?: string
+  reviseBaseline?: string
+  reviseNote?: string
+  startedAt?: string
+  completedAt?: string
+}
+
+export type OrgRunFull = {
+  runID: string
+  idea: string
+  createdAt: string
+  status: "active" | "halted" | "completed"
+  haltReason?: string
+  stages: {
+    [key: string]: OrgRunStage
+  }
+  escalated?: boolean
+}
+
+export type OrgAuditEntry = {
+  ts: string
+  stage: string
+  decision: string
+  note?: string
+  deliverableHash?: string
+}
+
+export type OrgRunStageView = {
+  stage: string
+  status: "pending" | "running" | "awaiting_approval" | "completed" | "failed"
+  cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  attempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  startedAt: string
+  completedAt: string
+  decision: "approve" | "no-go" | "revise"
+}
+
+export type OrgRunDetailResponse = {
+  run: OrgRunFull
+  audit: Array<OrgAuditEntry>
+  totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  stages: Array<OrgRunStageView>
 }
 
 export type KilocodeSessionImportResult = {
@@ -11912,6 +11988,68 @@ export type NetworkRejectResponses = {
 }
 
 export type NetworkRejectResponse = NetworkRejectResponses[keyof NetworkRejectResponses]
+
+export type OrgRunsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs"
+}
+
+export type OrgRunsListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OrgRunsListError = OrgRunsListErrors[keyof OrgRunsListErrors]
+
+export type OrgRunsListResponses = {
+  /**
+   * Org runs summary list
+   */
+  200: OrgRunsListResponse
+}
+
+export type OrgRunsListResponse2 = OrgRunsListResponses[keyof OrgRunsListResponses]
+
+export type OrgRunsDetailData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}"
+}
+
+export type OrgRunsDetailErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsDetailError = OrgRunsDetailErrors[keyof OrgRunsDetailErrors]
+
+export type OrgRunsDetailResponses = {
+  /**
+   * Full org run state, audit trail, and per-stage view
+   */
+  200: OrgRunDetailResponse
+}
+
+export type OrgRunsDetailResponse = OrgRunsDetailResponses[keyof OrgRunsDetailResponses]
 
 export type RemoteEnableData = {
   body?: never

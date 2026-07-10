@@ -249,6 +249,10 @@ import type {
   NotebookFailure,
   NotebookRequestId,
   NotebookResult,
+  OrgRunsDetailErrors,
+  OrgRunsDetailResponses,
+  OrgRunsListErrors,
+  OrgRunsListResponses,
   OutputFormat,
   Part as Part2,
   PartDeleteErrors,
@@ -8205,6 +8209,70 @@ export class Network extends HeyApiClient {
   }
 }
 
+export class OrgRuns extends HeyApiClient {
+  /**
+   * List org runs
+   *
+   * Summarize every org run for the active workspace (status, total cost, current stage, gate state), newest first.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<OrgRunsListResponses, OrgRunsListErrors, ThrowOnError>({
+      url: "/org-runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get org run detail
+   *
+   * Return the full run state, gate-decision audit trail, total cost, and a per-stage view.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<OrgRunsDetailResponses, OrgRunsDetailErrors, ThrowOnError>({
+      url: "/org-runs/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Remote extends HeyApiClient {
   /**
    * Enable remote connection
@@ -9125,6 +9193,11 @@ export class KiloClient extends HeyApiClient {
   private _network?: Network
   get network(): Network {
     return (this._network ??= new Network({ client: this.client }))
+  }
+
+  private _orgRuns?: OrgRuns
+  get orgRuns(): OrgRuns {
+    return (this._orgRuns ??= new OrgRuns({ client: this.client }))
   }
 
   private _remote?: Remote
