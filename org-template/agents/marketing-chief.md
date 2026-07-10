@@ -2,7 +2,7 @@
 description: Marketing department chief — complete App Store listing package
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [aso-specialist, copywriter, pricing-analyst, preview-designer, apple-docs]
+subordinates: [aso-specialist, copywriter, pricing-analyst, preview-designer, apple-docs, appstore-review-validator, privacy-manifest-validator]
 permission:
   edit:
     "*": deny

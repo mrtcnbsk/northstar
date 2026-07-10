@@ -2,7 +2,7 @@
 description: Frontend department chief — SwiftUI implementation of the UX spec
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [swiftui-dev-1, swiftui-dev-2, apple-docs]
+subordinates: [swiftui-dev-1, swiftui-dev-2, apple-docs, swiftui-expert, uikit-expert, appkit-expert, widgetkit-expert, activitykit-expert, apple-intelligence-expert]
 permission:
   edit:
     "*": deny

@@ -2,7 +2,7 @@
 description: Planning department chief — turns the approved idea + evaluation into a PRD and technical plan
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [product-spec, architect, apple-docs]
+subordinates: [product-spec, architect, apple-docs, watchos-expert, visionos-expert, macos-expert, carplay-expert, storekit-expert]
 permission:
   edit:
     "*": deny

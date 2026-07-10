@@ -2,7 +2,7 @@
 description: Backend department chief — data model, persistence, and services layer
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [data-layer-dev, apple-docs]
+subordinates: [data-layer-dev, apple-docs, swiftdata-expert, coredata-expert, cloudkit-expert, storekit-expert, appintents-expert, foundation-models-expert]
 permission:
   edit:
     "*": deny

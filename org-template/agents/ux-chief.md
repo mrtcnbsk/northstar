@@ -2,7 +2,7 @@
 description: UX department chief — screen map, flows, and HIG-compliant design language
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [ux-designer, apple-docs]
+subordinates: [ux-designer, apple-docs, hig-validator, accessibility-validator, apple-intelligence-expert]
 permission:
   edit:
     "*": deny

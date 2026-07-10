@@ -2,7 +2,7 @@
 description: Debugging department chief — drives failures from the test report to a green build
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [debugger, apple-docs]
+subordinates: [debugger, apple-docs, metal-expert, coreml-expert, vision-expert, avfoundation-expert, corelocation-expert, healthkit-expert, homekit-expert, siri-expert, swift6-migration-validator]
 permission:
   edit:
     "*": deny

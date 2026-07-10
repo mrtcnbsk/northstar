@@ -23,9 +23,9 @@ describe("org-template consistency", () => {
     expect(org.pipeline[7]).toMatchObject({ stage: "marketing", gate: "human" })
   })
 
-  test("all 26 agent files load and cross-check against the org chart", async () => {
+  test("all 58 agent files load and cross-check against the org chart", async () => {
     const { org, agents } = await loadTemplate()
-    expect(Object.keys(agents).length).toBe(26)
+    expect(Object.keys(agents).length).toBe(58)
     const view = Object.fromEntries(
       Object.entries(agents).map(([name, a]) => [
         name,
@@ -33,6 +33,22 @@ describe("org-template consistency", () => {
       ]),
     )
     expect(OrgSchema.crossCheck(org, view)).toEqual([])
+  })
+
+  test("no orphans: every loaded agent is reachable from the org chart", async () => {
+    const { org, agents } = await loadTemplate()
+    const reachable = new Set<string>([org.ceo, ...org.shared])
+    for (const dept of Object.values(org.departments)) {
+      reachable.add(dept.chief)
+      for (const worker of dept.workers) reachable.add(worker)
+    }
+    for (const chief of Object.values(org.departments).map((d) => d.chief)) {
+      const subs = (agents[chief] as { subordinates?: readonly string[] })?.subordinates ?? []
+      for (const sub of subs) reachable.add(sub)
+    }
+    for (const name of Object.keys(agents)) {
+      expect(reachable.has(name), `agent "${name}" is an orphan: not ceo, chief, worker, shared, or any chief's subordinate`).toBe(true)
+    }
   })
 
   test("ceo is primary; everyone else is a subagent", async () => {
@@ -72,6 +88,16 @@ describe("org-template consistency", () => {
     const workers = new Set(Object.values(org.departments).flatMap((d) => d.workers).concat(org.shared))
     for (const name of workers) {
       expect(agents[name].permission?.task, `worker ${name} must not have task rules`).toBeUndefined()
+    }
+  })
+
+  test("non-chief, non-ceo agents (workers, shared, specialists/validators) have no task permissions", async () => {
+    const { org, agents } = await loadTemplate()
+    const chiefs = new Set(Object.values(org.departments).map((d) => d.chief))
+    for (const [name, agent] of Object.entries(agents)) {
+      if (name === org.ceo) continue
+      if (chiefs.has(name)) continue
+      expect(agent.permission?.task, `agent ${name} must not have task rules (not a chief)`).toBeUndefined()
     }
   })
 

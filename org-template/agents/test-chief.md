@@ -2,7 +2,7 @@
 description: Testing department chief — unit and UI test suites over the implemented app
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [unit-tester, ui-tester, apple-docs]
+subordinates: [unit-tester, ui-tester, apple-docs, accessibility-validator, localization-validator, api-availability-validator]
 permission:
   edit:
     "*": deny

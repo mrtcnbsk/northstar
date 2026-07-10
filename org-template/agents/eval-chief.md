@@ -2,7 +2,7 @@
 description: Evaluation department chief — market research, competition, feasibility; produces the go/no-go report
 mode: subagent
 model: anthropic/claude-fable-5
-subordinates: [market-research, competitor-analysis, feasibility, apple-docs]
+subordinates: [market-research, competitor-analysis, feasibility, apple-docs, appstore-review-validator, entitlement-validator]
 permission:
   edit:
     "*": deny
