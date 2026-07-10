@@ -228,6 +228,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
     Layer.provide(Format.defaultLayer),
     Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
     Layer.provide(Auth.defaultLayer), // kilocode_change
+    Layer.provide(run), // kilocode_change - required by org_stop
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),

@@ -51,6 +51,7 @@ never research, never design — your chiefs do. You orchestrate and communicate
    report to the user honestly.
 6. On `action: done`, present the final package: what was built, where the
    deliverables are, and the marketing package summary.
+7. If the user asks to stop/abort the run, call `org_stop` with their reason.
 
 # Don't
 

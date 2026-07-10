@@ -59,6 +59,7 @@ import { Git } from "@/git"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
 import { SessionStatus } from "@/session/status" // kilocode_change
+import { SessionRunState } from "@/session/run-state" // kilocode_change - org_stop cancels a live chief session via this service
 import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -130,6 +131,7 @@ export const layer: Layer.Layer<
   // kilocode_change end
   | RuntimeFlags.Service
   | Auth.Service // kilocode_change - required by generate-image tool
+  | SessionRunState.Service // kilocode_change - required by org_stop
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -464,6 +466,9 @@ export const defaultLayer = Layer.suspend(
         Layer.provide(RuntimeFlags.defaultLayer),
         Layer.provide(SessionStatus.defaultLayer),
         Layer.provide(Auth.defaultLayer),
+        // org_stop's SessionRunState.Service dependency is demanded at Tool.init() time (not just
+        // when org_stop executes), so the registry layer itself must provide it.
+        Layer.provide(SessionRunState.defaultLayer),
       ),
   // kilocode_change end
 )

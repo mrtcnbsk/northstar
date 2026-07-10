@@ -9,7 +9,13 @@ import { InteractiveTerminalTool } from "./interactive-terminal"
 import { NotebookEditTool, NotebookExecuteTool, NotebookReadTool } from "./notebook-host"
 import { MemoryRecallTool } from "./memory-recall"
 import { MemorySaveTool } from "./memory-save"
-import { OrgStartTool, OrgAdvanceTool, OrgDecisionTool, OrgStatusTool } from "@/kilocode/organization/tools"
+import {
+  OrgStartTool,
+  OrgAdvanceTool,
+  OrgDecisionTool,
+  OrgStatusTool,
+  OrgStopTool,
+} from "@/kilocode/organization/tools"
 import * as Tool from "../../tool/tool"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect } from "effect"
@@ -69,6 +75,7 @@ export namespace KiloToolRegistry {
       const orgAdvance = yield* OrgAdvanceTool
       const orgDecision = yield* OrgDecisionTool
       const orgStatus = yield* OrgStatusTool
+      const orgStop = yield* OrgStopTool
       if (!notebook)
         return {
           codebase,
@@ -84,6 +91,7 @@ export namespace KiloToolRegistry {
           orgAdvance,
           orgDecision,
           orgStatus,
+          orgStop,
         }
       const tools = yield* Effect.all({
         notebookRead: NotebookReadTool,
@@ -104,6 +112,7 @@ export namespace KiloToolRegistry {
         orgAdvance,
         orgDecision,
         orgStatus,
+        orgStop,
         ...tools,
       }
     })
@@ -126,6 +135,7 @@ export namespace KiloToolRegistry {
       orgAdvance: Tool.Info
       orgDecision: Tool.Info
       orgStatus: Tool.Info
+      orgStop: Tool.Info
       notebookRead?: Tool.Info
       notebookEdit?: Tool.Info
       notebookExecute?: Tool.Info
@@ -147,6 +157,7 @@ export namespace KiloToolRegistry {
         orgAdvance: Tool.init(tools.orgAdvance),
         orgDecision: Tool.init(tools.orgDecision),
         orgStatus: Tool.init(tools.orgStatus),
+        orgStop: Tool.init(tools.orgStop),
       })
       const terminal = tools.terminal ? yield* Tool.init(tools.terminal) : undefined
       const notebooks =
@@ -223,6 +234,7 @@ export namespace KiloToolRegistry {
       orgAdvance: Tool.Def
       orgDecision: Tool.Def
       orgStatus: Tool.Def
+      orgStop: Tool.Def
       notebookRead?: Tool.Def
       notebookEdit?: Tool.Def
       notebookExecute?: Tool.Def
@@ -251,6 +263,7 @@ export namespace KiloToolRegistry {
       tools.orgAdvance,
       tools.orgDecision,
       tools.orgStatus,
+      tools.orgStop,
     ]
   }
 

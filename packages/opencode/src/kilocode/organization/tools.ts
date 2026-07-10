@@ -4,6 +4,7 @@ import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
+import { SessionRunState } from "@/session/run-state"
 import { Config } from "@/config/config"
 import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
 import { OrgSchema } from "./schema"
@@ -230,6 +231,47 @@ export const OrgStatusTool = Tool.define(
           }
           const status = yield* tryOrg(() => OrgRunner.status(dir, org, params.run_id!))
           return result(`run ${params.run_id}`, status)
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const StopParameters = Schema.Struct({
+  run_id: Schema.String,
+  reason: Schema.String.annotate({ description: "Why the run is being stopped, verbatim from the user" }),
+})
+
+export const OrgStopTool = Tool.define(
+  "org_stop",
+  Effect.gen(function* () {
+    const runState = yield* SessionRunState.Service
+    return {
+      description:
+        "Emergency stop: immediately halts the organization run, regardless of what is currently in flight. Records the reason and best-effort cancels the running chief's session. Use when the user asks to stop or abort the run.",
+      parameters: StopParameters,
+      execute: (params: Schema.Schema.Type<typeof StopParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const { taskID } = yield* tryOrg(() => OrgRunner.stop(dir, org, params.run_id, params.reason))
+          if (!taskID) {
+            return result("stopped", { action: "stopped", reason: params.reason, note: "no stage was running" })
+          }
+          // Best-effort: the halt is already persisted, so a cancellation failure must degrade to
+          // a note rather than fail the stop.
+          const cancelled = yield* runState
+            .cancel(SessionID.make(taskID))
+            .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+          return result("stopped", {
+            action: "stopped",
+            reason: params.reason,
+            ...(cancelled ? { cancelled_session: taskID } : {}),
+            note: cancelled
+              ? "the running chief's session was cancelled"
+              : "live session cancellation failed; the running chief will finish its current turn",
+          })
         }).pipe(Effect.orDie),
     }
   }),

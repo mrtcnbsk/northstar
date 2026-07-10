@@ -322,7 +322,7 @@ describe("kilocode tool registry indexing", () => {
     ),
   )
 
-  const orgIDs = ["org_start", "org_advance", "org_decision", "org_status"]
+  const orgIDs = ["org_start", "org_advance", "org_decision", "org_status", "org_stop"]
 
   it.live("hides org tools when the project has no organization config", () =>
     provideTmpdirInstance(
@@ -414,11 +414,12 @@ describe("kilocode tool registry indexing", () => {
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
       orgStatus: def("org_status"),
+      orgStop: def("org_stop"),
       notebookRead: def("notebook_read"),
       notebookEdit: def("notebook_edit"),
       notebookExecute: def("notebook_execute"),
     }
-    const orgIDs = ["org_start", "org_advance", "org_decision", "org_status"]
+    const orgIDs = ["org_start", "org_advance", "org_decision", "org_status", "org_stop"]
 
     try {
       process.env["KILO_CLIENT"] = "cli"

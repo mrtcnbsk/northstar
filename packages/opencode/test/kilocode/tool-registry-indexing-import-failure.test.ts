@@ -47,6 +47,7 @@ function infos() {
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),
     orgStatus: info("org_status"),
+    orgStop: info("org_stop"),
     notebookRead: info("notebook_read"),
     notebookEdit: info("notebook_edit"),
     notebookExecute: info("notebook_execute"),

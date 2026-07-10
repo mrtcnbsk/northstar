@@ -1,12 +1,14 @@
 // kilocode_change - new file
 import { describe, test, expect } from "bun:test"
 import path from "path"
-import { mkdir } from "node:fs/promises"
+import { mkdir, writeFile } from "node:fs/promises"
+import { createHash } from "node:crypto"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgState } from "../../../src/kilocode/organization/state"
+import { OrgAudit } from "../../../src/kilocode/organization/audit"
 
 const ORG = OrgSchema.parse({
   ceo: "ceo",
@@ -399,5 +401,104 @@ describe("OrgRunner full flows", () => {
     })
     const status = await OrgRunner.status(tmp.path, ORG, run.runID)
     expect(status.totalCost).toBe(4.2)
+  })
+
+  test("decide appends an audit entry with stage/decision/note/deliverableHash", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea audit one")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+
+    const expectedHash = createHash("sha256")
+      .update(await Bun.file(OrgArtifacts.deliverablePath(tmp.path, run.runID, "evaluation")).text())
+      .digest("hex")
+
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    const afterRevise = await OrgAudit.read(tmp.path, run.runID)
+    expect(afterRevise.length).toBe(1)
+    expect(afterRevise[0]).toMatchObject({
+      stage: "evaluation",
+      decision: "revise",
+      note: "dig deeper",
+      deliverableHash: expectedHash,
+    })
+    expect(typeof afterRevise[0].ts).toBe("string")
+  })
+
+  test("two decisions produce two audit entries in order", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea audit two")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# revised\n\n" + "more ".repeat(20))
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" }) // back to gate
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "approve")
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.length).toBe(2)
+    expect(entries[0].decision).toBe("revise")
+    expect(entries[1].decision).toBe("approve")
+    expect(new Date(entries[0].ts).getTime()).toBeLessThanOrEqual(new Date(entries[1].ts).getTime())
+  })
+
+  test("org_status-level: approvals is [] when approvals.json is absent", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea audit three")
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries).toEqual([])
+  })
+
+  test("corrupted approvals.json surfaces a readable error naming the file", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea audit four")
+    const file = path.join(OrgState.runDir(tmp.path, run.runID), "approvals.json")
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, "not json")
+    await expect(OrgAudit.read(tmp.path, run.runID)).rejects.toThrow(
+      new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    )
+  })
+
+  test("stop halts an active run with a running stage, records reason and audit entry, and returns the taskID", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea stop one")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_running" })
+
+    const result = await OrgRunner.stop(tmp.path, ORG, run.runID, "user asked to abort")
+    expect(result.run.status).toBe("halted")
+    expect(result.run.haltReason).toBe("emergency stop: user asked to abort")
+    expect(result.taskID).toBe("ses_running")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("halted")
+    expect(state.haltReason).toBe("emergency stop: user asked to abort")
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.length).toBe(1)
+    expect(entries[0]).toMatchObject({ stage: "evaluation", decision: "stop", note: "user asked to abort" })
+
+    // advance afterwards short-circuits on halted regardless of the running stage
+    const after = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(after.kind).toBe("halted")
+    if (after.kind !== "halted") throw new Error("unreachable")
+    expect(after.reason).toBe("emergency stop: user asked to abort")
+  })
+
+  test("stop with no running stage records stage 'none' and still halts", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea stop two")
+
+    const result = await OrgRunner.stop(tmp.path, ORG, run.runID, "changed my mind")
+    expect(result.run.status).toBe("halted")
+    expect(result.taskID).toBeUndefined()
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries[0]).toMatchObject({ stage: "none", decision: "stop", note: "changed my mind" })
   })
 })

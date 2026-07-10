@@ -4,6 +4,7 @@ import { OrgSchema } from "./schema"
 import { OrgState } from "./state"
 import { OrgArtifacts } from "./artifacts"
 import { OrgPrompts } from "./prompts"
+import { OrgAudit } from "./audit"
 
 export namespace OrgRunner {
   export interface Deps {
@@ -54,6 +55,21 @@ export namespace OrgRunner {
     const text = await Bun.file(OrgArtifacts.deliverablePath(projectDir, runID, stage))
       .text()
       .catch(() => "")
+    return createHash("sha256").update(text).digest("hex")
+  }
+
+  /** Same hash as `deliverableHash`, but undefined (not the hash of "") when the deliverable is
+   * unreadable — used for the audit trail, where a read failure must be omitted rather than
+   * recorded as a real hash value. */
+  async function deliverableHashOrUndefined(
+    projectDir: string,
+    runID: string,
+    stage: string,
+  ): Promise<string | undefined> {
+    const text = await Bun.file(OrgArtifacts.deliverablePath(projectDir, runID, stage))
+      .text()
+      .catch(() => undefined)
+    if (text === undefined) return undefined
     return createHash("sha256").update(text).digest("hex")
   }
 
@@ -275,7 +291,9 @@ export namespace OrgRunner {
     if (!gated) throw new Error(`Cannot record decision "${decision}": no stage awaiting approval in run ${runID}`)
     // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
     const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
-    return OrgState.update(projectDir, runID, (s) => {
+    // Same on-disk deliverable, hashed once at decision time for the audit trail.
+    const deliverableHashForAudit = await deliverableHashOrUndefined(projectDir, runID, gated.stage)
+    const updated = await OrgState.update(projectDir, runID, (s) => {
       const record = s.stages[gated.stage]
       record.decision = decision
       record.decisionNote = note
@@ -292,12 +310,57 @@ export namespace OrgRunner {
         // the costs map is left as-is: it reflects real spend so far; the session's own key is overwritten on next completion.
       }
     })
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date().toISOString(),
+      stage: gated.stage,
+      decision,
+      note,
+      deliverableHash: deliverableHashForAudit,
+    })
+    return updated
+  }
+
+  /**
+   * Emergency stop: halts the run immediately regardless of current status, records the reason,
+   * and appends an audit entry. Returns the running stage's taskID (if any) so the caller can
+   * cancel the live chief session. org_advance already short-circuits on status "halted", so this
+   * alone is sufficient to stop the pipeline from progressing further.
+   */
+  export async function stop(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    reason: string,
+  ): Promise<{ run: OrgState.Run; taskID?: string }> {
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    const running = org.pipeline.find(({ stage }) => run.stages[stage].status === "running")
+    const stage = running?.stage
+    const taskID = stage ? run.stages[stage].taskID : undefined
+    const haltReason = `emergency stop: ${reason}`
+    const updated = await OrgState.update(projectDir, runID, (s) => {
+      s.status = "halted"
+      s.haltReason = haltReason
+    })
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date().toISOString(),
+      stage: stage ?? "none",
+      decision: "stop",
+      note: reason,
+    })
+    return { run: updated, taskID }
   }
 
   export async function status(projectDir: string, org: OrgSchema.Organization, runID: string) {
     const run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
     const totalCost = Object.values(run.stages).reduce((sum, s) => sum + stageCost(s), 0)
-    return { run, totalCost, pipeline: org.pipeline.map(({ stage, gate }) => ({ stage, gate, ...run.stages[stage] })) }
+    const approvals = await OrgAudit.read(projectDir, runID)
+    return {
+      run,
+      totalCost,
+      pipeline: org.pipeline.map(({ stage, gate }) => ({ stage, gate, ...run.stages[stage] })),
+      approvals,
+    }
   }
 }
