@@ -41,6 +41,27 @@ Defaults: chiefs/CEO `anthropic/claude-fable-5`, dev/test workers
 the Kilo Gateway. Change any agent's file to change its model — check the model
 picker for the exact ids available to your account.
 
+## Budget
+
+`organization.jsonc` has an optional top-level `"budget"` block (all fields
+optional; USD, `retries` is an integer count):
+
+```jsonc
+"budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 }
+```
+
+- `run` — total spend ceiling for one pipeline run.
+- `stage` — default per-stage spend ceiling.
+- `escalationThreshold` — spend level that triggers a human-escalation warning.
+- `retries` — max retries for a stage before it is treated as failed.
+
+Any omitted field falls back to the defaults shown above (`OrgSchema.resolveBudget`).
+A single pipeline stage can override the stage ceiling by adding its own
+`"budget"` number, e.g. `{ "stage": "marketing", "budget": 25 }` — this replaces
+just the resolved `stage` ceiling for that stage, not `run`, `escalationThreshold`,
+or `retries`. `OrgSchema.budgetWarnings` flags (without blocking load)
+`stage`/`escalationThreshold` values greater than `run`.
+
 ## Editing the organization
 
 - Add/remove workers: edit the department in `organization.jsonc` AND the chief's

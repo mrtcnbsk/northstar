@@ -5,36 +5,12 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
 
 ## MUST-FIX (Wave 1'in İLK işi — gerçek run iddiasından önce)
 
-- **W0-R1 — Org yazma yolu gerçek run'larda ÖLÜ (v1'den beri gizli Critical).**
-  `ceo.md`'nin `edit/bash: deny`'ı ve şeflerin `edit "*": deny`'ı, session türetimiyle
-  (`subagent-permissions.ts:28` parentAgentDenies + `kilocode/tool/task.ts` `inherited()`)
-  her alt session'a `"*" deny` olarak taşınıyor; değerlendirme findLast (session kuralları
-  sonda) olduğundan şefin deliverables allow'unu ve worker'ın edit/bash allow'unu YENİYOR.
-  Kanıt (gerçek template + gerçek evaluator): şef deliverable yazamıyor, worker app kodu
-  yazamıyor, worker `swift build` çalıştıramıyor → her gerçek run 1. stage'de
-  "deliverable missing" ile ölür. W0.4c seam testi yalnız AGENT ruleset'ini ölçtüğü için
-  yeşil. Fix, birleşik-seam testiyle şunları pinlemeli: şef deliverable=allow,
-  şef state.json=deny, worker app-kodu=allow, worker `.kilo/org/**`=deny.
-  (Eski #10 ve aşağıdaki W0-R3 bu maddenin kabul kriterlerine katlandı.)
-- **W0-R3 (W0-R1'e bağlı) — worker şablonlarına açık `.kilo/org/**` edit deny.**
-  Bugün tartışmasız (kimse yazamıyor); W0-R1 düzeltilir düzeltilmez worker'ların blanket
-  edit allow'u state.json'a delege yazmayı mümkün kılar (W0.4 review notu). W0-R1
-  fix'iyle AYNI commit'te kapatılmalı.
+(boş — W0-R1 ve W0-R3 Wave 1'de kapatıldı, aşağıya bak.)
 
 ## TRACK (takip — düzeltilecek)
 
-- **W0-R2 — org tool'ları için per-run serialization (Wave 1 başı).**
-  `OrgState.update` + `OrgAudit.append` kilitsiz read-modify-write; AI SDK paralel tool
-  call'ları eşzamanlı çalıştırır ve ikinci bir opencode instance'ı aynı projede koşabilir.
-  Somut tehlike: stale bir in-flight `org_advance`, `org_stop`'un persist ettiği
-  `halted`'ı tüm-dosya yazımıyla `active`'e geri döndürebilir (acil durdurmayı sessizce
-  bozar). Fix: tools.ts'te runID başına mutex/semaphore (~20 satır) + tek-yazar
-  varsayımı yorumlarının güncellenmesi.
 - **#3 (kalan yarı):** `OrgDepth` hâlâ düz `Error` ile fail ediyor (NamedError idiyomu
   değil). Mesaj Wave 0'da nötrleştirildi (kapatıldı).
-- **#4:** Global config'te SPESİFİK desenli bir task kuralı hâlâ tüm subagent'ları
-  "yönetici" yapar (derinlik tavanı artık ask'ten ÖNCE çalışıyor — blast radius küçüldü).
-  Config dokümantasyon uyarısı veya kaynak-kapsamlı kural kontrolü.
 - **#5:** `experimental.primary_tools` dedup yerleşimi session-level task deny'ı
   findLast'ta yenebilir (pre-existing; child tools map yine de kapatıyor).
 - **#6:** `schema.ts`: `validate()` hatası `at ${file}` içermiyor; jsonc çift hata
@@ -43,6 +19,96 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   sonra; append hatası (disk dolu) kararı persist edip tool'u fail ettirir, retry
   "no stage awaiting approval" der. Warning-note'a düşürülmeli. Ayrıca
   `OrgAudit.Entry.decision` serbest string (enum + "stop" olabilir).
+- **Minor (W1 kapanış):** `runner.ts` escalation gate: bir stage ZATEN `gate:"human"` iken
+  escalation eşiği aşılırsa `s.escalated` latch'lenir ama escalate note bastırılır
+  (`running.gate !== "human"` guard'ı) — o gate `budget_note` olmadan döner. Doğruluk sorunu
+  değil (insan zaten review'da; latch doğru tüketiliyor, tekrar ateşlenmez) ve ceo.md her gate'te
+  harcamayı zaten iletiyor. Yalnız UX boşluğu.
+- **Minor (W1 kapanış):** `tools.ts` `runLocks` Map'i run_id başına tek entry'yi overwrite ediyor
+  ama HİÇ silmiyor — süreç ömrü boyunca görülen her distinct run_id için bir resolved-promise
+  entry'si kalıyor. Normal kullanımda ihmal edilebilir; yalnız binlerce run_id'yi restart'sız
+  döngüleyen çok uzun ömürlü bir süreçte anlamlı. Residual comment process-locality'yi kapsıyor
+  ama map büyümesini not etmiyor.
+
+## Wave 1'de kapatıldı (feat/wave-1-budget, W1.0-W1.6)
+
+- **W0-R1 — Org yazma yolu gerçek run'larda ÖLÜ (v1'den beri gizli Critical) — FIXED.**
+  Kök neden: `ceo.md`'nin `edit/bash: deny`'ı ve şeflerin `edit "*": deny`'ı, session
+  türetimiyle (`subagent-permissions.ts` `parentAgentDenies` + `kilocode/tool/task.ts`
+  `inherited()`) her alt session'a `"*" deny` olarak taşınıyordu; değerlendirme findLast
+  (session kuralları sonda) olduğundan şefin deliverables allow'unu ve worker'ın edit/bash
+  allow'unu YENİYORDU. Fix: yeni `KiloTask.declaredSubordinate(parent, child)` yüklemi —
+  parent'ın KENDİ ruleset'i task-deny-by-default + child için spesifik (wildcard olmayan)
+  bir allow taşıyorsa (yani `subordinates` frontmatter'ının ürettiği imza), o org edge'inde
+  parent'ın AGENT-seviyesi deny'ları artık child session'a taşınmıyor. Session-seviyesi
+  deny'lar ve plan-family (`ask`/`plan`/`architect`) forwarding'i DEĞİŞMEDİ — yalnız bu
+  spesifik ilişki gevşetildi. Birleşik-seam matrix testi (10 vaka,
+  `test/kilocode/organization/write-path.test.ts`) tam CEO→şef→worker yazma yolunu pinliyor.
+  **Bilinen sınır: fix'ten ÖNCE başlamış ve persist edilmiş run'ların session'ları
+  zehirli ruleset'i korur** — `task_id` ile resume, session permission'ını APPEND eder,
+  asla eski `"*" deny` kurallarını silmez. Yalnız fix'ten SONRA başlayan taze run'lar
+  (fresh session, `session.create`) düzeltilmiş yazma yoluna sahiptir. Eski bir run'ı
+  resume etmek isteyen kullanıcı yeni bir run başlatmalı.
+- **W0-R3 (W0-R1'e bağlı) — worker şablonlarına açık `.kilo/org/**` edit deny — FIXED.**
+  Altı edit-capable worker (data-layer-dev, swiftui-dev-1, swiftui-dev-2, unit-tester,
+  ui-tester, debugger) artık `edit: {"*": allow, ".kilo/org/**": deny,
+  "**/.kilo/org/**": deny}` taşıyor (deny kuralları LAST — findLast org yollarını kazanır;
+  son kuralın pattern'i "*" olmadığından edit tool'u worker'a hâlâ sunuluyor). W0-R1 fix'iyle
+  AYNI commit'te kapatıldı.
+- **W1.0b — Yönetici tespiti ruleset imzasından bildirilmiş `subordinates` alanına
+  taşındı (+#4 kapandı).** Reviewer repro'su: kullanıcının global
+  `permission: {task: {"*": deny, x: allow}}` sertleştirmesi (meşru bir config) her
+  agent'ın ruleset'ine SON sırada merge olduğundan, edit deny taşıyan built-in'lerde
+  (ör. `explore`) W1.0'ın ruleset-imza tespitini ÜRETİYOR ve edit-deny forwarding'i
+  sessizce gevşetiyordu. Fix: `subordinates` alanı runtime `Agent.Info`'ya thread edildi
+  (`src/agent/agent.ts`, config merge loop); `nestedTask` artık "bildirilmiş subordinates
+  listesi boş değil", `declaredSubordinate` artık "parent'ın listesi child'ı TAM adla
+  içeriyor" (desen yok) — global config bu alanı enjekte EDEMEZ. PLAN_FAMILY ad kapısı
+  belt-and-suspenders olarak durdu (bugün gereksiz — hiçbir plan-family agent subordinates
+  bildirmiyor). İzin EXPANSION'ı (config/agent.ts task kural üretimi) aynen kaldı — spawn
+  yetkisi hâlâ ask-time kurallarla uygulanıyor; yalnız TESPİT re-key'lendi. Yan etki:
+  delegasyon isteyen elle yazılmış jsonc agent'lar artık `subordinates` bildirmek ZORUNDA
+  (README'nin belgelediği mekanizma) — salt task-kural haritası artık yönetici yapmıyor.
+  Eski #4 ("global config'te spesifik desenli task kuralı tüm subagent'ları yönetici
+  yapar") bu re-key ile kökten kapandı. Negatif test pinli
+  (`nested-task.test.ts` "global task hardening cannot manufacture a manager") +
+  PLAN_FAMILY↔`plan-file.ts PLANNERS` sync testi.
+- **W0-R2 — org tool'ları için per-run serialization — FIXED (W1.6).**
+  `OrgState.update` + `OrgAudit.append` kilitsiz read-modify-write/append'ti; AI SDK tek bir
+  assistant step'in tool call'larını eşzamanlı çalıştırabilir, ve stale bir in-flight
+  `org_advance`, `org_stop`'un persist ettiği `halted`'ı tüm-dosya yazımıyla `active`'e geri
+  döndürebilirdi (acil durdurmayı sessizce bozar). Fix: `tools.ts` içinde process-local bir
+  promise-chain mutex — `withRunLock(runID, fn)`, `Map<string, Promise>` ile runID başına
+  kuyruklanmış tail — org_advance / org_decision / org_stop'un TÜM mutasyon gövdesini sarıyor
+  (org_start yeni run yarattığı için lock'a ihtiyaç duymuyor; org_status salt-okunur bırakıldı —
+  Node'un tek-thread event loop'unda Filesystem.write'ın atomic rename'i sayesinde bir okuma
+  hiçbir zaman "torn" bir dosya görmez, yalnızca bir yazıcının kesinlikle öncesi ya da kesinlikle
+  sonrasını görür; kilitlemek yalnız gecikme ekler, doğruluk kazandırmaz). Kilit tool boundary'de
+  yaşıyor (runner.ts SAF ve senkron-compose edilebilir kalıyor — testability önceliği). Test:
+  `test/kilocode/organization/run-lock.test.ts` seam'i izole test ediyor (FIFO sıralama, farklı
+  run_id'lerin birbirini bloklamaması, reddeden bir mutasyonun kuyruğu kilitlememesi, ve doğrudan
+  acil-durdurma repro'su: stale bir yazı org_stop'tan ÖNCE başlayıp SONRA bitse bile artık son
+  yazan org_stop oluyor) + üç mutasyon tool'unun `withRunLock` çağırdığının, org_start/org_status'ın
+  çağırmadığının yapısal doğrulaması. **Kalan sınır (çözülmedi, bilinçli):** bu mutex
+  process-local'dir — aynı proje dizinine işaret eden İKİNCİ bir opencode instance'ının aynı
+  run_id üzerinde eşzamanlı org tool çağırmasını koordine ETMEZ; bu cross-process kilitleme
+  (OS file lock / lockfile-pid protokolü) gerektiren ayrı ve daha büyük bir iştir, burada
+  çözülmedi.
+
+**Wave 1 bütçe motoru kapanışları (dossier §C çekirdek, W1.1-W1.5, W1.6'da bütünsel exit testiyle
+doğrulandı):** organization.jsonc `budget` şeması + `resolveBudget` varsayılanları (W1.1); run/stage
+hard ceiling halt'ı + tek-seferlik cost-escalation human gate (W1.2); `org_status` bütçe bloğu
+(run/stage/escalationThreshold/retries/spent/remaining) + `org_advance` gate sonucunun escalation
+note'u taşıması (W1.3); bir kerelik değil sınırlı (`budget.retries`) auto-retry — deliverable hiç
+üretilmeyen ya da revise döngüsünde değişmeyen stage'ler retries+1 chief run sonunda "failed" olup
+run'ı halt ediyor (W1.4); maliyet-sıralı model fallback (W1.5). Bütünsel exit senaryosu
+(`test/kilocode/organization/wave1-exit.test.ts`): eşik-altı tamamlanma normal ilerliyor →
+gated-olmayan bir stage eşiği geçince escalation gate BİR KEZ ateşleniyor (non-boş runner-level
+`note` ile, W1.3'ün reviewer'ın işaretlediği coverage boşluğunu güçlendiriyor) ve org_status bütçe
+bloğu escalation anında doğru → decide(approve) devam ettiriyor → sonraki bir stage run ceiling'i
+aşınca HARD halt (bütçe haltReason + audit stop kaydı, sonraki advance halted dönüyor) → ayrı bir
+run'da bir stage retries+1 chief run boyunca tamamlanamayınca "deliverable never produced" ile
+fail oluyor.
 
 ## Wave 0'da kapatıldı (feat/wave-0-hardening, 13 commit)
 
@@ -72,6 +138,13 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   CEO turn'ünü bloklar); persist edilen halt asıl mekanizma. Background şefler için doğru.
 - `orgEnabledCache` eviction'ı gerçek LRU değil (512 root pratikte imkânsız).
 - W0.6 "escapeFence usage notes" genişletmesi yapılmadı (guard satırları + testler var) — kozmetik.
+- **(W1.0, W1.0b'de daraltıldı)** Elle yazılmış, org şablonu OLMAYAN agent'lar da
+  `subordinates` bildirerek bu relaxation'a girer — `declaredSubordinate` yalnız
+  BİLDİRİLMİŞ listeye bakıyor (W1.0b re-key; ruleset imzası artık yetmiyor), "bu agent
+  org-template'ten mi geldi" diye bakmıyor. Kabul edilen davranış: `subordinates` bildirimi
+  açık bir güven ilişkisi ifadesidir (yazar bilinçli olarak dar bir delegasyon listesi +
+  child'a devredilen edit yetkisi kurmuş demektir); global config bu alanı enjekte edemez.
+  Aynı güven alanı (trust domain) içinde çalıştığı için ek bir gate gerekmiyor.
 
 ## Ortam notları
 

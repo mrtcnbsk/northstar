@@ -62,7 +62,12 @@ const sub = {
 }
 const subVariant = "deep"
 
-function custom(id: string, model: string, variants: string[] = []) {
+function custom(
+  id: string,
+  model: string,
+  variants: string[] = [],
+  opts?: { cost?: { input: number; output: number }; tool_call?: boolean },
+) {
   return {
     name: id,
     id,
@@ -75,10 +80,10 @@ function custom(id: string, model: string, variants: string[] = []) {
         attachment: false,
         reasoning: variants.length > 0,
         temperature: false,
-        tool_call: true,
+        tool_call: opts?.tool_call ?? true,
         release_date: "2025-01-01",
         limit: { context: 100_000, output: 10_000 },
-        cost: { input: 0, output: 0 },
+        cost: opts?.cost ?? { input: 0, output: 0 },
         options: {},
         variants: Object.fromEntries(variants.map((variant) => [variant, {}])),
       },
@@ -87,13 +92,56 @@ function custom(id: string, model: string, variants: string[] = []) {
   }
 }
 
+// kilocode_change start - W1.5: cheap/pricey/toolless catalog entries for cost-aware fallback ranking tests
+const cheapFallback = {
+  providerID: ProviderID.make("cheap-fallback-provider"),
+  modelID: ModelID.make("cheap-fallback-model"),
+}
+const priceyFallback = {
+  providerID: ProviderID.make("pricey-fallback-provider"),
+  modelID: ModelID.make("pricey-fallback-model"),
+}
+const toollessFallback = {
+  providerID: ProviderID.make("toolless-fallback-provider"),
+  modelID: ModelID.make("toolless-fallback-model"),
+}
+// kilocode_change end
+
 const catalog = {
   provider: {
-    "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant]),
-    "saved-provider": custom("saved-provider", "saved-model", [savedVariant, overrideVariant]),
-    "config-provider": custom("config-provider", "config-model", [cfgVariant, overrideVariant]),
-    "sub-provider": custom("sub-provider", "sub-model", [subVariant, overrideVariant]),
+    "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant], {
+      cost: { input: 10, output: 20 }, // kilocode_change - W1.5: parent priced above the cheap fallback so ranking is provably cheaper
+    }),
+    // kilocode_change - W1.5: priced (was 0/0) so it doesn't silently out-rank cheap-fallback-provider
+    // in the ranking tests below; none of the non-W1.5 tests assert on cost, only on identity.
+    "saved-provider": custom("saved-provider", "saved-model", [savedVariant, overrideVariant], {
+      cost: { input: 6, output: 9 },
+    }),
+    "config-provider": custom("config-provider", "config-model", [cfgVariant, overrideVariant], {
+      cost: { input: 7, output: 9 },
+    }),
+    "sub-provider": custom("sub-provider", "sub-model", [subVariant, overrideVariant], {
+      cost: { input: 8, output: 9 },
+    }),
+    // kilocode_change start - W1.5: extra catalog entries only used by the cost-aware fallback tests
+    "cheap-fallback-provider": custom("cheap-fallback-provider", "cheap-fallback-model", [], {
+      cost: { input: 1, output: 2 },
+    }),
+    "pricey-fallback-provider": custom("pricey-fallback-provider", "pricey-fallback-model", [], {
+      cost: { input: 5, output: 8 },
+    }),
+    "toolless-fallback-provider": custom("toolless-fallback-provider", "toolless-fallback-model", [], {
+      cost: { input: 0.01, output: 0.01 },
+      tool_call: false,
+    }),
+    // kilocode_change end
   },
+  // kilocode_change - W1.5: "kilo" auto-connects anonymously with free-tier models regardless of
+  // API keys (src/kilocode/provider/provider.ts kiloCustomLoaders.kilo `autoload: models.length > 0`).
+  // That's real, correct production behavior for the cost ranker (a genuine $0 catalog member),
+  // but it makes catalog-ranking test outcomes nondeterministic against the shared fixture
+  // catalog. Disable it here so these tests assert against the closed, hand-built catalog above.
+  disabled_providers: ["kilo"],
 }
 
 const it = testEffect(
@@ -199,6 +247,10 @@ function run(input: {
   client?: string
   variant?: string
   config?: Pick<Config.Info, "subagent_model" | "subagent_variant" | "subagent_variant_overrides">
+  catalogOverride?: {
+    provider: Record<string, ReturnType<typeof custom>>
+    disabled_providers?: string[]
+  } // kilocode_change - W1.5: swap the connected-provider catalog for depth/ranking tests
 }) {
   return provideTmpdirInstance(
     () =>
@@ -239,7 +291,7 @@ function run(input: {
       }),
     {
       config: {
-        ...catalog,
+        ...(input.catalogOverride ?? catalog), // kilocode_change - W1.5: allow tests to control the connected catalog
         ...input.config,
         agent: {
           worker: { mode: "subagent" },
@@ -434,7 +486,48 @@ describe("tool.task model resolution", () => {
     ),
   )
 
-  it.live("unavailable configured subagent model falls back to the parent model override", () =>
+  // kilocode_change start - W1.5: unavailable configured subagent model now ranks the live
+  // catalog by $/token instead of blindly jumping to the parent model. Provider pricing
+  // (Model.cost.input/output) and the connected catalog (Provider.list()) are both reachable
+  // from resolveModel's Effect context — see cheap-fallback-provider (1/2) vs parent-provider
+  // (10/20) in the shared `catalog` above. This REPLACES the old blunt-parent-fallback
+  // assertion for this exact scenario; the deliberate-pin invariant (a HEALTHY configured
+  // model is never re-ranked) is covered separately below.
+  it.live("unavailable configured subagent model ranks the catalog and picks the cheapest capable model", () =>
+    run({
+      agent: "worker",
+      variant: inherited,
+      config: { subagent_model: "missing-provider/missing-model", subagent_variant: subVariant },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.prompt).toEqual(cheapFallback)
+          expect(result.model).toEqual(cheapFallback)
+          // provably cheaper than the parent model it replaces (parent: input 10/output 20)
+          expect(result.prompt).not.toEqual(parent)
+        }),
+      ),
+    ),
+  )
+
+  it.live("unavailable configured subagent model skips a cheaper but toolcall-incapable catalog entry", () =>
+    run({
+      agent: "worker",
+      variant: inherited,
+      config: { subagent_model: "missing-provider/missing-model", subagent_variant: subVariant },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          // toolless-fallback-provider (0.01/0.01) is cheaper than cheap-fallback-provider (1/2)
+          // but lacks toolcall capability, so it must not be selected for a task subagent.
+          expect(result.prompt).not.toEqual(toollessFallback)
+          expect(result.prompt).toEqual(cheapFallback)
+        }),
+      ),
+    ),
+  )
+
+  it.live("unavailable configured subagent model falls back to the parent model override when no cheaper catalog entry exists", () =>
     run({
       agent: "worker",
       variant: inherited,
@@ -442,6 +535,17 @@ describe("tool.task model resolution", () => {
         subagent_model: "missing-provider/missing-model",
         subagent_variant: subVariant,
         subagent_variant_overrides: { "parent-provider/parent-model": overrideVariant },
+      },
+      // Deliberately a closed catalog with ONLY the parent model present (no cheaper capable
+      // alternative anywhere) so this proves the tail correctly still lands on parent when
+      // ranking has nothing better to offer — not because ranking didn't run.
+      catalogOverride: {
+        provider: {
+          "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant], {
+            cost: { input: 10, output: 20 },
+          }),
+        },
+        disabled_providers: ["kilo"],
       },
     }).pipe(
       Effect.tap((result) =>
@@ -455,18 +559,83 @@ describe("tool.task model resolution", () => {
     ),
   )
 
-  it.live("unavailable configured subagent model falls back to the parent model", () =>
+  it.live("fallback chain traverses depth > 2: unavailable subagent_model AND unavailable cheapest catalog entry falls through to the next cheapest", () =>
     run({
       agent: "worker",
       variant: inherited,
       config: { subagent_model: "missing-provider/missing-model", subagent_variant: subVariant },
+      catalogOverride: {
+        provider: {
+          "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant], {
+            cost: { input: 10, output: 20 },
+          }),
+          // cheap-fallback-provider deliberately omitted to simulate it going unavailable
+          // after being the top-ranked candidate, forcing the resolver past level 3 (saved,
+          // agent.model/subagent_model, first-ranked-cheapest) to a 4th level.
+          "pricey-fallback-provider": custom("pricey-fallback-provider", "pricey-fallback-model", [], {
+            cost: { input: 5, output: 8 },
+          }),
+        },
+        disabled_providers: ["kilo"],
+      },
     }).pipe(
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(result.prompt).toEqual(parent)
-          expect(result.variant).toEqual(inherited)
-          expect(result.model).toEqual(parent)
-          expect(result.metadataVariant).toEqual(inherited)
+          expect(result.prompt).toEqual(priceyFallback)
+          expect(result.model).toEqual(priceyFallback)
+        }),
+      ),
+    ),
+  )
+
+  it.live("cost ties broken deterministically by lexicographic model key regardless of discovery order", () =>
+    run({
+      agent: "worker",
+      variant: inherited,
+      config: { subagent_model: "missing-provider/missing-model", subagent_variant: subVariant },
+      // Two equal-priced (1/2) capable candidates. `zzz` is inserted FIRST so object-iteration
+      // order alone would surface it — the stable tiebreak in rank() must instead resolve to the
+      // lexicographically-first key ("aaa-tie-provider/tie-model"), proving the pick is
+      // reproducible independent of provider-discovery order.
+      catalogOverride: {
+        provider: {
+          "zzz-tie-provider": custom("zzz-tie-provider", "tie-model", [], { cost: { input: 1, output: 2 } }),
+          "aaa-tie-provider": custom("aaa-tie-provider", "tie-model", [], { cost: { input: 1, output: 2 } }),
+          "parent-provider": custom("parent-provider", "parent-model", [inherited, overrideVariant], {
+            cost: { input: 10, output: 20 },
+          }),
+        },
+        disabled_providers: ["kilo"],
+      },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.prompt).toEqual({
+            providerID: ProviderID.make("aaa-tie-provider"),
+            modelID: ModelID.make("tie-model"),
+          })
+        }),
+      ),
+    ),
+  )
+  // kilocode_change end
+
+  it.live("deliberate pin invariant: healthy configured subagent model is used unchanged, never re-ranked by cost", () =>
+    run({
+      agent: "worker",
+      variant: inherited,
+      config: { subagent_model: "sub-provider/sub-model", subagent_variant: subVariant },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          // sub-provider/sub-model is priced input:8/output:9 in the shared catalog — NOT the
+          // cheapest (cheap-fallback-provider at 1/2 is cheaper). It is selected purely because
+          // it is HEALTHY/available and therefore returned pre-ranking, unchanged. That is the
+          // whole deliberate-pin invariant: cost-awareness only applies to the FALLBACK
+          // selection, never to a working configured pin — a cheaper catalog model must NOT
+          // displace it.
+          expect(result.prompt).toEqual(sub)
+          expect(result.model).toEqual(sub)
         }),
       ),
     ),

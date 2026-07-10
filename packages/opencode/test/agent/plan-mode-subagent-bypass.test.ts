@@ -31,12 +31,14 @@ function testAgent(input: {
   name: string
   mode: Agent.Info["mode"]
   permission: Parameters<typeof Permission.fromConfig>[0]
+  subordinates?: string[] // kilocode_change - W1.0b: delegation requires a declared subordinates list
 }) {
   return {
     name: input.name,
     mode: input.mode,
     permission: Permission.fromConfig(input.permission),
     options: {},
+    subordinates: input.subordinates, // kilocode_change - W1.0b
   } satisfies Agent.Info
 }
 
@@ -168,6 +170,10 @@ it.effect("[#26700] controller self-restrictions do not erase executor permissio
         edit: "deny",
         write: "deny",
       },
+      // kilocode_change - W1.0b: manager detection keys on the declared subordinates list
+      // (task rules alone no longer open delegation); the rules above still gate WHICH
+      // spawns are allowed at ask time
+      subordinates: ["worker"],
     })
 
     const effective = Permission.merge(

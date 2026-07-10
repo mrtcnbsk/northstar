@@ -3,7 +3,10 @@ description: SwiftUI developer 1 — implements screens from the UX spec (build-
 mode: subagent
 model: anthropic/claude-sonnet-5
 permission:
-  edit: allow
+  edit:
+    "*": allow
+    ".kilo/org/**": deny
+    "**/.kilo/org/**": deny
   bash:
     "*": deny
     "swift build*": allow

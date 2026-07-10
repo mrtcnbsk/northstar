@@ -3,7 +3,10 @@ description: Unit test worker — XCTest suites for models and services (run-ver
 mode: subagent
 model: anthropic/claude-sonnet-5
 permission:
-  edit: allow
+  edit:
+    "*": allow
+    ".kilo/org/**": deny
+    "**/.kilo/org/**": deny
   bash:
     "*": deny
     "swift build*": allow

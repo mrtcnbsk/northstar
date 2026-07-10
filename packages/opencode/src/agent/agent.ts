@@ -55,6 +55,11 @@ export const Info = Schema.Struct({
   prompt: Schema.optional(Schema.String),
   options: Schema.Record(Schema.String, Schema.Unknown),
   requirements: Schema.optional(AgentRequirements.Requirements), // kilocode_change
+  // kilocode_change start - W1.0b: declared subordinates threaded to runtime so manager
+  // detection (KiloTask.nestedTask/declaredSubordinate) keys on the author's declaration,
+  // not on a ruleset signature that global task policies can manufacture
+  subordinates: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  // kilocode_change end
   steps: Schema.optional(Schema.Finite),
 }).annotate({ identifier: "Agent" })
 export type Info = DeepMutable<Schema.Schema.Type<typeof Info>>
@@ -341,6 +346,7 @@ export const layer = Layer.effect(
           item.displayName = value.displayName ?? item.displayName
           item.source = value.source ?? item.source
           item.requirements = value.requirements ?? item.requirements
+          item.subordinates = value.subordinates ?? item.subordinates // kilocode_change - W1.0b: thread declared subordinates to runtime Agent.Info
           // kilocode_change end
           item.options = mergeDeep(item.options, value.options ?? {})
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))

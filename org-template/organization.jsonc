@@ -13,6 +13,13 @@
     "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] }
   },
   "shared": ["apple-docs"],
+  // Budget ceilings (USD; "retries" is an integer count). All fields optional -
+  // omitted fields fall back to these owner-approved defaults:
+  //   run: total spend ceiling for one pipeline run
+  //   stage: default per-stage spend ceiling (override per-stage below via "budget")
+  //   escalationThreshold: spend level that triggers a human-escalation warning
+  //   retries: max retries for a stage before it is treated as failed
+  "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
   "pipeline": [
     { "stage": "evaluation", "gate": "human", "haltOn": "no-go" },
     { "stage": "planning" },
@@ -22,5 +29,6 @@
     { "stage": "testing" },
     { "stage": "debugging" },
     { "stage": "marketing", "gate": "human" }
+    // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
   ]
 }

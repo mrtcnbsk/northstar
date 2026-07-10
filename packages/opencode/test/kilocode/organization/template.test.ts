@@ -147,4 +147,43 @@ describe("org-template consistency", () => {
       ).toBe("deny")
     }
   })
+
+  // kilocode_change start - W1.0: edit-capable workers deny .kilo/org paths but keep source allow
+  const EDIT_CAPABLE_WORKERS = [
+    "data-layer-dev",
+    "swiftui-dev-1",
+    "swiftui-dev-2",
+    "unit-tester",
+    "ui-tester",
+    "debugger",
+  ]
+
+  test("edit-capable workers deny .kilo/org paths (real evaluator) while keeping source edit allow", async () => {
+    const { agents } = await loadTemplate()
+    const { Permission } = await import("../../../src/permission")
+    for (const name of EDIT_CAPABLE_WORKERS) {
+      const worker = agents[name]
+      expect(worker, `worker ${name} must exist in the template`).toBeTruthy()
+      const ruleset = Permission.fromConfig(worker.permission ?? {})
+
+      expect(
+        Permission.evaluate("edit", "Sources/App/Model.swift", ruleset).action,
+        `worker ${name} must keep source edit allow`,
+      ).toBe("allow")
+
+      expect(
+        Permission.evaluate("edit", ".kilo/org/runs/x/state.json", ruleset).action,
+        `worker ${name} must not be able to write .kilo/org/state.json`,
+      ).toBe("deny")
+      expect(
+        Permission.evaluate("edit", ".kilo/org/runs/x/approvals.json", ruleset).action,
+        `worker ${name} must not be able to write .kilo/org/approvals.json`,
+      ).toBe("deny")
+      expect(
+        Permission.evaluate("edit", "nested/dir/.kilo/org/runs/x/state.json", ruleset).action,
+        `worker ${name} must not be able to write nested .kilo/org paths`,
+      ).toBe("deny")
+    }
+  })
+  // kilocode_change end
 })

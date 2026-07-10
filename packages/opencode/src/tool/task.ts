@@ -190,7 +190,9 @@ export const TaskTool = Tool.define(
         : undefined
       // kilocode_change start — inherit edit/bash/MCP restrictions from calling agent
       const caller = yield* agent.get(ctx.agent)
-      const rules = KiloTask.inherited({ caller, session: parent, mcp: cfg.mcp })
+      // kilocode_change - W1.0: pass `next` (the subagent being spawned) so KiloTask.inherited
+      // can detect a declared-subordinate edge and skip forwarding the caller's own AGENT ruleset
+      const rules = KiloTask.inherited({ caller, session: parent, mcp: cfg.mcp, subagent: next })
       // kilocode_change end
       // kilocode_change start - refresh current parent restrictions when resuming an existing task session
       const fallback = SandboxPolicy.fallback(cfg)

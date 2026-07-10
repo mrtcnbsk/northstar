@@ -3,7 +3,10 @@ description: Data layer developer — SwiftData/CloudKit models, persistence, se
 mode: subagent
 model: anthropic/claude-sonnet-5
 permission:
-  edit: allow
+  edit:
+    "*": allow
+    ".kilo/org/**": deny
+    "**/.kilo/org/**": deny
   bash:
     "*": deny
     "swift build*": allow

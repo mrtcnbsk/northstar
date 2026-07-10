@@ -19,6 +19,10 @@ export namespace OrgState {
     /** taskID -> that session's latest cumulative cost. Distinct sessions accumulate; a resumed session overwrites its own key. */
     costs: z.record(z.string(), z.number()).optional(),
     attempts: z.number().default(0),
+    /** Count of times this stage returned "incomplete" after a chief task actually ran (distinct
+     * from `attempts`, which counts instruct issuances). Drives the bounded auto-retry: once this
+     * exceeds the resolved budget.retries, the stage is marked "failed" and the run is halted. */
+    incompleteAttempts: z.number().optional(),
     decision: z.enum(["approve", "no-go", "revise"]).optional(),
     decisionNote: z.string().optional(),
     /** Deliverable hash captured when revise was requested; unchanged content cannot re-complete the stage. */
@@ -37,6 +41,8 @@ export namespace OrgState {
     status: z.enum(["active", "halted", "completed"]),
     haltReason: z.string().optional(),
     stages: z.record(z.string(), Stage),
+    /** Set once the soft cost-escalation gate has fired for this run; prevents it from firing again. */
+    escalated: z.boolean().optional(),
   })
   export type Run = z.output<typeof Run>
 

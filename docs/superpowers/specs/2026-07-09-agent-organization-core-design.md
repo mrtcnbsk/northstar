@@ -226,6 +226,22 @@ ihtiyaçlarının **tavanı** olarak yazılır (webfetch/websearch/bash tavanda
 allow); CEO'nun kendi kullanımı system-prompt + tool erişim listesiyle
 kısıtlanır. Böylece "sessiz deny" riski kapanır.
 
+> **(W1.0 amendment)** Yukarıdaki cümle CEO'nun kendi AGENT ruleset'inin (edit/bash
+> deny gibi) departmanlara **doğrudan aktarılacağını** ima ediyordu — bu, W0-R1'in kök
+> nedeniydi (bkz. `docs/superpowers/tracked-followups.md`, "Wave 1'de kapatıldı"): CEO'nun
+> `edit: deny` kuralı her org edge'inde child session'a `"*" deny` olarak taşınıp
+> şefin/worker'ın kendi allow kurallarını findLast ile eziyordu. Düzeltilmiş model: bir org
+> edge'inin (parent → declared subordinate) **tavanı, parent'ın kendi ruleset'i DEĞİL,
+> child'ın kendi bildirilmiş (declared) ruleset'idir** — `KiloTask.declaredSubordinate`
+> parent'ın `subordinates` frontmatter bildirimi child'ı TAM adla içerdiği edge'lerde
+> (W1.0b: tespit ruleset imzasından bildirilmiş alana taşındı — global bir deny-by-default
+> task policy'si imzayı built-in'lerde üretebiliyordu; `subordinates` alanını enjekte
+> edemez) parent'ın AGENT-seviyesi deny'larını child session'a aktarmayı durdurur. Parent SESSION deny'ları (üst zincirden gelen, ör. üç seviye yukarıdan
+> bir gerçek kısıtlama) ve plan-family (`ask`/`plan`/`architect`) forwarding'i bu
+> gevşetmenin DIŞINDADIR — hâlâ tam olarak aktarılır. "Sessiz deny" riski hâlâ kapalı: CEO
+> departman ihtiyaçlarını KISITLAMIYOR (tavan artık departmanın kendi bildirdiği ruleset),
+> yalnızca CEO'nun KENDİ kullanımı system-prompt + tool erişim listesiyle kısıtlı kalıyor.
+
 Model stratejisi (dosyadan değiştirilebilir):
 - CEO + şefler: frontier sınıf (ör. `anthropic/claude-fable-5`)
 - Geliştirme/test işçileri: orta sınıf (ör. `anthropic/claude-sonnet-5`)
