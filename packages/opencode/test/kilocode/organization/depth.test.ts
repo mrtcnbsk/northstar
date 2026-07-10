@@ -59,7 +59,15 @@ describe("OrgDepth", () => {
       const start = { parentID: tree.worker.parentID }
       const viaGuard = await Effect.runPromiseExit(OrgDepth.guard(getter(tree), "worker"))
       const viaGuardFrom = await Effect.runPromiseExit(OrgDepth.guardFrom(getter(tree), start))
-      expect(viaGuardFrom._tag).toBe(viaGuard._tag)
+      // both must fail with the SAME squashed error message, not merely the same exit tag
+      const message = (exit: typeof viaGuard) => {
+        if (exit._tag !== "Failure") return "success"
+        const squashed = Cause.squash(exit.cause)
+        return squashed instanceof Error ? squashed.message : String(squashed)
+      }
+      expect(viaGuard._tag).toBe("Failure")
+      expect(message(viaGuardFrom)).toBe(message(viaGuard))
+      expect(message(viaGuardFrom)).toContain("Delegation depth limit reached")
     })
 
     test("error message is neutral (no 'Workers cannot spawn' wording) and reports depth/max", async () => {

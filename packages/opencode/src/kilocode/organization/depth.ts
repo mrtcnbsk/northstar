@@ -64,6 +64,11 @@ export namespace OrgDepth {
     })
   }
 
+  /**
+   * Fetch-then-guard convenience wrapper around guardFrom. Kept as public API
+   * for callers that only hold a session id; the task tool calls guardFrom
+   * directly with its already-fetched parent session to avoid a redundant fetch.
+   */
   export function guard(get: Getter, sessionID: string): Effect.Effect<void, unknown> {
     return Effect.gen(function* () {
       const start = yield* get(sessionID)

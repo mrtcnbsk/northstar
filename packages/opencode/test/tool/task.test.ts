@@ -621,6 +621,48 @@ describe("tool.task", () => {
       expect(kids).toHaveLength(0)
     }),
   )
+
+  // kilocode_change start - TOCTOU: ctx.ask blocks on human input, and concurrent writers
+  // (tool-toggle merges, plan-mode agent switch, HTTP session.update) can add deny rules to
+  // the parent session while the prompt is open. The child ruleset must derive from the
+  // parent state AFTER the prompt resolves, not from a pre-ask snapshot.
+  it.instance("execute forwards parent denies added while the permission prompt is open", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const promptOps = stubOps()
+      const midAskDeny = { permission: "edit" as const, pattern: "*" as const, action: "deny" as const }
+
+      const result = yield* def.execute(
+        {
+          description: "spawn during permission change",
+          prompt: "work under the new restriction",
+          subagent_type: "general",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps },
+          messages: [],
+          metadata: () => Effect.void,
+          // while the user deliberates, a concurrent writer denies edit on the parent session
+          ask: () =>
+            sessions.setPermission({
+              sessionID: chat.id,
+              permission: [midAskDeny],
+            }),
+        },
+      )
+
+      const child = yield* sessions.get(result.metadata.sessionId)
+      expect(child.permission).toEqual(expect.arrayContaining([midAskDeny]))
+    }),
+  )
+  // kilocode_change end
   // kilocode_change end
 
   // kilocode_change start - terminal child assistant errors fail the task tool boundary

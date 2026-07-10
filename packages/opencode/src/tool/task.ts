@@ -139,10 +139,12 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error("Background subagents require KILO_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
       }
 
-      // kilocode_change start - fetch parent once; enforce max delegation depth (CEO -> chief -> worker)
-      // BEFORE the permission prompt so a depth-exceeding spawn never reaches ctx.ask
-      const parent = yield* sessions.get(ctx.sessionID)
-      yield* OrgDepth.guardFrom((id) => sessions.get(SessionID.make(id)), parent)
+      // kilocode_change start - enforce max delegation depth BEFORE the permission prompt so a
+      // depth-exceeding spawn never reaches ctx.ask. This pre-ask snapshot feeds ONLY the depth
+      // walk (the parent chain/parentID is immutable); permission derivation re-fetches the
+      // parent after ctx.ask returns — see below
+      const parentChain = yield* sessions.get(ctx.sessionID)
+      yield* OrgDepth.guardFrom((sid) => sessions.get(SessionID.make(sid)), parentChain)
       // kilocode_change end
 
       if (!ctx.extra?.bypassAgentCheck) {
@@ -176,7 +178,13 @@ export const TaskTool = Tool.define(
           new Error(`Cannot resume session ${params.task_id}: not a child of the current session`),
         ) // kilocode_change - prevent cross-session task resume
       }
-      // kilocode_change - parent already fetched above (guard reorder), no redundant re-fetch
+      // kilocode_change start - re-fetch the parent AFTER the permission prompt: ctx.ask blocks
+      // on human input for an unbounded time, and concurrent writers (tool-toggle permission
+      // merges, plan-mode agent switch, HTTP session.update) may add deny rules to the parent
+      // session meanwhile. Deriving the child ruleset from the pre-ask snapshot would drop
+      // those denies and spawn a child LESS restricted than its parent (TOCTOU).
+      const parent = yield* sessions.get(ctx.sessionID)
+      // kilocode_change end
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
