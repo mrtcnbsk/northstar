@@ -72,8 +72,8 @@ export namespace OrgRunner {
     | { run: OrgState.Run; result: { kind: "incomplete"; item: IncompleteItem } }
     | { run: OrgState.Run; result: { kind: "halted"; reason: string } }
 
-  export function start(projectDir: string, org: OrgSchema.Organization, idea: string) {
-    return OrgState.create(projectDir, org, idea)
+  export function start(projectDir: string, org: OrgSchema.Organization, idea: string, mode?: string) {
+    return OrgState.create(projectDir, org, idea, mode)
   }
 
   /**
@@ -293,6 +293,21 @@ export namespace OrgRunner {
     }
 
     return { run, result: { kind: "incomplete", item: incomplete } }
+  }
+
+  /**
+   * Evaluates a stage's `when` condition (decision #4, W4.4) against the current run. Pure - no
+   * I/O. Absent `when` is always satisfied (today's unconditional behavior). `{mode}` compares
+   * against the run-level mode set at org_start; `{stage, decision}` compares against that
+   * stage's recorded decision — an UNDEFINED decision (stage never gated / not yet decided, or
+   * completed without ever recording one) is NOT a match, so the condition evaluates false rather
+   * than throwing or vacuously passing.
+   */
+  function whenSatisfied(run: OrgState.Run, stage: OrgSchema.Organization["pipeline"][number]): boolean {
+    const when = stage.when
+    if (!when) return true
+    if ("mode" in when) return run.mode === when.mode
+    return run.stages[when.stage]?.decision === when.decision
   }
 
   /**
@@ -548,19 +563,51 @@ export namespace OrgRunner {
     // Fan out ready stages into the remaining concurrency slots. Independent ready stages still
     // start alongside a serialized blocker (decision #6). runningStages is re-derived from the
     // freshly-settled `run`, so stages that just completed no longer occupy slots.
+    //
+    // W4.4: before a ready stage is marked "running", its `when` (if present) is evaluated. A
+    // false `when` marks the stage "skipped" instead — status only, no startedAt/attempts/cost,
+    // no instruct — and readyStages is RE-COMPUTED afterward, since a skipped stage satisfies its
+    // dependents (OrgState.isSatisfied treats "skipped" like "completed"), so a stage gated only
+    // on the just-skipped one may become ready within the SAME call. Skipped stages never consume
+    // a concurrency slot, so this loop keeps filling slots until nothing more is ready or slots
+    // run out.
     const maxConcurrency = org.maxConcurrency ?? 1
-    const runningCount = OrgState.runningStages(org, run).length
-    const slots = Math.max(0, maxConcurrency - runningCount)
-    const ready = OrgState.readyStages(org, run).slice(0, slots)
-    if (ready.length > 0) {
-      run = await OrgState.update(projectDir, runID, (s) => {
-        for (const stage of ready) {
-          s.stages[stage].status = "running"
-          s.stages[stage].startedAt = new Date().toISOString()
-          s.stages[stage].attempts += 1
-        }
-      })
-      for (const stage of ready) batch.instruct.push(instruct(projectDir, org, run, stage))
+    for (;;) {
+      const runningCount = OrgState.runningStages(org, run).length
+      const slots = Math.max(0, maxConcurrency - runningCount)
+      if (slots === 0) break
+      const ready = OrgState.readyStages(org, run).slice(0, slots)
+      if (ready.length === 0) break
+
+      const toRun: string[] = []
+      const toSkip: string[] = []
+      for (const stage of ready) {
+        const pipelineStage = org.pipeline.find((p) => p.stage === stage)!
+        if (whenSatisfied(run, pipelineStage)) toRun.push(stage)
+        else toSkip.push(stage)
+      }
+
+      if (toSkip.length > 0) {
+        run = await OrgState.update(projectDir, runID, (s) => {
+          for (const stage of toSkip) s.stages[stage].status = "skipped"
+        })
+      }
+      if (toRun.length > 0) {
+        run = await OrgState.update(projectDir, runID, (s) => {
+          for (const stage of toRun) {
+            s.stages[stage].status = "running"
+            s.stages[stage].startedAt = new Date().toISOString()
+            s.stages[stage].attempts += 1
+          }
+        })
+        for (const stage of toRun) batch.instruct.push(instruct(projectDir, org, run, stage))
+      }
+
+      // Only a skip can change readiness (a skipped stage satisfies its dependents, same as
+      // completed). If this pass skipped nothing, another pass would just re-derive the same
+      // state, so stop; otherwise loop to pick up any newly-ready dependents with the slots the
+      // skip(s) freed.
+      if (toSkip.length === 0) break
     }
 
     // Attach the single serialized blocker (if any).

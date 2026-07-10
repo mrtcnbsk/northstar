@@ -85,6 +85,9 @@ function result(title: string, body: unknown) {
 
 const StartParameters = Schema.Struct({
   idea: Schema.String.annotate({ description: "The app idea, verbatim from the user" }),
+  mode: Schema.optional(Schema.String).annotate({
+    description: "Optional mode string, e.g. 'mvp', consulted by stage `when` conditions",
+  }),
 })
 
 export const OrgStartTool = Tool.define(
@@ -100,7 +103,7 @@ export const OrgStartTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea))
+          const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea, params.mode))
           return result(`org run ${run.runID}`, {
             run_id: run.runID,
             pipeline: org.pipeline,

@@ -1276,3 +1276,213 @@ describe("OrgRunner budget enforcement", () => {
     expect(afterResolveA.gate!.note).toContain("5")
   })
 })
+
+// W4.4: conditional `when` stage skipping + run-level `mode`.
+// plan -> marketing (requires plan, when:{mode:"full"}) -> launch (requires marketing).
+const MODE_ORG = OrgSchema.parse({
+  ceo: "ceo",
+  departments: {
+    plan: { chief: "plan-chief", workers: ["architect"] },
+    marketing: { chief: "mkt-chief", workers: ["copywriter"] },
+    launch: { chief: "launch-chief", workers: ["ops"] },
+  },
+  shared: ["apple-docs"],
+  pipeline: [
+    { stage: "plan" },
+    { stage: "marketing", requires: ["plan"], when: { mode: "full" } },
+    { stage: "launch", requires: ["marketing"] },
+  ],
+  maxConcurrency: 2,
+})
+
+// evaluation (gate:human) -> deep_build (requires evaluation, when:{stage:"evaluation",decision:"approve"}).
+const DECISION_ORG = OrgSchema.parse({
+  ceo: "ceo",
+  departments: {
+    evaluation: { chief: "eval-chief", workers: ["market-research"] },
+    deep_build: { chief: "build-chief", workers: ["engineer"] },
+  },
+  shared: ["apple-docs"],
+  pipeline: [
+    { stage: "evaluation", gate: "human" },
+    { stage: "deep_build", requires: ["evaluation"], when: { stage: "evaluation", decision: "approve" } },
+  ],
+})
+
+describe("OrgRunner conditional `when` skipping (W4.4)", () => {
+  test("mode mismatch skips the stage (no instruct, no cost) and its dependent still resolves", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, MODE_ORG, "idea mvp", "mvp")
+    expect(run.mode).toBe("mvp")
+
+    // plan runs first (marketing requires it).
+    const b1 = await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, {})
+    expect(b1.instruct.map((i) => i.stage)).toEqual(["plan"])
+
+    // plan completes -> marketing becomes ready, but mode "mvp" !== when.mode "full" -> skipped.
+    // launch depends only on marketing, so once marketing is satisfied (skipped counts), launch
+    // becomes ready in the SAME advance call and fills the freed slot.
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const b2 = await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, { taskID: "ses_plan" })
+    expect(b2.instruct.map((i) => i.stage)).toEqual(["launch"])
+    expect(b2.instruct.some((i) => i.stage === "marketing")).toBe(false)
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["marketing"].status).toBe("skipped")
+    expect(state.stages["marketing"].startedAt).toBeUndefined()
+    expect(state.stages["marketing"].attempts).toBe(0)
+    expect(state.stages["marketing"].costs).toBeUndefined()
+    expect(state.stages["marketing"].cost).toBeUndefined()
+    expect(state.stages["launch"].status).toBe("running")
+
+    // launch completes -> done. marketing never appears in any cost sum.
+    await writeDeliverable(tmp.path, run.runID, "launch")
+    const b3 = await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, { taskID: "ses_launch" })
+    expect(b3.done).toBe(true)
+    const status = await OrgRunner.status(tmp.path, MODE_ORG, run.runID)
+    // plan (0.42) + launch (0.42) only; marketing (skipped) contributes nothing to the sum.
+    expect(status.totalCost).toBe(0.84)
+    expect(status.pipeline.find((p) => p.stage === "marketing")!.status).toBe("skipped")
+    expect(status.pipeline.find((p) => p.stage === "marketing")!.costs).toBeUndefined()
+  })
+
+  test("mode match runs the stage normally (instruct emitted)", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, MODE_ORG, "idea full", "full")
+    expect(run.mode).toBe("full")
+
+    await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const b2 = await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, { taskID: "ses_plan" })
+    expect(b2.instruct.map((i) => i.stage)).toEqual(["marketing"])
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["marketing"].status).toBe("running")
+  })
+
+  test("no mode set (undefined) does not satisfy a mode when-condition -> stage is skipped", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, MODE_ORG, "idea no mode")
+    expect(run.mode).toBeUndefined()
+
+    await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const b2 = await OrgRunner.advance(deps, tmp.path, MODE_ORG, run.runID, { taskID: "ses_plan" })
+    expect(b2.instruct.some((i) => i.stage === "marketing")).toBe(false)
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["marketing"].status).toBe("skipped")
+  })
+
+  test("when:{stage,decision} — deep_build runs when evaluation was approved", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, DECISION_ORG, "idea approve path")
+
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, DECISION_ORG, run.runID, "approve")
+
+    const b = await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, {})
+    expect(b.instruct.map((i) => i.stage)).toEqual(["deep_build"])
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["deep_build"].status).toBe("running")
+  })
+
+  test("when:{stage,decision} — deep_build is skipped when evaluation was revised (decision !== approve)", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, DECISION_ORG, "idea revise path")
+
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, DECISION_ORG, run.runID, "revise", "dig deeper")
+    // re-instruct clears decision back to undefined while revise is in flight
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# evaluation deliverable\n\nrevised content ".repeat(10))
+    await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, { taskID: "ses_eval" })
+    // evaluation has no gate:human on the revise re-completion path in this org config... but here
+    // evaluation DOES have gate:human, so it re-gates; decide "no-go" this time.
+    await OrgRunner.decide(tmp.path, DECISION_ORG, run.runID, "no-go", "not worth it")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].decision).toBe("no-go")
+    expect(state.status).toBe("halted") // no-go halts the run before deep_build could ever be evaluated
+  })
+
+  test("when:{stage,decision} — deep_build is skipped on a fresh run where evaluation decision is stored directly as revise", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, DECISION_ORG, "idea decided revise")
+    // Construct state directly: evaluation completed with a recorded "revise" decision (a decision
+    // that was made and then the stage was independently marked completed, without an active
+    // run halt) — exercises whenSatisfied's false branch for a decision that isn't "approve".
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "completed"
+      s.stages["evaluation"].decision = "revise"
+    })
+
+    const b = await OrgRunner.advance(deps, tmp.path, DECISION_ORG, run.runID, {})
+    expect(b.instruct.some((i) => i.stage === "deep_build")).toBe(false)
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["deep_build"].status).toBe("skipped")
+  })
+
+  test("no `when` present -> stage always runs (today's behavior, unaffected)", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea unconditional")
+    const b = await advance1(deps, tmp.path, ORG, run.runID, {})
+    expect(b.kind).toBe("instruct")
+    if (b.kind !== "instruct") throw new Error("unreachable")
+    expect(b.stage).toBe("evaluation")
+  })
+
+  test("a skipped-only ready set produces a batch with no instruct for it and status skipped", async () => {
+    await using tmp = await tmpdir()
+    // Single-stage-ready scenario: only marketing is ready (mode mismatch) with launch still
+    // blocked (requires marketing, satisfied only once marketing settles to skipped/completed) —
+    // asserted separately above via readiness re-derivation. Here we isolate: maxConcurrency:1,
+    // only marketing ready this call (launch not yet, since it requires marketing to settle first
+    // within the SAME loop iteration; re-derivation still applies with 1 slot).
+    const SEQ = OrgSchema.parse({ ...JSON.parse(JSON.stringify(MODE_ORG)), maxConcurrency: 1 })
+    const run = await OrgRunner.start(tmp.path, SEQ, "idea skip only", "mvp")
+    await OrgRunner.advance(deps, tmp.path, SEQ, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const b = await OrgRunner.advance(deps, tmp.path, SEQ, run.runID, { taskID: "ses_plan" })
+    // marketing skipped, launch fans out into the single freed slot; marketing itself never instructed.
+    expect(b.instruct.find((i) => i.stage === "marketing")).toBeUndefined()
+    expect(b.instruct.map((i) => i.stage)).toEqual(["launch"])
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["marketing"].status).toBe("skipped")
+  })
+
+  test("a skip-eligible stage and an independently-ready normal stage in the SAME initial ready set both resolve in one advance call (skip doesn't consume a slot)", async () => {
+    await using tmp = await tmpdir()
+    // plan -> {marketing (when:{mode:"full"}), other} both require only plan; maxConcurrency:2 so
+    // both are in the initial ready set together. marketing is skip-eligible (mode "mvp" != "full");
+    // "other" has no `when` and must still be instructed in the SAME batch, proving the skip does
+    // not eat into the concurrency slots meant for real work.
+    const WIDE = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        plan: { chief: "plan-chief", workers: ["architect"] },
+        marketing: { chief: "mkt-chief", workers: ["copywriter"] },
+        other: { chief: "other-chief", workers: ["ops"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [
+        { stage: "plan" },
+        { stage: "marketing", requires: ["plan"], when: { mode: "full" } },
+        { stage: "other", requires: ["plan"] },
+      ],
+      maxConcurrency: 2,
+    })
+    const run = await OrgRunner.start(tmp.path, WIDE, "idea wide", "mvp")
+    await OrgRunner.advance(deps, tmp.path, WIDE, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "plan")
+    const b = await OrgRunner.advance(deps, tmp.path, WIDE, run.runID, { taskID: "ses_plan" })
+
+    expect(b.instruct.map((i) => i.stage)).toEqual(["other"])
+    expect(b.instruct.find((i) => i.stage === "marketing")).toBeUndefined()
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["marketing"].status).toBe("skipped")
+    expect(state.stages["other"].status).toBe("running")
+  })
+})

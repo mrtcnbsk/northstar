@@ -19,6 +19,7 @@ const stageBadgeVariants: Record<StageStatus, BadgeVariant> = {
   running: "secondary",
   awaiting_approval: "default",
   completed: "secondary",
+  skipped: "ghost",
   failed: "destructive",
 }
 

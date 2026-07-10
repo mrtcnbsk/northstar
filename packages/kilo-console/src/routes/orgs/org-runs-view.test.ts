@@ -58,6 +58,10 @@ describe("stageBadge", () => {
     expect(stageBadge("completed")).toBe("secondary")
     expect(stageBadge("failed")).toBe("destructive")
   })
+
+  test("maps a skipped stage (W4.4 conditional `when`) to a muted variant", () => {
+    expect(stageBadge("skipped")).toBe("ghost")
+  })
 })
 
 describe("stageTimeline", () => {

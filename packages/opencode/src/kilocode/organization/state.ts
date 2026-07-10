@@ -57,6 +57,8 @@ export namespace OrgState {
     stages: z.record(z.string(), Stage),
     /** Set once the soft cost-escalation gate has fired for this run; prevents it from firing again. */
     escalated: z.boolean().optional(),
+    /** Optional run-level mode (e.g. "mvp", "full"), set at org_start and consulted by stage `when: {mode}` conditions. */
+    mode: z.string().optional(),
   })
   export type Run = z.output<typeof Run>
 
@@ -165,7 +167,12 @@ export namespace OrgState {
     )
   }
 
-  export async function create(projectDir: string, org: OrgSchema.Organization, idea: string): Promise<Run> {
+  export async function create(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    idea: string,
+    mode?: string,
+  ): Promise<Run> {
     const now = new Date()
     const runID = `${stamp(now)}-${slugify(idea)}`
     const run: Run = {
@@ -174,6 +181,7 @@ export namespace OrgState {
       createdAt: now.toISOString(),
       status: "active",
       stages: Object.fromEntries(org.pipeline.map((s) => [s.stage, { status: "pending" as const, attempts: 0 }])),
+      mode,
     }
     await write(projectDir, run)
     return run
