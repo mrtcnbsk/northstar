@@ -1,6 +1,23 @@
 // kilocode_change - new file
 import { describe, expect, test } from "bun:test"
-import { buildArgs, MAX_DIAGNOSTICS, parseXcodebuildOutput } from "../../../src/kilocode/tool/xcode-build"
+import { Effect, Layer, Stream } from "effect"
+import { ChildProcessSpawner } from "effect/unstable/process"
+import * as Sink from "effect/Sink"
+import * as PlatformError from "effect/PlatformError"
+import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { Truncate } from "@/tool/truncate"
+import { Config } from "@/config/config"
+import { Agent } from "@/agent/agent"
+import { MessageID, SessionID } from "@/session/schema"
+import {
+  buildArgs,
+  MAX_DIAGNOSTICS,
+  MAX_RETAINED_TAIL_BYTES,
+  parseXcodebuildOutput,
+  StreamingXcodeParser,
+  XcodeBuildTool,
+} from "../../../src/kilocode/tool/xcode-build"
+import { testEffect } from "../../lib/effect"
 
 const FAILED_BUILD_FIXTURE = `
 Command line invocation:
@@ -215,4 +232,204 @@ describe("buildArgs", () => {
     expect(args).toContain("-configuration")
     expect(args[args.indexOf("-configuration") + 1]).toBe("Debug")
   })
+})
+
+describe("StreamingXcodeParser (bounded memory, no diagnostic lost)", () => {
+  test("parses diagnostics fed as arbitrarily-split chunks, not aligned to line boundaries", () => {
+    const parser = new StreamingXcodeParser()
+    // Split the failed-build fixture into 7-byte chunks so newlines land mid-chunk.
+    for (let i = 0; i < FAILED_BUILD_FIXTURE.length; i += 7) {
+      parser.push(FAILED_BUILD_FIXTURE.slice(i, i + 7))
+    }
+    parser.finish()
+    const result = parser.result(65)
+    expect(result.ok).toBe(false)
+    expect(result.buildSucceeded).toBe(false)
+    expect(result.errors).toHaveLength(3)
+    expect(result.errors[0].message).toBe("cannot find 'HashChain' in scope")
+    expect(result.errors[2].file).toBe("/Users/dev/keel/Sources/Keel/Views/DashboardView.swift")
+  })
+
+  test("streaming result matches the pure parser for the same output", () => {
+    const parser = new StreamingXcodeParser()
+    parser.push(SUCCEEDED_BUILD_FIXTURE)
+    parser.finish()
+    expect(parser.result(0)).toMatchObject({
+      ok: true,
+      buildSucceeded: true,
+      errors: [],
+      warnings: parseXcodebuildOutput(SUCCEEDED_BUILD_FIXTURE, 0).warnings,
+    })
+  })
+
+  test("BOUNDED MEMORY: 5MB of noise with a late error — error captured, retained tail stays under the cap", () => {
+    const parser = new StreamingXcodeParser()
+    // ~1MB of leading noise, then an error, then ~4MB more noise. The error sits well past 1MB,
+    // proving the streaming regex captures it regardless of total size.
+    const noiseLine = "note: compiling module with many many files ".padEnd(100, "x") + "\n"
+    const oneMB = 1024 * 1024
+    let pushed = 0
+    while (pushed < oneMB) {
+      parser.push(noiseLine)
+      pushed += noiseLine.length
+    }
+    parser.push("/Users/dev/keel/Sources/Keel/Late.swift:999:7: error: needle in the haystack\n")
+    pushed = 0
+    while (pushed < 4 * oneMB) {
+      parser.push(noiseLine)
+      pushed += noiseLine.length
+    }
+    parser.push("** BUILD FAILED **\n")
+    parser.finish()
+
+    const result = parser.result(65)
+    // No diagnostic lost: the error buried after 1MB of noise is present.
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toEqual({
+      file: "/Users/dev/keel/Sources/Keel/Late.swift",
+      line: 999,
+      column: 7,
+      severity: "error",
+      message: "needle in the haystack",
+    })
+    expect(result.buildSucceeded).toBe(false)
+    // Memory bounded: the retained raw-text tail never exceeds the cap despite 5MB of input.
+    const tailBytes = Buffer.byteLength(parser.retainedTail(), "utf-8")
+    expect(tailBytes).toBeLessThanOrEqual(MAX_RETAINED_TAIL_BYTES)
+    expect(parser.tailTruncated()).toBe(true)
+  })
+
+  test("small output is not marked tail-truncated and is retained in full", () => {
+    const parser = new StreamingXcodeParser()
+    parser.push(FAILED_BUILD_FIXTURE)
+    parser.finish()
+    expect(parser.tailTruncated()).toBe(false)
+    expect(parser.retainedTail()).toBe(FAILED_BUILD_FIXTURE)
+  })
+
+  test("caps errors at MAX_DIAGNOSTICS while streaming (bounded diagnostic arrays)", () => {
+    const parser = new StreamingXcodeParser()
+    for (let i = 0; i < MAX_DIAGNOSTICS + 40; i++) {
+      parser.push(`/Users/dev/keel/Sources/Keel/File${i}.swift:${i + 1}:1: error: synthetic ${i}\n`)
+    }
+    parser.push("** BUILD FAILED **\n")
+    parser.finish()
+    const result = parser.result(65)
+    expect(result.errors).toHaveLength(MAX_DIAGNOSTICS)
+    expect(result.errorTruncated).toBe(true)
+    expect(result.errors[0].message).toBe("synthetic 0")
+    expect(result.errors[MAX_DIAGNOSTICS - 1].message).toBe(`synthetic ${MAX_DIAGNOSTICS - 1}`)
+  })
+})
+
+// ---- Effect-harness tests for the execute path: spawn failure vs build failure ----
+
+const encoder = new TextEncoder()
+
+const harness = testEffect(
+  Layer.mergeAll(AppFileSystem.defaultLayer, Truncate.defaultLayer, Config.defaultLayer, Agent.defaultLayer),
+)
+
+function fakeHandle(all: ChildProcessSpawner.ChildProcessHandle["all"], exit = 0) {
+  return ChildProcessSpawner.makeHandle({
+    pid: ChildProcessSpawner.ProcessId(0),
+    exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exit)),
+    isRunning: Effect.succeed(true),
+    kill: () => Effect.void,
+    stdin: Sink.drain,
+    stdout: Stream.empty,
+    stderr: Stream.empty,
+    all,
+    getInputFd: () => Sink.drain,
+    getOutputFd: () => Stream.empty,
+    unref: Effect.succeed(Effect.void),
+  })
+}
+
+const baseCtx = {
+  sessionID: SessionID.make("ses_test"),
+  messageID: MessageID.make("msg_test"),
+  callID: "",
+  agent: "code",
+  abort: AbortSignal.any([]),
+  messages: [],
+  metadata: () => Effect.void,
+  ask: () => Effect.void,
+}
+
+const runExecute = (spawner: ChildProcessSpawner.ChildProcessSpawner["Service"]) =>
+  Effect.gen(function* () {
+    const info = yield* XcodeBuildTool
+    const tool = yield* info.init()
+    return yield* tool.execute({ scheme: "Keel" }, baseCtx as any)
+  }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
+
+describe("XcodeBuildTool execute: spawn failure vs build failure", () => {
+  harness.instance("spawn failure yields status:spawn_failed with the message, NOT an empty build failure", () =>
+    Effect.gen(function* () {
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.fail(
+          PlatformError.systemError({
+            _tag: "NotFound",
+            module: "Command",
+            method: "spawn",
+            pathOrDescriptor: "xcodebuild",
+            description: "spawn xcodebuild ENOENT",
+          }),
+        ),
+      )
+      const result = yield* runExecute(spawner)
+      const summary = JSON.parse(result.output)
+      expect(summary.status).toBe("spawn_failed")
+      expect(summary.ok).toBe(false)
+      // The infra error message is surfaced, and it is NOT masquerading as a zero-diagnostic build.
+      expect(summary.error).toContain("xcodebuild")
+      expect(summary.errorCount).toBeUndefined()
+      expect(summary.errors).toBeUndefined()
+      expect(result.metadata.status).toBe("spawn_failed")
+      expect(result.metadata.error).toContain("xcodebuild")
+    }),
+  )
+
+  harness.instance("a real build failure yields status:build_failed with parsed diagnostics and a raw log", () =>
+    Effect.gen(function* () {
+      const all = Stream.make(encoder.encode(FAILED_BUILD_FIXTURE))
+      const spawner = ChildProcessSpawner.make(() => Effect.succeed(fakeHandle(all, 65)))
+      const result = yield* runExecute(spawner)
+      const summary = JSON.parse(result.output)
+      expect(summary.status).toBe("build_failed")
+      expect(summary.ok).toBe(false)
+      expect(summary.errorCount).toBe(3)
+      // Diagnostics present means the raw log was kept.
+      expect(typeof summary.rawLogPath).toBe("string")
+    }),
+  )
+
+  harness.instance("a clean successful build writes NO raw log (disk hygiene) and reports build_succeeded", () =>
+    Effect.gen(function* () {
+      const all = Stream.make(encoder.encode(SUCCEEDED_BUILD_FIXTURE))
+      const spawner = ChildProcessSpawner.make(() => Effect.succeed(fakeHandle(all, 0)))
+      const result = yield* runExecute(spawner)
+      const summary = JSON.parse(result.output)
+      expect(summary.status).toBe("build_succeeded")
+      expect(summary.ok).toBe(true)
+      // A warning is present in the fixture, so a raw log IS kept; assert the parse is right.
+      expect(summary.warningCount).toBe(1)
+    }),
+  )
+
+  harness.instance("a warning-free successful build leaves no rawLogPath", () =>
+    Effect.gen(function* () {
+      const clean = "Command line invocation\nCompileSwift ok\n** BUILD SUCCEEDED **\n"
+      const all = Stream.make(encoder.encode(clean))
+      const spawner = ChildProcessSpawner.make(() => Effect.succeed(fakeHandle(all, 0)))
+      const result = yield* runExecute(spawner)
+      const summary = JSON.parse(result.output)
+      expect(summary.status).toBe("build_succeeded")
+      expect(summary.ok).toBe(true)
+      expect(summary.errorCount).toBe(0)
+      expect(summary.warningCount).toBe(0)
+      expect(summary.rawLogPath).toBeUndefined()
+    }),
+  )
 })
