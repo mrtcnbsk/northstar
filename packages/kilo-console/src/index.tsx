@@ -9,6 +9,8 @@ import { ProfileRoute } from "./routes/profile/ProfileRoute"
 import { LoginRoute } from "./routes/profile/LoginRoute"
 import { ConfigLayout } from "./layouts/ConfigLayout"
 import { configSections } from "./routes/config/sections"
+import { OrgRunsListRoute } from "./routes/orgs/OrgRunsListRoute"
+import { OrgRunDetailRoute } from "./routes/orgs/OrgRunDetailRoute"
 
 const root = document.getElementById("root")
 if (!root) throw new Error("Missing root element")
@@ -24,6 +26,8 @@ render(
     <Router root={App} base={base || undefined}>
       <Route path="/projects" component={ProjectsRoute} />
       <Route path="/projects/:project" component={ProjectConsoleRoute} />
+      <Route path="/projects/:project/org-runs" component={OrgRunsListRoute} />
+      <Route path="/projects/:project/org-runs/:runID" component={OrgRunDetailRoute} />
       <Route path="/projects/:project/settings" component={ConfigLayout}>
         {routes()}
       </Route>

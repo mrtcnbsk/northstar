@@ -14,8 +14,12 @@ import type {
   KiloProfileResponse,
   LspStatusResponse,
   McpStatusResponse,
+  OrgAuditEntry,
   OrgRunDetailResponse,
+  OrgRunFull,
+  OrgRunStageView,
   OrgRunsListResponse,
+  OrgRunSummary,
   Pty as PtyInfo,
   PermissionRequest,
   Project as KiloProject,
@@ -92,6 +96,8 @@ export type Snapshot = {
   formatter: FormatterStatusResponse
   agents: AppAgentsResponse
 }
+
+export type { OrgAuditEntry, OrgRunDetailResponse, OrgRunFull, OrgRunStageView, OrgRunsListResponse, OrgRunSummary }
 
 export type ConfigPatch = Partial<EffectiveConfig>
 
