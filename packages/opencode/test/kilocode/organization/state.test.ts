@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test"
+import path from "path"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgState } from "../../../src/kilocode/organization/state"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
@@ -40,6 +41,29 @@ describe("OrgState", () => {
   test("read throws a readable error for unknown run", async () => {
     await using tmp = await tmpdir()
     await expect(OrgState.read(tmp.path, "nope")).rejects.toThrow(/nope/)
+  })
+
+  test("read rejects path-traversal runIDs instead of reading outside the runs dir", async () => {
+    await using tmp = await tmpdir()
+    // A real run-shaped file one level above runs/ (i.e. directly under .kilo/org/secret/state.json).
+    // Without the guard, runDir(tmp, "../secret") resolves to exactly this path and read() would
+    // successfully parse it -- proving the traversal actually escapes the runs directory.
+    const secretRunDir = path.join(tmp.path, ".kilo", "org", "secret")
+    await Bun.write(
+      path.join(secretRunDir, "state.json"),
+      JSON.stringify({
+        runID: "secret",
+        idea: "leaked",
+        createdAt: new Date().toISOString(),
+        status: "active",
+        stages: {},
+      }),
+    )
+
+    await expect(OrgState.read(tmp.path, "../secret")).rejects.toThrow(/Unknown org run/)
+    await expect(OrgState.read(tmp.path, "../../etc")).rejects.toThrow(/Unknown org run/)
+    await expect(OrgState.read(tmp.path, "foo/bar")).rejects.toThrow(/Unknown org run/)
+    await expect(OrgState.read(tmp.path, "foo\\bar")).rejects.toThrow(/Unknown org run/)
   })
 
   test("list returns run ids, newest first", async () => {

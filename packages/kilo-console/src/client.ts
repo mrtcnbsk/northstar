@@ -14,6 +14,8 @@ import type {
   KiloProfileResponse,
   LspStatusResponse,
   McpStatusResponse,
+  OrgRunDetailResponse,
+  OrgRunsListResponse,
   Pty as PtyInfo,
   PermissionRequest,
   Project as KiloProject,
@@ -419,6 +421,18 @@ export async function loadKiloProfile(input: ProjectQuery): Promise<KiloProfileD
   const sdk = client(input)
   const result = await sdk.kilo.profile(directory(input))
   return demand("Kilo profile", result)
+}
+
+export async function loadOrgRuns(input: ProjectQuery): Promise<OrgRunsListResponse> {
+  const sdk = client(input)
+  const result = await sdk.orgRuns.list(directory(input))
+  return demand("Org runs", result)
+}
+
+export async function loadOrgRunDetail(input: ProjectQuery, runID: string): Promise<OrgRunDetailResponse> {
+  const sdk = client(input)
+  const result = await sdk.orgRuns.detail({ runID, ...directory(input) })
+  return demand("Org run detail", result)
 }
 
 export async function setKiloOrganization(input: ProjectQuery, organizationId: string | null) {

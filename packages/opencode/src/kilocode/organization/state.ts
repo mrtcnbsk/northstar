@@ -124,7 +124,15 @@ export namespace OrgState {
     return run
   }
 
+  /** True for a runID containing a path separator or `..` segment -- i.e. anything that could escape
+   * the runs dir when joined into a path. runIDs are always generated via stamp()+slugify() (see
+   * create), so a legitimate runID never contains these; this only ever rejects hostile/malformed input. */
+  function isTraversal(runID: string): boolean {
+    return runID.includes("/") || runID.includes("\\") || runID.includes("..")
+  }
+
   export async function read(projectDir: string, runID: string): Promise<Run> {
+    if (isTraversal(runID)) throw new Error(`Unknown org run "${runID}": expected ${stateFile(projectDir, runID)}`)
     const file = stateFile(projectDir, runID)
     const text = await Bun.file(file)
       .text()
