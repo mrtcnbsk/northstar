@@ -274,6 +274,34 @@ describe("OrgRunner full flows", () => {
     expect(status.totalCost).toBe(10) // NOT 15 (5 + 2 + 8)
   })
 
+  test("legacy cost is seeded into the costs map when a new session completes post-upgrade", async () => {
+    await using tmp = await tmpdir()
+    const costs: Record<string, number> = { ses_new: 2 }
+    const costDeps = { costOf: async (id: string) => costs[id] }
+    const run = await OrgRunner.start(tmp.path, ORG, "idea fourteen")
+
+    // simulate a pre-upgrade run: the stage is running with old-style single-slot cost tracking
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {}) // start evaluation
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].cost = 5
+      s.stages["evaluation"].costTaskID = "ses_old"
+      // no `costs` map: written before per-session tracking existed
+    })
+
+    // post-upgrade, a FRESH session completes the stage at cost 2
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_new" })
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_old: 5, ses_new: 2 })
+    // legacy fields are consumed by the migration; the persisted state.json is single-sourced now
+    expect(state.stages["evaluation"].cost).toBeUndefined()
+    expect(state.stages["evaluation"].costTaskID).toBeUndefined()
+
+    const status = await OrgRunner.status(tmp.path, ORG, run.runID)
+    expect(status.totalCost).toBe(7) // 5 (pre-upgrade spend) + 2, NOT 2
+  })
+
   test("legacy state.json with old-style cost and no costs map is still summed in status", async () => {
     await using tmp = await tmpdir()
     const run = await OrgRunner.start(tmp.path, ORG, "idea thirteen")

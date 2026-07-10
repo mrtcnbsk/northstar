@@ -179,7 +179,14 @@ export namespace OrgRunner {
           // Per-session key: a resumed session reports cumulative cost, so this is a pure
           // overwrite of its own entry; a distinct session occupies a distinct key, so totals
           // accumulate naturally with no double-counting across A-B-A style alternation.
-          rec.costs = { ...rec.costs, [record.taskID]: cost }
+          // First completion after upgrade migrates legacy single-slot cost into the map
+          // (a resumed legacy session then overwrites its own seeded key, which is correct),
+          // and clears the legacy fields so each state.json is single-sourced.
+          const seeded =
+            rec.costs ?? (rec.cost !== undefined && rec.costTaskID !== undefined ? { [rec.costTaskID]: rec.cost } : {})
+          rec.costs = { ...seeded, [record.taskID]: cost }
+          rec.cost = undefined
+          rec.costTaskID = undefined
         }
         rec.reviseBaseline = undefined // changed content accepted; baseline consumed
         rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
@@ -234,7 +241,7 @@ export namespace OrgRunner {
         record.status = "running"
         record.reviseBaseline = reviseBaseline
         record.completedAt = undefined // the pre-revise completion timestamp is stale now
-        // cost is left as-is: it reflects real spend so far; the next completion accumulates or overwrites it.
+        // the costs map is left as-is: it reflects real spend so far; the session's own key is overwritten on next completion.
       }
     })
   }
