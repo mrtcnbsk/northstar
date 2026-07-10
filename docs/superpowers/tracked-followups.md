@@ -202,3 +202,21 @@ drift'ini yalnız gerçek bir çalıştırma yakalar.
 - `bun.lock` yerel drift'i (kilo-jetbrains 7.4.4→7.4.5) commit'lere alınmıyor
   (Wave 0 commit'lerinde de yok — doğrulandı).
 - Tam test sweep'i `bun test` ile değil `bun run script/test-runner.ts` ile (izole runner).
+
+## TRACK (Wave 2 kapanış review'u — feat/wave-2-build, WAVE-MERGE: READY-WITH-TRACKED-FOLLOWUPS)
+
+- **W2-R1 (Minor) — SwiftLint/SwiftFormat ruleset dosyası YOK.** W2.4 `swiftlint*`/`swiftformat*`
+  allowlist grant'ları ve "pass `swiftlint --strict`" Do-line'ları ekledi ama repoda hiçbir
+  `.swiftlint.yml`/`.swiftformat` config yok. Worker'lar SwiftLint'i VARSAYILAN kurallarla çalıştırır
+  (ya da SwiftLint kurulu değilse no-op/fail). Plan'ın "config-first"i "agent'ları yapılandır, tool
+  yazma" demekti — yani plan LAFZINA uygun ve graceful degrade ediyor. Yine de ruleset'siz bir
+  "--strict" gate okunduğundan daha yumuşak. Takip: baseline bir ruleset ship et ya da
+  "proje kendi ruleset'ini sağlar" diye açıkça belgele. Merge blocker değil.
+- **W2-R2 (TRACK, mimari) — paylaşılan `xcodebuild-exec` primitive'i çıkar.** xcode-build.ts ve
+  xcode-test.ts spawn/scoped-run/drain/raceAll-timeout/lazy-disk-sink/`catchCause`-kill iskeletini
+  + neredeyse özdeş streaming parser'ı kopyalıyor. Wave close'da copy-not-extract SAVUNULABİLİR
+  (parser'lar gerçekten farklı; crash_symbolicate zaten basit exec kullanıyor — yalnız 2/3 call
+  site birleşir). Ama parity fix (W2.7) bu iskelete İKİ KEZ elle uygulandı; Wave 3 dördüncü bir
+  xcodebuild-şekilli tool eklemeden ÖNCE `run(command,{timeoutMs,onChunk,sink}) → Ran|SpawnFailed`
+  (catchCause-kill gömülü) primitive'ini çıkarmak ROI-pozitif olur. Doğruluk sorunu değil (kod
+  doğru, test'li, taze senkronize).
