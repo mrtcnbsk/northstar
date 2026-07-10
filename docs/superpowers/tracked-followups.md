@@ -19,6 +19,16 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   sonra; append hatası (disk dolu) kararı persist edip tool'u fail ettirir, retry
   "no stage awaiting approval" der. Warning-note'a düşürülmeli. Ayrıca
   `OrgAudit.Entry.decision` serbest string (enum + "stop" olabilir).
+- **Minor (W1 kapanış):** `runner.ts` escalation gate: bir stage ZATEN `gate:"human"` iken
+  escalation eşiği aşılırsa `s.escalated` latch'lenir ama escalate note bastırılır
+  (`running.gate !== "human"` guard'ı) — o gate `budget_note` olmadan döner. Doğruluk sorunu
+  değil (insan zaten review'da; latch doğru tüketiliyor, tekrar ateşlenmez) ve ceo.md her gate'te
+  harcamayı zaten iletiyor. Yalnız UX boşluğu.
+- **Minor (W1 kapanış):** `tools.ts` `runLocks` Map'i run_id başına tek entry'yi overwrite ediyor
+  ama HİÇ silmiyor — süreç ömrü boyunca görülen her distinct run_id için bir resolved-promise
+  entry'si kalıyor. Normal kullanımda ihmal edilebilir; yalnız binlerce run_id'yi restart'sız
+  döngüleyen çok uzun ömürlü bir süreçte anlamlı. Residual comment process-locality'yi kapsıyor
+  ama map büyümesini not etmiyor.
 
 ## Wave 1'de kapatıldı (feat/wave-1-budget, W1.0-W1.6)
 
