@@ -37,6 +37,8 @@ export namespace OrgState {
     status: z.enum(["active", "halted", "completed"]),
     haltReason: z.string().optional(),
     stages: z.record(z.string(), Stage),
+    /** Set once the soft cost-escalation gate has fired for this run; prevents it from firing again. */
+    escalated: z.boolean().optional(),
   })
   export type Run = z.output<typeof Run>
 

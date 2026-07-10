@@ -21,7 +21,14 @@ export namespace OrgRunner {
         /** Present when the same chief session should be resumed (revise / retry). */
         resumeTaskID?: string
       }
-    | { kind: "gate"; stage: string; deliverablePath: string }
+    | {
+        kind: "gate"
+        stage: string
+        deliverablePath: string
+        /** Present when this gate was forced open by the once-per-run cost-escalation check
+         * rather than the stage's own pipeline `gate: "human"` declaration. */
+        note?: string
+      }
     | {
         kind: "incomplete"
         stage: string
@@ -235,6 +242,13 @@ export namespace OrgRunner {
         }
       }
       const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
+      const budget = OrgSchema.resolveBudget(org)
+      const pipelineStage = org.pipeline.find((p) => p.stage === stage)
+      const stageCap = pipelineStage?.budget ?? budget.stage
+      // Populated inside the update callback (which has the freshest post-cost state) and acted
+      // on afterward, so the halt / escalation decision and its state mutation land atomically
+      // in the same OrgState.update as the cost recording.
+      let budgetOutcome: { kind: "halted"; reason: string } | { kind: "escalate"; runTotal: number } | undefined
       run = await OrgState.update(projectDir, runID, (s) => {
         const rec = s.stages[stage]
         rec.completedAt = new Date().toISOString()
@@ -254,7 +268,47 @@ export namespace OrgRunner {
         rec.reviseBaseline = undefined // changed content accepted; baseline consumed
         rec.reviseNote = undefined // lives and dies with the baseline
         rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
+
+        // Budget checks run after cost is recorded but before the gate/completed/next decision
+        // downstream reacts to. Hard ceiling takes precedence over the soft escalation gate.
+        const runTotal = Object.values(s.stages).reduce((sum, st) => sum + stageCost(st), 0)
+        const stageTotal = stageCost(rec)
+        if (runTotal > budget.run) {
+          const reason = `budget ceiling exceeded: run $${runTotal} / cap $${budget.run}`
+          s.status = "halted"
+          s.haltReason = reason
+          budgetOutcome = { kind: "halted", reason }
+        } else if (stageTotal > stageCap) {
+          const reason = `budget ceiling exceeded: stage "${stage}" $${stageTotal} / cap $${stageCap}`
+          s.status = "halted"
+          s.haltReason = reason
+          budgetOutcome = { kind: "halted", reason }
+        } else if (runTotal >= budget.escalationThreshold && !s.escalated) {
+          s.escalated = true
+          if (running.gate !== "human") {
+            rec.status = "awaiting_approval"
+            budgetOutcome = { kind: "escalate", runTotal }
+          }
+        }
       })
+
+      if (budgetOutcome?.kind === "halted") {
+        await OrgAudit.append(projectDir, runID, {
+          ts: new Date().toISOString(),
+          stage,
+          decision: "stop",
+          note: budgetOutcome.reason,
+        })
+        return { kind: "halted", reason: budgetOutcome.reason }
+      }
+      if (budgetOutcome?.kind === "escalate") {
+        return {
+          kind: "gate",
+          stage,
+          deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage),
+          note: `cost $${budgetOutcome.runTotal} reached the $${budget.escalationThreshold} escalation threshold — review before continuing`,
+        }
+      }
       if (running.gate === "human") {
         return { kind: "gate", stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) }
       }

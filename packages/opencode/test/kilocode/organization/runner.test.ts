@@ -504,3 +504,221 @@ describe("OrgRunner full flows", () => {
     expect(entries[0]).toMatchObject({ stage: "none", decision: "stop", note: "changed my mind" })
   })
 })
+
+describe("OrgRunner budget enforcement", () => {
+  // Small explicit budgets so scripted costOf values trip them cleanly.
+  const BUDGET_ORG = OrgSchema.parse({
+    ceo: "ceo",
+    departments: {
+      evaluation: { chief: "eval-chief", workers: ["market-research"] },
+      planning: { chief: "planning-chief", workers: ["architect"] },
+      design: { chief: "design-chief", workers: ["ux"] },
+    },
+    shared: ["apple-docs"],
+    pipeline: [{ stage: "evaluation" }, { stage: "planning" }, { stage: "design" }],
+    budget: { run: 10, stage: 6, escalationThreshold: 4, retries: 2 },
+  })
+
+  const GATED_BUDGET_ORG = OrgSchema.parse({
+    ceo: "ceo",
+    departments: {
+      evaluation: { chief: "eval-chief", workers: ["market-research"] },
+      planning: { chief: "planning-chief", workers: ["architect"] },
+    },
+    shared: ["apple-docs"],
+    pipeline: [{ stage: "evaluation", gate: "human" }, { stage: "planning" }],
+    budget: { run: 10, stage: 6, escalationThreshold: 4, retries: 2 },
+  })
+
+  test("run halts at the RUN ceiling", async () => {
+    await using tmp = await tmpdir()
+    // escalation disabled (unreachable) so this test isolates the run-ceiling path only.
+    const ORG_RUN_ONLY = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation" }, { stage: "planning" }],
+      budget: { run: 10, stage: 6, escalationThreshold: 100, retries: 2 },
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_RUN_ONLY, "idea budget one")
+
+    // evaluation stage costs 5 (under stage cap 6, under run cap 10)
+    const costDeps1 = { costOf: async () => 5 }
+    await OrgRunner.advance(costDeps1, tmp.path, ORG_RUN_ONLY, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const afterEval = await OrgRunner.advance(costDeps1, tmp.path, ORG_RUN_ONLY, run.runID, { taskID: "ses_eval" })
+    expect(afterEval.kind).toBe("instruct") // moved straight on to planning: no gate, no halt
+
+    // planning stage costs 6 more: runTotal = 11 > run cap 10 -> halted (stageTotal 6 == cap 6, not tripped)
+    const costDeps2 = { costOf: async () => 6 }
+    await writeDeliverable(tmp.path, run.runID, "planning")
+    const result = await OrgRunner.advance(costDeps2, tmp.path, ORG_RUN_ONLY, run.runID, { taskID: "ses_plan" })
+    expect(result.kind).toBe("halted")
+    if (result.kind !== "halted") throw new Error("unreachable")
+    expect(result.reason).toContain("budget ceiling exceeded")
+    expect(result.reason).toContain("run")
+    expect(result.reason).toContain("11")
+    expect(result.reason).toContain("10")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("halted")
+    expect(state.haltReason).toBe(result.reason)
+
+    const entries = await OrgAudit.read(tmp.path, run.runID)
+    expect(entries.at(-1)).toMatchObject({ stage: "planning", decision: "stop" })
+    expect(entries.at(-1)?.note).toContain("budget ceiling exceeded")
+
+    // subsequent advance keeps returning halted
+    const again = await OrgRunner.advance(costDeps2, tmp.path, ORG_RUN_ONLY, run.runID, {})
+    expect(again.kind).toBe("halted")
+  })
+
+  test("run halts at a per-stage STAGE ceiling override lower than the global stage cap", async () => {
+    await using tmp = await tmpdir()
+    // per-stage override: evaluation capped at 3 (global stage cap is 6)
+    const ORG_STAGE_OVERRIDE = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation", budget: 3 }, { stage: "planning" }],
+      budget: { run: 10, stage: 6, escalationThreshold: 100, retries: 2 }, // escalation disabled (unreachable)
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_STAGE_OVERRIDE, "idea budget two")
+
+    const costDeps = { costOf: async () => 4 } // 4 > per-stage cap 3, but < global stage cap 6 and < run cap 10
+    await OrgRunner.advance(costDeps, tmp.path, ORG_STAGE_OVERRIDE, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const result = await OrgRunner.advance(costDeps, tmp.path, ORG_STAGE_OVERRIDE, run.runID, { taskID: "ses_eval" })
+
+    expect(result.kind).toBe("halted")
+    if (result.kind !== "halted") throw new Error("unreachable")
+    expect(result.reason).toContain("budget ceiling exceeded")
+    expect(result.reason).toContain("stage")
+    expect(result.reason).toContain("evaluation")
+    expect(result.reason).toContain("4")
+    expect(result.reason).toContain("3")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("halted")
+    expect(state.stages["planning"].status).toBe("pending") // never got a chance to start
+  })
+
+  test("escalation gate fires once per run: non-gated stage crossing threshold gates; decide(approve) proceeds; a later crossing does not re-gate", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, BUDGET_ORG, "idea budget three")
+
+    // evaluation stage costs 5: crosses escalationThreshold (4), below stage cap (6) and run cap (10)
+    const costDeps = { costOf: async () => 5 }
+    await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const result = await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, { taskID: "ses_eval" })
+
+    expect(result.kind).toBe("gate")
+    if (result.kind !== "gate") throw new Error("unreachable")
+    expect(result.stage).toBe("evaluation")
+    expect(result.note).toBeDefined()
+    expect(result.note).toContain("5")
+    expect(result.note).toContain("4")
+    expect(result.note).toContain("escalation threshold")
+
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.escalated).toBe(true)
+    expect(state.stages["evaluation"].status).toBe("awaiting_approval")
+
+    // decide(approve) on the escalation-gated stage completes it and proceeds, same as a normal gate
+    await OrgRunner.decide(tmp.path, BUDGET_ORG, run.runID, "approve")
+    const next = await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, {})
+    expect(next.kind).toBe("instruct")
+    if (next.kind !== "instruct") throw new Error("unreachable")
+    expect(next.stage).toBe("planning")
+
+    // planning stage also costs 5 -> runTotal would be 10, still >= threshold, but escalated
+    // already true so it must NOT re-gate (only a hard ceiling could stop it now).
+    await writeDeliverable(tmp.path, run.runID, "planning")
+    const afterPlanning = await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, { taskID: "ses_plan" })
+    expect(afterPlanning.kind).toBe("instruct") // proceeded straight to design, no re-gate
+    if (afterPlanning.kind !== "instruct") throw new Error("unreachable")
+    expect(afterPlanning.stage).toBe("design")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.escalated).toBe(true)
+    expect(state.stages["planning"].status).toBe("completed")
+  })
+
+  test("escalation does not fire when the crossing stage already has gate:human (redundant), but still marks escalated", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, GATED_BUDGET_ORG, "idea budget four")
+
+    // evaluation has gate:human already; cost 5 crosses escalationThreshold (4)
+    const costDeps = { costOf: async () => 5 }
+    await OrgRunner.advance(costDeps, tmp.path, GATED_BUDGET_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const result = await OrgRunner.advance(costDeps, tmp.path, GATED_BUDGET_ORG, run.runID, { taskID: "ses_eval" })
+
+    expect(result.kind).toBe("gate")
+    if (result.kind !== "gate") throw new Error("unreachable")
+    expect(result.stage).toBe("evaluation")
+    // redundant with the existing human gate: no escalation note attached
+    expect(result.note).toBeUndefined()
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    // still marked escalated so it never double-fires later in the run
+    expect(state.escalated).toBe(true)
+  })
+
+  test("below-threshold run proceeds ungated and unhalted (regression)", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, BUDGET_ORG, "idea budget five")
+
+    // evaluation stage costs 2: below escalationThreshold (4), stage cap (6), run cap (10)
+    const costDeps = { costOf: async () => 2 }
+    await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const result = await OrgRunner.advance(costDeps, tmp.path, BUDGET_ORG, run.runID, { taskID: "ses_eval" })
+
+    expect(result.kind).toBe("instruct")
+    if (result.kind !== "instruct") throw new Error("unreachable")
+    expect(result.stage).toBe("planning")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.escalated).toBeFalsy()
+    expect(state.status).toBe("active")
+  })
+
+  test("hard ceiling beats escalation: a stage completion crossing BOTH threshold and run ceiling halts, not gates", async () => {
+    await using tmp = await tmpdir()
+    // escalationThreshold lower than run cap so a single stage cost can cross both at once.
+    const ORG_BOTH = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation" }, { stage: "planning" }],
+      budget: { run: 10, stage: 15, escalationThreshold: 4, retries: 2 },
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_BOTH, "idea budget six")
+
+    // evaluation costs 11: crosses escalationThreshold (4) AND run cap (10); stage cap (15) not tripped.
+    const costDeps = { costOf: async () => 11 }
+    await OrgRunner.advance(costDeps, tmp.path, ORG_BOTH, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const result = await OrgRunner.advance(costDeps, tmp.path, ORG_BOTH, run.runID, { taskID: "ses_eval" })
+
+    expect(result.kind).toBe("halted")
+    if (result.kind !== "halted") throw new Error("unreachable")
+    expect(result.reason).toContain("budget ceiling exceeded")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("halted")
+    // hard ceiling took precedence: escalation must not have been marked as a gate outcome
+    expect(state.stages["evaluation"].status).not.toBe("awaiting_approval")
+  })
+})
