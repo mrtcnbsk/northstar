@@ -21,7 +21,16 @@ export namespace OrgRunner {
         resumeTaskID?: string
       }
     | { kind: "gate"; stage: string; deliverablePath: string }
-    | { kind: "incomplete"; stage: string; reason: string; resumeTaskID?: string }
+    | {
+        kind: "incomplete"
+        stage: string
+        reason: string
+        resumeTaskID?: string
+        /** The chief department for this stage; lets the CEO spawn a fresh session when resumeTaskID is unresumable. */
+        chief?: string
+        /** Full stage prompt (same instruct-path builder, no reviseNote), for briefing a fresh chief session when unresumable. */
+        taskPrompt?: string
+      }
     | { kind: "halted"; reason: string }
     | { kind: "done" }
 
@@ -48,12 +57,23 @@ export namespace OrgRunner {
     return createHash("sha256").update(text).digest("hex")
   }
 
-  /** Guard against organization.jsonc changing mid-run: every pipeline stage must exist in the run state. */
+  /**
+   * Guard against organization.jsonc changing mid-run: the run's stage set and the org's
+   * pipeline stage set must match exactly, in both directions.
+   */
   function assertPipelineMatches(org: OrgSchema.Organization, run: OrgState.Run): void {
     for (const { stage } of org.pipeline) {
       if (!run.stages[stage]) {
         throw new Error(
           `run ${run.runID} was created with a different pipeline (stage "${stage}" missing); organization.jsonc changed mid-run?`,
+        )
+      }
+    }
+    const pipelineStages = new Set(org.pipeline.map(({ stage }) => stage))
+    for (const stage of Object.keys(run.stages)) {
+      if (!pipelineStages.has(stage)) {
+        throw new Error(
+          `run ${run.runID} was created with a different pipeline (stage "${stage}" no longer in organization.jsonc); organization.jsonc changed mid-run?`,
         )
       }
     }
@@ -93,6 +113,22 @@ export namespace OrgRunner {
         reviseNote: opts.reviseNote,
       }),
     }
+  }
+
+  /**
+   * Build the full stage prompt for an in-progress (running) stage, no reviseNote — used to
+   * brief a fresh chief session when the `incomplete` path's resumeTaskID turns out unresumable.
+   */
+  function stagePromptFor(projectDir: string, org: OrgSchema.Organization, run: OrgState.Run, stage: string): string {
+    const dept = org.departments[stage]
+    return OrgPrompts.stagePrompt({
+      stage,
+      idea: run.idea,
+      deliverablePath: OrgArtifacts.deliverablePath(projectDir, run.runID, stage),
+      workers: dept.workers,
+      shared: org.shared,
+      priorDeliverables: priorDeliverables(projectDir, org, run, stage),
+    })
   }
 
   export async function advance(
@@ -160,7 +196,14 @@ export namespace OrgRunner {
       }
       const validation = await OrgArtifacts.validate(projectDir, runID, stage)
       if (!validation.ok) {
-        return { kind: "incomplete", stage, reason: validation.reason, resumeTaskID: record.taskID }
+        return {
+          kind: "incomplete",
+          stage,
+          reason: validation.reason,
+          resumeTaskID: record.taskID,
+          chief: org.departments[stage].chief,
+          taskPrompt: stagePromptFor(projectDir, org, run, stage),
+        }
       }
       // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
       if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
@@ -169,6 +212,8 @@ export namespace OrgRunner {
           stage,
           reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
           resumeTaskID: record.taskID,
+          chief: org.departments[stage].chief,
+          taskPrompt: stagePromptFor(projectDir, org, run, stage),
         }
       }
       const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
@@ -248,6 +293,7 @@ export namespace OrgRunner {
 
   export async function status(projectDir: string, org: OrgSchema.Organization, runID: string) {
     const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
     const totalCost = Object.values(run.stages).reduce((sum, s) => sum + stageCost(s), 0)
     return { run, totalCost, pipeline: org.pipeline.map(({ stage, gate }) => ({ stage, gate, ...run.stages[stage] })) }
   }

@@ -6,8 +6,8 @@ subordinates: [aso-specialist, copywriter, pricing-analyst, preview-designer, ap
 permission:
   edit:
     "*": deny
-    ".kilo/org/**": allow
-    "**/.kilo/org/**": allow
+    ".kilo/org/runs/*/deliverables/**": allow
+    "**/.kilo/org/runs/*/deliverables/**": allow
   bash: deny
   webfetch: deny
   websearch: deny

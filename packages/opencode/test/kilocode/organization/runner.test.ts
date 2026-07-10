@@ -96,6 +96,38 @@ describe("OrgRunner full flows", () => {
     expect(result.reason).toContain("deliverable")
   })
 
+  test("incomplete carries the full stage prompt and chief for an unresumable fresh session", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea sixteen")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    const result = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    expect(result.kind).toBe("incomplete")
+    if (result.kind !== "incomplete") throw new Error("unreachable")
+    expect(result.chief).toBe("eval-chief")
+    expect(result.taskPrompt).toBeDefined()
+    expect(result.taskPrompt).toContain("evaluation")
+    expect(result.taskPrompt).toContain("idea sixteen")
+    // no revise note: the stage is running for the first time, not being revised
+    expect(result.taskPrompt).not.toContain("REVISION REQUESTED")
+  })
+
+  test("incomplete via unchanged-revise-baseline also carries chief and taskPrompt", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea seventeen")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "dig deeper")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct
+
+    const stuck = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(stuck.kind).toBe("incomplete")
+    if (stuck.kind !== "incomplete") throw new Error("unreachable")
+    expect(stuck.chief).toBe("eval-chief")
+    expect(stuck.taskPrompt).toBeDefined()
+    expect(stuck.taskPrompt).toContain("evaluation")
+  })
+
   test("revise sends the stage back to running with the note", async () => {
     await using tmp = await tmpdir()
     const run = await OrgRunner.start(tmp.path, ORG, "idea four")
@@ -191,6 +223,39 @@ describe("OrgRunner full flows", () => {
     })
     await expect(OrgRunner.advance(deps, tmp.path, ORG3, run.runID, {})).rejects.toThrow(/different pipeline/)
     await expect(OrgRunner.decide(tmp.path, ORG3, run.runID, "approve")).rejects.toThrow(/different pipeline/)
+  })
+
+  test("advance and status throw when a run stage was removed from the pipeline", async () => {
+    await using tmp = await tmpdir()
+    const ORG_3STAGE = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        design: { chief: "design-chief", workers: ["ux"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      pipeline: [{ stage: "evaluation" }, { stage: "design" }, { stage: "planning" }],
+    })
+    const run = await OrgRunner.start(tmp.path, ORG_3STAGE, "idea fifteen")
+
+    // organization.jsonc changed mid-run: "design" was removed from the pipeline
+    const ORG_2STAGE = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+        planning: { chief: "planning-chief", workers: ["architect"] },
+      },
+      pipeline: [{ stage: "evaluation" }, { stage: "planning" }],
+    })
+    await expect(OrgRunner.advance(deps, tmp.path, ORG_2STAGE, run.runID, {})).rejects.toThrow(
+      /stage "design" no longer in organization\.jsonc/,
+    )
+    await expect(OrgRunner.decide(tmp.path, ORG_2STAGE, run.runID, "approve")).rejects.toThrow(
+      /stage "design" no longer in organization\.jsonc/,
+    )
+    await expect(OrgRunner.status(tmp.path, ORG_2STAGE, run.runID)).rejects.toThrow(
+      /stage "design" no longer in organization\.jsonc/,
+    )
   })
 
   test("taskID reported at a gate is persisted", async () => {

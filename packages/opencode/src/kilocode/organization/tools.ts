@@ -133,14 +133,25 @@ export const OrgAdvanceTool = Tool.define(
               })
             case "incomplete": {
               const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
+              const unresumable = advance.resumeTaskID !== undefined && !resumable
               return result(`incomplete: ${advance.stage}`, {
                 action: "resume_chief",
                 stage: advance.stage,
                 reason: advance.reason,
                 ...(resumable ? { resume_task_id: advance.resumeTaskID } : {}),
-                ...(advance.resumeTaskID && !resumable
+                ...(unresumable
                   ? {
                       note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
+                      // kilocode_change - full stage prompt so the CEO can brief a fresh chief session with idea/priors context
+                      ...(advance.chief && advance.taskPrompt
+                        ? {
+                            task_call: {
+                              subagent_type: advance.chief,
+                              description: `${advance.stage} stage (fresh session)`,
+                              prompt: advance.taskPrompt,
+                            },
+                          }
+                        : {}),
                     }
                   : {}),
               })

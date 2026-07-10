@@ -83,4 +83,21 @@ describe("org-template consistency", () => {
       expect(Permission.evaluate("edit", "Sources/App/Main.swift", ruleset).action).toBe("deny")
     }
   })
+
+  test("chief edit permission denies state.json and approvals.json (server-written pipeline state, real evaluator)", async () => {
+    const { org, agents } = await loadTemplate()
+    const { Permission } = await import("../../../src/permission")
+    for (const dept of Object.values(org.departments)) {
+      const chief = agents[dept.chief]
+      const ruleset = Permission.fromConfig(chief.permission ?? {})
+      expect(
+        Permission.evaluate("edit", ".kilo/org/runs/x/state.json", ruleset).action,
+        `chief ${dept.chief} must not be able to write state.json`,
+      ).toBe("deny")
+      expect(
+        Permission.evaluate("edit", ".kilo/org/runs/x/approvals.json", ruleset).action,
+        `chief ${dept.chief} must not be able to write approvals.json`,
+      ).toBe("deny")
+    }
+  })
 })
