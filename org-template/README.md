@@ -90,10 +90,18 @@ before (fully sequential, linear pipeline):
   set to `>1` on a template that also declares parallel `requires` to actually
   parallelize independent stages.
 
-As of this doc, the shipped template pipeline is still fully linear (no `requires`/
-`when`/`timeoutMs`/`maxConcurrency` set) - these fields are schema-ready but not yet
-exercised by the template; see the Wave 4 DAG plan for the template update that adopts
-them.
+As of W4.7, the shipped template pipeline is a live diamond, not just linear: `backend`
+and `frontend` both set `requires: ["ux"]` (instead of defaulting to their previous
+pipeline entry) and so become siblings once `ux` completes; `testing` explicitly sets
+`requires: ["backend", "frontend"]` and only starts once both branches are done. The
+org sets `maxConcurrency: 2` so the runner actually dispatches `backend` and `frontend`
+in the same batch instead of just resolving them as both-ready. Every other stage
+(`evaluation`, `planning`, `ux`, `debugging`, `marketing`) keeps the default
+previous-stage `requires` - the diamond is the pipeline's only branch point.
+`marketing` additionally carries `when: { "mode": "full" }`; since it's terminal
+(nothing depends on it), a run started with `mode: "mvp"` skips it for free once
+`debugging` completes, and the run still completes cleanly with `marketing: "skipped"`.
+No `timeoutMs` is set on any stage yet.
 
 ## Editing the organization
 

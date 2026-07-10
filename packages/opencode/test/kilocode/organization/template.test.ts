@@ -1,9 +1,14 @@
 // packages/opencode/test/kilocode/organization/template.test.ts
 import { describe, test, expect } from "bun:test"
 import path from "path"
+import { mkdir } from "node:fs/promises"
 import { parse as parseJsonc } from "jsonc-parser"
 import * as ConfigAgent from "../../../src/config/agent"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
+import { OrgState } from "../../../src/kilocode/organization/state"
+import { OrgRunner } from "../../../src/kilocode/organization/runner"
+import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
+import { tmpdir } from "../../fixture/fixture"
 
 const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
 
@@ -253,6 +258,157 @@ describe("org-template consistency", () => {
   test("roster stays green: still 58 agents after the W2.6 permission/prompt edits", async () => {
     const { agents } = await loadTemplate()
     expect(Object.keys(agents).length).toBe(58)
+  })
+  // kilocode_change end
+
+  // kilocode_change start - W4.7: the shipped template now exercises the DAG engine itself -
+  // a diamond (backend/frontend both require ux, testing joins them) plus an mvp-skip on
+  // marketing. These tests would fail (RED) against the pre-W4.7 fully-linear template: resolveRequires
+  // would map backend/frontend to their own previous pipeline entries (not both to "ux"), readyStages
+  // after "ux" completes would be a single stage (not the pair), and maxConcurrency would be undefined.
+  describe("W4.7 DAG template: frontend/backend diamond + marketing mvp-skip", () => {
+    test("resolveRequires: backend and frontend both require ux; testing joins them; every other stage requires exactly its previous pipeline entry", async () => {
+      const { org } = await loadTemplate()
+      const resolved = OrgSchema.resolveRequires(org)
+
+      // the diamond
+      expect(resolved["backend"]).toEqual(["ux"])
+      expect(resolved["frontend"]).toEqual(["ux"])
+      expect(resolved["testing"]).toEqual(["backend", "frontend"])
+
+      // everything else stays the default linear chain (explicit spot-checks)
+      expect(resolved["evaluation"]).toEqual([])
+      expect(resolved["planning"]).toEqual(["evaluation"])
+      expect(resolved["ux"]).toEqual(["planning"])
+      expect(resolved["debugging"]).toEqual(["testing"])
+      expect(resolved["marketing"]).toEqual(["debugging"])
+
+      // full pipeline order sanity - unchanged by the DAG edit
+      expect(org.pipeline.map((p) => p.stage)).toEqual([
+        "evaluation",
+        "planning",
+        "ux",
+        "backend",
+        "frontend",
+        "testing",
+        "debugging",
+        "marketing",
+      ])
+    })
+
+    test("org.maxConcurrency is 2 (lets backend/frontend actually run concurrently)", async () => {
+      const { org } = await loadTemplate()
+      expect(org.maxConcurrency).toBe(2)
+    })
+
+    test("marketing carries when:{mode:\"full\"}", async () => {
+      const { org } = await loadTemplate()
+      const marketing = org.pipeline.find((p) => p.stage === "marketing")
+      expect(marketing?.when).toEqual({ mode: "full" })
+      // terminal: nothing in the pipeline requires marketing, so skipping it can't strand a dependent.
+      const resolved = OrgSchema.resolveRequires(org)
+      for (const [stage, requires] of Object.entries(resolved)) {
+        expect(requires.includes("marketing"), `stage "${stage}" must not require marketing`).toBe(false)
+      }
+    })
+
+    test("readyStages after ux completes = [backend, frontend], in pipeline order (proves the diamond, not the linear default)", async () => {
+      const { org } = await loadTemplate()
+      const priorStages = new Set(["evaluation", "planning", "ux"])
+      const run = OrgState.Run.parse({
+        runID: "r1",
+        idea: "test idea",
+        createdAt: new Date().toISOString(),
+        status: "active",
+        stages: Object.fromEntries(
+          org.pipeline.map((p) => [p.stage, { status: priorStages.has(p.stage) ? "completed" : "pending", attempts: 0 }]),
+        ),
+      })
+      // Against a still-linear pipeline this would resolve to just ["backend"] (backend's default
+      // requires would be [ux], but frontend's default requires would be [backend], not [ux]) -
+      // this assertion is the RED/GREEN pivot for the W4.7 edit.
+      expect(OrgState.readyStages(org, run)).toEqual(["backend", "frontend"])
+    })
+
+    test("readyStages after ux+backend+frontend all complete = [testing] (the join), not before", async () => {
+      const { org } = await loadTemplate()
+      const statuses: Record<string, OrgState.StageStatus> = {
+        evaluation: "completed",
+        planning: "completed",
+        ux: "completed",
+        backend: "completed",
+        frontend: "running",
+        testing: "pending",
+        debugging: "pending",
+        marketing: "pending",
+      }
+      const notJoinedYet = OrgState.Run.parse({
+        runID: "r2",
+        idea: "test idea",
+        createdAt: new Date().toISOString(),
+        status: "active",
+        stages: Object.fromEntries(Object.entries(statuses).map(([s, status]) => [s, { status, attempts: 0 }])),
+      })
+      expect(OrgState.readyStages(org, notJoinedYet)).toEqual([])
+
+      const joined = OrgState.Run.parse({
+        ...notJoinedYet,
+        stages: { ...notJoinedYet.stages, frontend: { status: "completed", attempts: 0 } },
+      })
+      expect(OrgState.readyStages(org, joined)).toEqual(["testing"])
+    })
+
+    test("live run via OrgRunner: mode:\"mvp\" skips marketing after debugging completes; mode:\"full\" runs it", async () => {
+      await using tmp = await tmpdir()
+      const { org } = await loadTemplate()
+      const deps = { costOf: async () => 0.1 }
+
+      async function writeDeliverable(runID: string, stage: string) {
+        const file = OrgArtifacts.deliverablePath(tmp.path, runID, stage)
+        await mkdir(path.dirname(file), { recursive: true })
+        await Bun.write(file, `# ${stage} deliverable\n\n` + "content ".repeat(20))
+      }
+
+      const run = await OrgRunner.start(tmp.path, org, "mvp mode idea", "mvp")
+      expect(run.mode).toBe("mvp")
+
+      // Drive: evaluation (gate:human) -> approve -> planning -> ux -> backend+frontend (parallel,
+      // maxConcurrency 2) -> testing -> debugging -> marketing should be skipped (mvp != full).
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
+      await writeDeliverable(run.runID, "evaluation")
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_eval" })
+      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
+
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, {}) // instructs planning
+      await writeDeliverable(run.runID, "planning")
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_plan" }) // instructs ux
+      await writeDeliverable(run.runID, "ux")
+      const afterUx = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_ux" })
+      expect(afterUx.instruct.map((i) => i.stage).sort()).toEqual(["backend", "frontend"])
+
+      await writeDeliverable(run.runID, "backend")
+      await writeDeliverable(run.runID, "frontend")
+      const afterDiamond = await OrgRunner.advance(deps, tmp.path, org, run.runID, {
+        taskResults: [
+          { stage: "backend", taskID: "ses_backend" },
+          { stage: "frontend", taskID: "ses_frontend" },
+        ],
+      })
+      expect(afterDiamond.instruct.map((i) => i.stage)).toEqual(["testing"])
+
+      await writeDeliverable(run.runID, "testing")
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_testing" }) // instructs debugging
+      await writeDeliverable(run.runID, "debugging")
+      const afterDebugging = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_debugging" })
+
+      // marketing's when:{mode:"full"} is false for this mvp run -> skipped, not instructed/gated.
+      expect(afterDebugging.instruct.some((i) => i.stage === "marketing")).toBe(false)
+      expect(afterDebugging.done).toBe(true)
+      const state = await OrgState.read(tmp.path, run.runID)
+      expect(state.stages["marketing"].status).toBe("skipped")
+      expect(state.stages["marketing"].startedAt).toBeUndefined()
+      expect(state.stages["marketing"].costs).toBeUndefined()
+    })
   })
   // kilocode_change end
 })
