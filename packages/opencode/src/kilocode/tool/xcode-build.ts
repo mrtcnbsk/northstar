@@ -198,8 +198,11 @@ export class StreamingXcodeParser {
     this.tail += chunk
     this.tailBytes += Buffer.byteLength(chunk, "utf-8")
     if (this.tailBytes <= this.maxTailBytes) return
-    // Trim from the front until we are back under the cap. Byte-length is recomputed on the
-    // trimmed string so multi-byte characters cannot leave us over budget.
+    // Trim from the front until we are back under the cap. `overshoot` is a byte count but
+    // slice() cuts UTF-16 code units; since a code unit encodes >= 1 byte, cutting that many
+    // code units removes at least `overshoot` bytes, so the byte-cap invariant always holds.
+    // On multi-byte (non-ASCII) output this may under-retain the preview slightly — purely
+    // cosmetic, as diagnostics live in the parsed arrays and are never sourced from the tail.
     const overshoot = this.tailBytes - this.maxTailBytes
     this.tail = this.tail.slice(Math.min(overshoot, this.tail.length))
     this.tailBytes = Buffer.byteLength(this.tail, "utf-8")

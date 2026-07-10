@@ -12,4 +12,4 @@ Parameters:
 - `destination`: xcodebuild destination specifier, e.g. `platform=iOS Simulator,name=iPhone 15`.
 - `extraArgs`: additional raw arguments appended to the xcodebuild invocation.
 
-The full raw build log is always written to disk; its path is returned as `rawLogPath` so it can be inspected if the structured summary is not enough.
+`rawLogPath` is a best-effort partial log, written ONLY when diagnostics or a build failure/timeout occur (omitted on a clean, warning-free success). It may be truncated (see `rawLogTruncated`), so treat it as supplementary detail — the structured `errors[]` and `warnings[]` are always complete regardless of how large the build output was.
