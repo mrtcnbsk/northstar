@@ -13,6 +13,16 @@ export namespace OrgSchema {
     stage: z.string().min(1),
     gate: z.enum(["human"]).optional(),
     haltOn: z.enum(["no-go"]).optional(),
+    /** Per-stage budget ceiling override (USD), falls back to the org's resolved stage budget. */
+    budget: z.number().nonnegative().optional(),
+  })
+
+  /** Budget config (USD, except retries which is an integer count). All fields optional; see resolveBudget for defaults. */
+  export const Budget = z.object({
+    run: z.number().nonnegative().optional(),
+    stage: z.number().nonnegative().optional(),
+    escalationThreshold: z.number().nonnegative().optional(),
+    retries: z.number().int().nonnegative().optional(),
   })
 
   export const Organization = z.object({
@@ -20,11 +30,56 @@ export namespace OrgSchema {
     departments: z.record(z.string(), Department),
     shared: z.array(z.string().min(1)).default([]),
     pipeline: z.array(Stage).min(1),
+    budget: Budget.optional(),
   })
   export type Organization = z.output<typeof Organization>
 
+  export type ResolvedBudget = {
+    run: number
+    stage: number
+    escalationThreshold: number
+    retries: number
+  }
+
+  /** Owner-approved defaults (USD; retries is an integer count). */
+  const BUDGET_DEFAULTS: ResolvedBudget = {
+    run: 50,
+    stage: 15,
+    escalationThreshold: 10,
+    retries: 2,
+  }
+
   export function parse(input: unknown): Organization {
     return Organization.parse(input)
+  }
+
+  /** Fills any absent budget field with its owner-approved default. Pure function. */
+  export function resolveBudget(org: Organization): ResolvedBudget {
+    return {
+      run: org.budget?.run ?? BUDGET_DEFAULTS.run,
+      stage: org.budget?.stage ?? BUDGET_DEFAULTS.stage,
+      escalationThreshold: org.budget?.escalationThreshold ?? BUDGET_DEFAULTS.escalationThreshold,
+      retries: org.budget?.retries ?? BUDGET_DEFAULTS.retries,
+    }
+  }
+
+  /**
+   * Soft, non-blocking budget sanity checks (e.g. stage > run). Callers such as
+   * loadOrganization may log these but must NOT throw on them - unlike validate(),
+   * which blocks load. Returns [] when the resolved budget is sane.
+   */
+  export function budgetWarnings(org: Organization): string[] {
+    const warnings: string[] = []
+    const resolved = resolveBudget(org)
+    if (resolved.stage > resolved.run) {
+      warnings.push(`budget.stage (${resolved.stage}) is greater than budget.run (${resolved.run})`)
+    }
+    if (resolved.escalationThreshold > resolved.run) {
+      warnings.push(
+        `budget.escalationThreshold (${resolved.escalationThreshold}) is greater than budget.run (${resolved.run})`,
+      )
+    }
+    return warnings
   }
 
   /** Agent names that would break permission-rule ordering or wildcard semantics. */

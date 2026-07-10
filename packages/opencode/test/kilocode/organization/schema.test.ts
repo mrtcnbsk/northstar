@@ -156,6 +156,99 @@ describe("OrgSchema.loadOrganization", () => {
   })
 })
 
+describe("OrgSchema budget", () => {
+  test("accepts an organization with a full budget block", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      budget: { run: 100, stage: 20, escalationThreshold: 15, retries: 3 },
+    })
+    expect(org.budget).toEqual({ run: 100, stage: 20, escalationThreshold: 15, retries: 3 })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("omitted budget still parses (org.budget is undefined)", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(org.budget).toBeUndefined()
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("rejects a negative budget value at parse time", () => {
+    expect(() => OrgSchema.parse({ ...VALID, budget: { run: -1 } })).toThrow()
+  })
+
+  test("rejects a non-integer retries value at parse time", () => {
+    expect(() => OrgSchema.parse({ ...VALID, budget: { retries: 1.5 } })).toThrow()
+  })
+
+  test("parses a per-stage budget override", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      pipeline: [{ ...VALID.pipeline[0], budget: 5 }, VALID.pipeline[1]],
+    })
+    expect(org.pipeline[0].budget).toBe(5)
+  })
+
+  test("rejects a negative per-stage budget override", () => {
+    expect(() =>
+      OrgSchema.parse({
+        ...VALID,
+        pipeline: [{ ...VALID.pipeline[0], budget: -5 }, VALID.pipeline[1]],
+      }),
+    ).toThrow()
+  })
+})
+
+describe("OrgSchema.resolveBudget", () => {
+  test("fills all four defaults when org.budget is absent", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(OrgSchema.resolveBudget(org)).toEqual({ run: 50, stage: 15, escalationThreshold: 10, retries: 2 })
+  })
+
+  test("fills defaults for fields not provided while preserving provided values", () => {
+    const org = OrgSchema.parse({ ...VALID, budget: { run: 200 } })
+    expect(OrgSchema.resolveBudget(org)).toEqual({ run: 200, stage: 15, escalationThreshold: 10, retries: 2 })
+  })
+
+  test("preserves all provided values when the full block is given", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      budget: { run: 100, stage: 20, escalationThreshold: 15, retries: 3 },
+    })
+    expect(OrgSchema.resolveBudget(org)).toEqual({ run: 100, stage: 20, escalationThreshold: 15, retries: 3 })
+  })
+})
+
+describe("OrgSchema.budgetWarnings", () => {
+  test("returns [] for a sane budget (or no budget at all)", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(OrgSchema.budgetWarnings(org)).toEqual([])
+  })
+
+  test("returns [] when stage and escalationThreshold are within run", () => {
+    const org = OrgSchema.parse({ ...VALID, budget: { run: 50, stage: 15, escalationThreshold: 10 } })
+    expect(OrgSchema.budgetWarnings(org)).toEqual([])
+  })
+
+  test("flags stage budget greater than run budget", () => {
+    const org = OrgSchema.parse({ ...VALID, budget: { run: 10, stage: 15 } })
+    const warnings = OrgSchema.budgetWarnings(org)
+    expect(warnings.some((w) => w.includes("stage") && w.includes("run"))).toBe(true)
+  })
+
+  test("flags escalationThreshold greater than run budget", () => {
+    const org = OrgSchema.parse({ ...VALID, budget: { run: 10, escalationThreshold: 20 } })
+    const warnings = OrgSchema.budgetWarnings(org)
+    expect(warnings.some((w) => w.includes("escalationThreshold") && w.includes("run"))).toBe(true)
+  })
+
+  test("does not throw / block loadOrganization-style validate when warnings are present", () => {
+    const org = OrgSchema.parse({ ...VALID, budget: { run: 10, stage: 15, escalationThreshold: 20 } })
+    // Hard validate() must stay green even though budgetWarnings would flag this org.
+    expect(OrgSchema.validate(org)).toEqual([])
+    expect(OrgSchema.budgetWarnings(org).length).toBe(2)
+  })
+})
+
 describe("OrgSchema.crossCheck", () => {
   test("flags chiefs missing subordinates coverage and missing agents", () => {
     const org = OrgSchema.parse(VALID)
