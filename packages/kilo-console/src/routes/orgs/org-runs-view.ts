@@ -64,3 +64,28 @@ export function awaitingGateStages(detail: OrgRunDetailResponse | undefined): st
 export function auditTrail(detail: OrgRunDetailResponse | undefined): OrgAuditEntry[] {
   return detail?.audit ?? []
 }
+
+export type CostRow = { stage: string; cost: number }
+
+export function costRows(detail: OrgRunDetailResponse | undefined): CostRow[] {
+  if (!detail) return []
+  return detail.stages.map((item) => ({ stage: item.stage, cost: number(item.cost) }))
+}
+
+export function costTotal(detail: OrgRunDetailResponse | undefined): number {
+  if (!detail) return 0
+  return number(detail.totalCost)
+}
+
+export type AwaitingSinceItem = { stage: string; sinceMs: number }
+
+export function awaitingSince(detail: OrgRunDetailResponse | undefined, now: number): AwaitingSinceItem[] {
+  if (!detail) return []
+  return detail.stages
+    .filter((item) => item.status === "awaiting_approval")
+    .map((item) => {
+      const started = item.startedAt ? new Date(item.startedAt).getTime() : Number.NaN
+      const sinceMs = Number.isFinite(started) ? Math.max(0, now - started) : 0
+      return { stage: item.stage, sinceMs }
+    })
+}

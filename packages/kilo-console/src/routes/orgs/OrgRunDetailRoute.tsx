@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { A, useLocation, useParams } from "@solidjs/router"
 import { Badge } from "@kilocode/kilo-web-ui/badge"
 import { Card } from "@kilocode/kilo-web-ui/card"
@@ -13,7 +13,10 @@ import {
   type ProjectQuery,
 } from "../../client"
 import { clean, errMsg } from "../../shared/utils"
-import { auditTrail, formatCost, runStatusBadge, stageTimeline } from "./org-runs-view"
+import { OrgRunCostPanel } from "./OrgRunCostPanel"
+import { auditTrail, awaitingGateStages, awaitingSince, formatCost, runStatusBadge, stageTimeline } from "./org-runs-view"
+
+const POLL_INTERVAL_MS = 3000
 
 const ui = new Set(["3017", "3018"])
 
@@ -43,6 +46,16 @@ function notFound(err: unknown) {
   return message.includes("not found") || message.includes("404")
 }
 
+function duration(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000)
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours}h ${minutes}m`
+}
+
 export function OrgRunDetailRoute() {
   const loc = useLocation()
   const params = useParams()
@@ -56,9 +69,12 @@ export function OrgRunDetailRoute() {
     if (!target || !project() || !runID()) return undefined
     return { input: { url: target, dir: "" }, runID: runID() }
   })
-  const [detail] = createResource(query, (item) => loadOrgRunDetail(item.input, item.runID))
+  const [detail, { refetch }] = createResource(query, (item) => loadOrgRunDetail(item.input, item.runID))
   const stages = createMemo(() => stageTimeline(detail()))
   const audit = createMemo(() => auditTrail(detail()))
+  const awaitingStages = createMemo(() => awaitingGateStages(detail()))
+  const [now, setNow] = createSignal(Date.now())
+  const awaiting = createMemo(() => awaitingSince(detail(), now()))
 
   function backHref() {
     const next = new URLSearchParams()
@@ -101,6 +117,15 @@ export function OrgRunDetailRoute() {
     })
   })
 
+  createEffect(() => {
+    if (detail()?.run.status !== "active") return
+    const timer = window.setInterval(() => {
+      setNow(Date.now())
+      void refetch()
+    }, POLL_INTERVAL_MS)
+    onCleanup(() => window.clearInterval(timer))
+  })
+
   return (
     <section class="route-empty">
       <div class="org-run-detail-page">
@@ -126,6 +151,23 @@ export function OrgRunDetailRoute() {
               </div>
             )}
           </Show>
+          <Show when={awaitingStages().length > 0}>
+            <div class="org-run-awaiting-banner" role="status">
+              <Badge variant="destructive">Awaiting approval</Badge>
+              <ul class="org-run-awaiting-list">
+                <For each={awaiting()}>
+                  {(item) => (
+                    <li>
+                      <strong>{item.stage}</strong>
+                      <Show when={item.sinceMs > 0}>
+                        <span> — waiting {duration(item.sinceMs)}</span>
+                      </Show>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </div>
+          </Show>
         </header>
 
         <Show when={!query() && discoverable(search())}>
@@ -148,6 +190,8 @@ export function OrgRunDetailRoute() {
         </Show>
 
         <Show when={detail()}>
+          <OrgRunCostPanel detail={detail()} />
+
           <section class="org-run-section">
             <h2>Stage Timeline</h2>
             <Show when={stages().length === 0}>
