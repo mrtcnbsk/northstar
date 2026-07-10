@@ -158,76 +158,91 @@ export const OrgAdvanceTool = Tool.define(
           }
           // kilocode_change - W0-R2: serialize the read-modify-write body against other mutating
           // org tool calls on the SAME run_id (see withRunLock's doc comment above).
-          const advance = yield* tryOrg(() =>
+          const batch = yield* tryOrg(() =>
             withRunLock(params.run_id, () =>
               OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
             ),
           )
-          switch (advance.kind) {
-            case "instruct": {
-              const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
-              return result(`stage: ${advance.stage}`, {
-                action: "run_task",
-                stage: advance.stage,
-                task_call: {
-                  subagent_type: advance.chief,
-                  description: `${advance.stage} stage`,
-                  prompt: advance.taskPrompt,
-                  ...(resumable ? { task_id: advance.resumeTaskID } : {}),
-                },
-                ...(advance.resumeTaskID && !resumable
-                  ? {
-                      note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
-                    }
-                  : {}),
-                then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
-              })
-            }
-            case "gate": {
-              const baseInstructions =
-                "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision."
-              return result(`gate: ${advance.stage}`, {
-                action: "human_gate",
-                stage: advance.stage,
-                deliverable: advance.deliverablePath,
-                ...(advance.note ? { budget_note: advance.note } : {}),
-                instructions: advance.note
-                  ? `${baseInstructions} This gate was triggered by budget: ${advance.note}. Tell the user the cumulative spend before asking for a decision.`
-                  : baseInstructions,
-              })
-            }
-            case "incomplete": {
-              const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
-              return result(`incomplete: ${advance.stage}`, {
-                action: "resume_chief",
-                stage: advance.stage,
-                reason: advance.reason,
-                ...(resumable ? { resume_task_id: advance.resumeTaskID } : {}),
-                // kilocode_change - whenever no resumable session exists (unresumable id OR one was
-                // never recorded, e.g. a crash before the first advance-with-task_id), hand the CEO
-                // a full task_call so the fresh chief session is briefed with idea/priors context.
-                ...(!resumable && advance.chief && advance.taskPrompt
-                  ? {
-                      task_call: {
-                        subagent_type: advance.chief,
-                        description: `${advance.stage} stage (fresh session)`,
-                        prompt: advance.taskPrompt,
-                      },
-                    }
-                  : {}),
-                ...(advance.resumeTaskID && !resumable
-                  ? {
-                      note: "previous chief session is not resumable; use the provided task_call to start a fresh, fully-briefed chief session",
-                    }
-                  : {}),
-                then: "when the chief's task returns, call org_advance again with task_id set to the task session id",
-              })
-            }
-            case "halted":
-              return result("halted", { action: "halted", reason: advance.reason })
-            case "done":
-              return result("done", { action: "done", note: "pipeline complete; present the final package to the user" })
+          // kilocode_change - W4.3: advance now returns a Batch (parallel instructs + at most one
+          // serialized blocker). This tool still emits the SAME single-action result shape as before;
+          // the full parallel run_tasks[] + task_ids[] protocol is W4.6. Precedence in this
+          // single-action view matches the pre-wave runner: a blocker (halted/done/gate/incomplete)
+          // takes priority over starting new work, and with the default maxConcurrency:1 there is at
+          // most one instruct anyway, so behavior is byte-identical for existing linear orgs.
+          if (batch.halted) {
+            return result("halted", { action: "halted", reason: batch.halted.reason })
           }
+          if (batch.done) {
+            return result("done", { action: "done", note: "pipeline complete; present the final package to the user" })
+          }
+          if (batch.gate) {
+            const gate = batch.gate
+            const baseInstructions =
+              "Read the deliverable, summarize it for the user in their language, ask for a decision with the question tool (approve / no-go / revise with a note), then call org_decision."
+            return result(`gate: ${gate.stage}`, {
+              action: "human_gate",
+              stage: gate.stage,
+              deliverable: gate.deliverablePath,
+              ...(gate.note ? { budget_note: gate.note } : {}),
+              instructions: gate.note
+                ? `${baseInstructions} This gate was triggered by budget: ${gate.note}. Tell the user the cumulative spend before asking for a decision.`
+                : baseInstructions,
+            })
+          }
+          if (batch.incomplete) {
+            const inc = batch.incomplete
+            const resumable = inc.resumeTaskID ? yield* isResumable(inc.resumeTaskID, ctx) : false
+            return result(`incomplete: ${inc.stage}`, {
+              action: "resume_chief",
+              stage: inc.stage,
+              reason: inc.reason,
+              ...(resumable ? { resume_task_id: inc.resumeTaskID } : {}),
+              // kilocode_change - whenever no resumable session exists (unresumable id OR one was
+              // never recorded, e.g. a crash before the first advance-with-task_id), hand the CEO
+              // a full task_call so the fresh chief session is briefed with idea/priors context.
+              ...(!resumable && inc.chief && inc.taskPrompt
+                ? {
+                    task_call: {
+                      subagent_type: inc.chief,
+                      description: `${inc.stage} stage (fresh session)`,
+                      prompt: inc.taskPrompt,
+                    },
+                  }
+                : {}),
+              ...(inc.resumeTaskID && !resumable
+                ? {
+                    note: "previous chief session is not resumable; use the provided task_call to start a fresh, fully-briefed chief session",
+                  }
+                : {}),
+              then: "when the chief's task returns, call org_advance again with task_id set to the task session id",
+            })
+          }
+          const first = batch.instruct[0]
+          if (first) {
+            const resumable = first.resumeTaskID ? yield* isResumable(first.resumeTaskID, ctx) : false
+            return result(`stage: ${first.stage}`, {
+              action: "run_task",
+              stage: first.stage,
+              task_call: {
+                subagent_type: first.chief,
+                description: `${first.stage} stage`,
+                prompt: first.taskPrompt,
+                ...(resumable ? { task_id: first.resumeTaskID } : {}),
+              },
+              ...(first.resumeTaskID && !resumable
+                ? {
+                    note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
+                  }
+                : {}),
+              then: "when the chief's task returns (whether or not it said READY), call org_advance again with task_id set to the task session id",
+            })
+          }
+          // No instructs, no blocker: nothing to spawn this call (e.g. a branch is still running).
+          // Tell the CEO to poll again; the runner will fan out / gate / finish on a later call.
+          return result("waiting", {
+            action: "waiting",
+            note: "no stage is ready to start this turn; other work is still in flight. Call org_advance again once a running task returns.",
+          })
         }).pipe(Effect.orDie),
     }
   }),

@@ -12,35 +12,65 @@ export namespace OrgRunner {
     costOf: (taskID: string) => Promise<number | undefined>
   }
 
-  export type Advance =
-    | {
-        kind: "instruct"
-        stage: string
-        chief: string
-        taskPrompt: string
-        /** Present when the same chief session should be resumed (revise / retry). */
-        resumeTaskID?: string
-      }
-    | {
-        kind: "gate"
-        stage: string
-        deliverablePath: string
-        /** Present when this gate was forced open by the once-per-run cost-escalation check
-         * rather than the stage's own pipeline `gate: "human"` declaration. */
-        note?: string
-      }
-    | {
-        kind: "incomplete"
-        stage: string
-        reason: string
-        resumeTaskID?: string
-        /** The chief department for this stage; lets the CEO spawn a fresh session when resumeTaskID is unresumable. */
-        chief?: string
-        /** Full stage prompt (same instruct-path builder, no reviseNote), for briefing a fresh chief session when unresumable. */
-        taskPrompt?: string
-      }
-    | { kind: "halted"; reason: string }
-    | { kind: "done" }
+  /** One stage to run NOW: the CEO spawns these as parallel task-tool calls in a single turn. */
+  export type InstructItem = {
+    stage: string
+    chief: string
+    taskPrompt: string
+    /** Present when the same chief session should be resumed (revise / retry). */
+    resumeTaskID?: string
+  }
+
+  export type GateItem = {
+    stage: string
+    deliverablePath: string
+    /** Present when this gate was forced open by the once-per-run cost-escalation check
+     * rather than the stage's own pipeline `gate: "human"` declaration. */
+    note?: string
+  }
+
+  export type IncompleteItem = {
+    stage: string
+    reason: string
+    resumeTaskID?: string
+    /** The chief department for this stage; lets the CEO spawn a fresh session when resumeTaskID is unresumable. */
+    chief?: string
+    /** Full stage prompt (same instruct-path builder, no reviseNote), for briefing a fresh chief session when unresumable. */
+    taskPrompt?: string
+  }
+
+  /**
+   * The result of one `advance` call. With `maxConcurrency: 1` (the default) `instruct` holds at
+   * most one item and at most one blocker is set, so a linear org drives byte-identically to the
+   * pre-wave single-action runner. With higher concurrency, `instruct` may hold several stages the
+   * CEO spawns in parallel, alongside at most ONE serialized blocker (gate/incomplete/halted) —
+   * decision #6: gates/incompletes serialize, independent ready stages still fan out.
+   */
+  export type Batch = {
+    /** Stages to run NOW, in parallel (0..maxConcurrency). */
+    instruct: InstructItem[]
+    /** A single human gate to resolve via org_decision (first blocker in pipeline order). */
+    gate?: GateItem
+    /** A single incomplete stage the CEO must re-run (first blocker in pipeline order). */
+    incomplete?: IncompleteItem
+    /** The run halted this call (a hard stop; no further fan-out). */
+    halted?: { reason: string }
+    /** The run is complete: nothing running, ready, gated, or pending. */
+    done?: true
+  }
+
+  /**
+   * Result of settling ONE running stage that carries a taskID (extracted verbatim from the
+   * pre-wave per-stage completion block). "completed" = the stage transitioned (to completed or
+   * awaiting_approval) with no blocker to surface; the kinded variants each map to exactly one
+   * batch field. "instruct" is a revise re-instruct: the stage restarts as an instruct item.
+   */
+  type SettleResult =
+    | { run: OrgState.Run; result: "completed" }
+    | { run: OrgState.Run; result: { kind: "instruct"; item: InstructItem } }
+    | { run: OrgState.Run; result: { kind: "gate"; item: GateItem } }
+    | { run: OrgState.Run; result: { kind: "incomplete"; item: IncompleteItem } }
+    | { run: OrgState.Run; result: { kind: "halted"; reason: string } }
 
   export function start(projectDir: string, org: OrgSchema.Organization, idea: string) {
     return OrgState.create(projectDir, org, idea)
@@ -102,10 +132,29 @@ export namespace OrgRunner {
     }
   }
 
+  /**
+   * The completed deliverables the target stage should read: its transitive `requires` closure
+   * (DAG-aware), completed-only, in deterministic pipeline order. Replaces the pre-wave
+   * pipeline-array-prefix walk. Back-compat: for a linear pipeline, each stage's resolved requires
+   * is `[prevStage]`, whose transitive closure is exactly the set of all earlier stages — so the
+   * closure equals the old array-prefix and linear behavior is byte-identical. A stage still under
+   * revision (not yet completed) is excluded, matching the pre-wave "completed only" filter.
+   */
   function priorDeliverables(projectDir: string, org: OrgSchema.Organization, run: OrgState.Run, upto: string) {
+    const requiresGraph = OrgSchema.resolveRequires(org)
+    const closure = new Set<string>()
+    const visit = (stage: string) => {
+      for (const dep of requiresGraph[stage] ?? []) {
+        if (closure.has(dep)) continue
+        closure.add(dep)
+        visit(dep)
+      }
+    }
+    visit(upto)
     const priors: Array<{ stage: string; path: string }> = []
+    // Iterate in pipeline order for deterministic output (mirrors the pre-wave prefix ordering).
     for (const { stage } of org.pipeline) {
-      if (stage === upto) break
+      if (!closure.has(stage)) continue
       if (run.stages[stage]?.status === "completed") {
         priors.push({ stage, path: OrgArtifacts.deliverablePath(projectDir, run.runID, stage) })
       }
@@ -143,9 +192,8 @@ export namespace OrgRunner {
     run: OrgState.Run,
     stage: string,
     opts: { reviseNote?: string; resumeTaskID?: string } = {},
-  ): Advance {
+  ): InstructItem {
     return {
-      kind: "instruct",
       stage,
       chief: org.departments[stage].chief,
       resumeTaskID: opts.resumeTaskID,
@@ -186,10 +234,10 @@ export namespace OrgRunner {
     /** Names the true cause so the failure message doesn't mislead: a stage that never produced
      * a deliverable vs. a revise loop where the chief keeps re-emitting the same file. */
     cause: "never-produced" | "revise-unchanged",
-    incomplete: Extract<Advance, { kind: "incomplete" }>,
-  ): Promise<Advance> {
+    incomplete: IncompleteItem,
+  ): Promise<{ run: OrgState.Run; result: { kind: "incomplete"; item: IncompleteItem } | { kind: "halted"; reason: string } }> {
     const record = run.stages[stage]
-    if (!record.taskID) return incomplete // bare re-instruct with no chief run: not a retry attempt
+    if (!record.taskID) return { run, result: { kind: "incomplete", item: incomplete } } // bare re-instruct with no chief run: not a retry attempt
 
     const cost = await deps.costOf(record.taskID)
     const budget = OrgSchema.resolveBudget(org)
@@ -235,16 +283,162 @@ export namespace OrgRunner {
         decision: "stop",
         note: budgetHalted.reason,
       })
-      return { kind: "halted", reason: budgetHalted.reason }
+      return { run, result: { kind: "halted", reason: budgetHalted.reason } }
     }
 
     if (failed) {
       const reason = run.haltReason!
       await OrgAudit.append(projectDir, runID, { ts: new Date().toISOString(), stage, decision: "stop", note: reason })
-      return { kind: "halted", reason }
+      return { run, result: { kind: "halted", reason } }
     }
 
-    return incomplete
+    return { run, result: { kind: "incomplete", item: incomplete } }
+  }
+
+  /**
+   * Settle ONE running stage that carries a taskID this call — the pre-wave per-stage completion
+   * block, extracted VERBATIM so its every invariant (revise re-instruct, validate → retryOrFail
+   * never-produced, revise-staleness → retryOrFail revise-unchanged, and the atomic
+   * cost+ceiling+escalation `OrgState.update`) is preserved bit-for-bit. `pipelineStage` is the
+   * stage's `org.pipeline` entry (carries `gate` and per-stage `budget`), passed in rather than
+   * re-found so a fan-out batch settles the correct stage. Returns a normalized SettleResult the
+   * batch loop folds into `Batch` fields; a revise re-instruct comes back as an `instruct` item.
+   */
+  async function settleRunningStage(
+    deps: Deps,
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    run: OrgState.Run,
+    pipelineStage: OrgSchema.Organization["pipeline"][number],
+  ): Promise<SettleResult> {
+    const stage = pipelineStage.stage
+    const record = run.stages[stage]
+    // A revise decision pending on a running stage means: re-instruct the chief.
+    if (record.decision === "revise") {
+      const note = record.decisionNote
+      const resume = record.taskID
+      run = await OrgState.update(projectDir, runID, (s) => {
+        s.stages[stage].decision = undefined
+        s.stages[stage].decisionNote = undefined
+        // Persisted past this clear so a later unresumable fresh session can still be briefed
+        // with what the user asked to change; cleared together with reviseBaseline on completion.
+        s.stages[stage].reviseNote = note
+        s.stages[stage].attempts += 1
+      })
+      return {
+        run,
+        result: { kind: "instruct", item: instruct(projectDir, org, run, stage, { reviseNote: note, resumeTaskID: resume }) },
+      }
+    }
+    const validation = await OrgArtifacts.validate(projectDir, runID, stage)
+    if (!validation.ok) {
+      // Shares incompleteAttempts with the revise-unchanged site below, but means something
+      // different: here the deliverable was never produced (first-pass chief stall).
+      return retryOrFail(deps, projectDir, org, runID, run, stage, "never-produced", {
+        stage,
+        reason: validation.reason,
+        resumeTaskID: record.taskID,
+        chief: org.departments[stage].chief,
+        taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+      })
+    }
+    // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
+    if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
+      // Shares incompleteAttempts with the never-produced site above, but means something
+      // different: here the deliverable exists and is valid, the chief just re-emitted the same
+      // content in a revise loop. incompleteAttempts was reset when this revise iteration began
+      // (in decide), so revise churn gets its own fresh retry budget.
+      return retryOrFail(deps, projectDir, org, runID, run, stage, "revise-unchanged", {
+        stage,
+        reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
+        resumeTaskID: record.taskID,
+        chief: org.departments[stage].chief,
+        taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+      })
+    }
+    const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
+    const budget = OrgSchema.resolveBudget(org)
+    const stageCap = pipelineStage.budget ?? budget.stage
+    // Populated inside the update callback (which has the freshest post-cost state) and acted
+    // on afterward, so the halt / escalation decision and its state mutation land atomically
+    // in the same OrgState.update as the cost recording.
+    let budgetOutcome: { kind: "halted"; reason: string } | { kind: "escalate"; runTotal: number } | undefined
+    run = await OrgState.update(projectDir, runID, (s) => {
+      const rec = s.stages[stage]
+      rec.completedAt = new Date().toISOString()
+      if (cost !== undefined && record.taskID) {
+        // Per-session key: a resumed session reports cumulative cost, so this is a pure
+        // overwrite of its own entry; a distinct session occupies a distinct key, so totals
+        // accumulate naturally with no double-counting across A-B-A style alternation.
+        // First completion after upgrade migrates legacy single-slot cost into the map
+        // (a resumed legacy session then overwrites its own seeded key, which is correct),
+        // and clears the legacy fields so each state.json is single-sourced.
+        const seeded =
+          rec.costs ?? (rec.cost !== undefined && rec.costTaskID !== undefined ? { [rec.costTaskID]: rec.cost } : {})
+        rec.costs = { ...seeded, [record.taskID]: cost }
+        rec.cost = undefined
+        rec.costTaskID = undefined
+      }
+      rec.reviseBaseline = undefined // changed content accepted; baseline consumed
+      rec.reviseNote = undefined // lives and dies with the baseline
+      rec.incompleteAttempts = 0 // stage completed: any later revise loop starts with a fresh retry budget
+      rec.status = pipelineStage.gate === "human" ? "awaiting_approval" : "completed"
+
+      // Budget checks run after cost is recorded but before the gate/completed/next decision
+      // downstream reacts to. Hard ceiling takes precedence over the soft escalation gate.
+      // Ceiling is enforced POST-stage: a stage that overshoots completes and records its cost
+      // before this halt fires; mid-stage spend is not observable to the runner.
+      const runTotal = Object.values(s.stages).reduce((sum, st) => sum + stageCost(st), 0)
+      const stageTotal = stageCost(rec)
+      if (runTotal > budget.run) {
+        const reason = `budget ceiling exceeded: run $${runTotal} / cap $${budget.run}`
+        s.status = "halted"
+        s.haltReason = reason
+        budgetOutcome = { kind: "halted", reason }
+      } else if (stageTotal > stageCap) {
+        const reason = `budget ceiling exceeded: stage "${stage}" $${stageTotal} / cap $${stageCap}`
+        s.status = "halted"
+        s.haltReason = reason
+        budgetOutcome = { kind: "halted", reason }
+      } else if (runTotal >= budget.escalationThreshold && !s.escalated) {
+        s.escalated = true
+        if (pipelineStage.gate !== "human") {
+          rec.status = "awaiting_approval"
+          budgetOutcome = { kind: "escalate", runTotal }
+        }
+      }
+    })
+
+    if (budgetOutcome?.kind === "halted") {
+      await OrgAudit.append(projectDir, runID, {
+        ts: new Date().toISOString(),
+        stage,
+        decision: "stop",
+        note: budgetOutcome.reason,
+      })
+      return { run, result: { kind: "halted", reason: budgetOutcome.reason } }
+    }
+    if (budgetOutcome?.kind === "escalate") {
+      return {
+        run,
+        result: {
+          kind: "gate",
+          item: {
+            stage,
+            deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage),
+            note: `cost $${budgetOutcome.runTotal} reached the $${budget.escalationThreshold} escalation threshold — review before continuing`,
+          },
+        },
+      }
+    }
+    if (pipelineStage.gate === "human") {
+      return {
+        run,
+        result: { kind: "gate", item: { stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) } },
+      }
+    }
+    return { run, result: "completed" }
   }
 
   export async function advance(
@@ -253,11 +447,11 @@ export namespace OrgRunner {
     org: OrgSchema.Organization,
     runID: string,
     input: { taskID?: string },
-  ): Promise<Advance> {
+  ): Promise<Batch> {
     let run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
-    if (run.status === "halted") return { kind: "halted", reason: run.haltReason ?? "run halted" }
-    if (run.status === "completed") return { kind: "done" }
+    if (run.status === "halted") return { instruct: [], halted: { reason: run.haltReason ?? "run halted" } }
+    if (run.status === "completed") return { instruct: [], done: true }
 
     // A failed stage blocks the pipeline (run stays active so future recovery can resume it).
     const failed = org.pipeline.find(({ stage }) => run.stages[stage].status === "failed")
@@ -269,170 +463,125 @@ export namespace OrgRunner {
       }
       const record = run.stages[failed.stage]
       return {
-        kind: "halted",
-        reason: `stage "${failed.stage}" failed${record.decisionNote ? ": " + record.decisionNote : ""}; resolve it before continuing`,
+        instruct: [],
+        halted: {
+          reason: `stage "${failed.stage}" failed${record.decisionNote ? ": " + record.decisionNote : ""}; resolve it before continuing`,
+        },
       }
     }
 
-    // 1. A stage awaiting approval blocks everything until org_decision.
-    const awaiting = org.pipeline.find(({ stage }) => run.stages[stage].status === "awaiting_approval")
-    if (awaiting) {
-      if (input.taskID) {
-        await OrgState.update(projectDir, runID, (s) => {
-          s.stages[awaiting.stage].taskID = input.taskID
-        })
-      }
-      return {
-        kind: "gate",
-        stage: awaiting.stage,
-        deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, awaiting.stage),
-      }
-    }
-
-    // 2. A running stage: record taskID, then validate its deliverable.
-    const running = org.pipeline.find(({ stage }) => run.stages[stage].status === "running")
-    if (running) {
-      const stage = running.stage
-      if (input.taskID) {
+    // Record input.taskID onto the stage the CEO just finished. Resolution order (deterministic,
+    // pipeline order):
+    //   1. the first running stage that currently LACKS a taskID (fresh fan-out branch);
+    //   2. else, if exactly ONE stage is running, that stage — this OVERWRITES its prior taskID,
+    //      which is exactly the pre-wave single-active-stage behavior (a revise/retry resume reports
+    //      a new-or-same session id over the running stage's existing one; byte-identical to the old
+    //      unconditional `s.stages[stage].taskID = input.taskID`);
+    //   3. else fall back to a taskID reported LATE for a stage already gated (the pre-wave "taskID
+    //      reported at a gate is persisted" behavior) — first awaiting stage lacking one.
+    // With maxConcurrency:1 there is at most one running stage, so rule 1-or-2 collapses to the
+    // pre-wave "assign to the running stage" exactly. W4.6 widens the input to per-branch task_ids.
+    if (input.taskID) {
+      const running = OrgState.runningStages(org, run)
+      const target =
+        running.find((stage) => !run.stages[stage].taskID) ??
+        (running.length === 1 ? running[0] : undefined) ??
+        OrgState.awaitingStages(org, run).find((stage) => !run.stages[stage].taskID)
+      if (target) {
         run = await OrgState.update(projectDir, runID, (s) => {
-          s.stages[stage].taskID = input.taskID
+          s.stages[target].taskID = input.taskID
         })
       }
-      const record = run.stages[stage]
-      // A revise decision pending on a running stage means: re-instruct the chief.
-      if (record.decision === "revise") {
-        const note = record.decisionNote
-        const resume = record.taskID
-        await OrgState.update(projectDir, runID, (s) => {
-          s.stages[stage].decision = undefined
-          s.stages[stage].decisionNote = undefined
-          // Persisted past this clear so a later unresumable fresh session can still be briefed
-          // with what the user asked to change; cleared together with reviseBaseline on completion.
-          s.stages[stage].reviseNote = note
+    }
+
+    // Settle every running stage, in pipeline order (mirrors the pre-wave runner, which settled the
+    // single running stage regardless of whether a taskID was present this call — a pending revise
+    // re-instructs, a missing deliverable returns incomplete without burning a retry when there's no
+    // taskID, a valid deliverable completes/gates). The FIRST stage whose settle yields a blocker
+    // (gate/incomplete/halted) is surfaced as the batch's single blocker (decision #6); a revise
+    // re-instruct is collected as an instruct item. Completed stages just transition. Once a settle
+    // halts the run, stop — no further settles, no fan-out.
+    const batch: Batch = { instruct: [] }
+    let blocker: { kind: "gate"; item: GateItem } | { kind: "incomplete"; item: IncompleteItem } | undefined
+    const byPipelineIndex = (a: string, b: string) =>
+      org.pipeline.findIndex((p) => p.stage === a) - org.pipeline.findIndex((p) => p.stage === b)
+    // Snapshot the settle set up front (pipeline order), so mutations during the loop don't shift it.
+    const toSettle = OrgState.runningStages(org, run)
+    for (const stage of toSettle) {
+      const pipelineStage = org.pipeline.find((p) => p.stage === stage)!
+      const settled = await settleRunningStage(deps, projectDir, org, runID, run, pipelineStage)
+      run = settled.run
+      const r = settled.result
+      if (r === "completed") continue
+      if (r.kind === "halted") {
+        // A hard halt is terminal: surface it immediately, skip remaining settles and fan-out.
+        return { instruct: batch.instruct, halted: { reason: r.reason } }
+      }
+      if (r.kind === "instruct") {
+        // A revise re-instruct restarts this stage; it fans out alongside independent work.
+        batch.instruct.push(r.item)
+        continue
+      }
+      // gate / incomplete: keep the FIRST in pipeline order as the single serialized blocker.
+      if (!blocker || byPipelineIndex(r.item.stage, blocker.item.stage) < 0) blocker = r
+    }
+
+    // A stage sitting in awaiting_approval (gated on a PRIOR call, still un-decided) blocks like a
+    // fresh gate until org_decision. Fold the first such stage (pipeline order) into the blocker
+    // slot if no earlier settle-produced blocker already claimed it — this preserves the pre-wave
+    // "repeated advance while awaiting keeps returning the gate" idempotency and the late-taskID
+    // gate persistence. A plain awaiting gate carries no escalation note.
+    for (const stage of OrgState.awaitingStages(org, run)) {
+      // Skip a stage that this call's settle already surfaced (e.g. its escalation gate, which
+      // carries the note); only PRE-EXISTING awaiting stages need this fallback.
+      if (blocker?.item.stage === stage) continue
+      const item: GateItem = { stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) }
+      if (!blocker || byPipelineIndex(stage, blocker.item.stage) < 0) blocker = { kind: "gate", item }
+    }
+
+    // Fan out ready stages into the remaining concurrency slots. Independent ready stages still
+    // start alongside a serialized blocker (decision #6). runningStages is re-derived from the
+    // freshly-settled `run`, so stages that just completed no longer occupy slots.
+    const maxConcurrency = org.maxConcurrency ?? 1
+    const runningCount = OrgState.runningStages(org, run).length
+    const slots = Math.max(0, maxConcurrency - runningCount)
+    const ready = OrgState.readyStages(org, run).slice(0, slots)
+    if (ready.length > 0) {
+      run = await OrgState.update(projectDir, runID, (s) => {
+        for (const stage of ready) {
+          s.stages[stage].status = "running"
+          s.stages[stage].startedAt = new Date().toISOString()
           s.stages[stage].attempts += 1
-        })
-        return instruct(projectDir, org, run, stage, { reviseNote: note, resumeTaskID: resume })
-      }
-      const validation = await OrgArtifacts.validate(projectDir, runID, stage)
-      if (!validation.ok) {
-        // Shares incompleteAttempts with the revise-unchanged site below, but means something
-        // different: here the deliverable was never produced (first-pass chief stall).
-        return retryOrFail(deps, projectDir, org, runID, run, stage, "never-produced", {
-          kind: "incomplete",
-          stage,
-          reason: validation.reason,
-          resumeTaskID: record.taskID,
-          chief: org.departments[stage].chief,
-          taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
-        })
-      }
-      // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
-      if (record.reviseBaseline && (await deliverableHash(projectDir, runID, stage)) === record.reviseBaseline) {
-        // Shares incompleteAttempts with the never-produced site above, but means something
-        // different: here the deliverable exists and is valid, the chief just re-emitted the same
-        // content in a revise loop. incompleteAttempts was reset when this revise iteration began
-        // (in decide), so revise churn gets its own fresh retry budget.
-        return retryOrFail(deps, projectDir, org, runID, run, stage, "revise-unchanged", {
-          kind: "incomplete",
-          stage,
-          reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
-          resumeTaskID: record.taskID,
-          chief: org.departments[stage].chief,
-          taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
-        })
-      }
-      const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
-      const budget = OrgSchema.resolveBudget(org)
-      const pipelineStage = org.pipeline.find((p) => p.stage === stage)
-      const stageCap = pipelineStage?.budget ?? budget.stage
-      // Populated inside the update callback (which has the freshest post-cost state) and acted
-      // on afterward, so the halt / escalation decision and its state mutation land atomically
-      // in the same OrgState.update as the cost recording.
-      let budgetOutcome: { kind: "halted"; reason: string } | { kind: "escalate"; runTotal: number } | undefined
-      run = await OrgState.update(projectDir, runID, (s) => {
-        const rec = s.stages[stage]
-        rec.completedAt = new Date().toISOString()
-        if (cost !== undefined && record.taskID) {
-          // Per-session key: a resumed session reports cumulative cost, so this is a pure
-          // overwrite of its own entry; a distinct session occupies a distinct key, so totals
-          // accumulate naturally with no double-counting across A-B-A style alternation.
-          // First completion after upgrade migrates legacy single-slot cost into the map
-          // (a resumed legacy session then overwrites its own seeded key, which is correct),
-          // and clears the legacy fields so each state.json is single-sourced.
-          const seeded =
-            rec.costs ?? (rec.cost !== undefined && rec.costTaskID !== undefined ? { [rec.costTaskID]: rec.cost } : {})
-          rec.costs = { ...seeded, [record.taskID]: cost }
-          rec.cost = undefined
-          rec.costTaskID = undefined
-        }
-        rec.reviseBaseline = undefined // changed content accepted; baseline consumed
-        rec.reviseNote = undefined // lives and dies with the baseline
-        rec.incompleteAttempts = 0 // stage completed: any later revise loop starts with a fresh retry budget
-        rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
-
-        // Budget checks run after cost is recorded but before the gate/completed/next decision
-        // downstream reacts to. Hard ceiling takes precedence over the soft escalation gate.
-        // Ceiling is enforced POST-stage: a stage that overshoots completes and records its cost
-        // before this halt fires; mid-stage spend is not observable to the runner.
-        const runTotal = Object.values(s.stages).reduce((sum, st) => sum + stageCost(st), 0)
-        const stageTotal = stageCost(rec)
-        if (runTotal > budget.run) {
-          const reason = `budget ceiling exceeded: run $${runTotal} / cap $${budget.run}`
-          s.status = "halted"
-          s.haltReason = reason
-          budgetOutcome = { kind: "halted", reason }
-        } else if (stageTotal > stageCap) {
-          const reason = `budget ceiling exceeded: stage "${stage}" $${stageTotal} / cap $${stageCap}`
-          s.status = "halted"
-          s.haltReason = reason
-          budgetOutcome = { kind: "halted", reason }
-        } else if (runTotal >= budget.escalationThreshold && !s.escalated) {
-          s.escalated = true
-          if (running.gate !== "human") {
-            rec.status = "awaiting_approval"
-            budgetOutcome = { kind: "escalate", runTotal }
-          }
         }
       })
-
-      if (budgetOutcome?.kind === "halted") {
-        await OrgAudit.append(projectDir, runID, {
-          ts: new Date().toISOString(),
-          stage,
-          decision: "stop",
-          note: budgetOutcome.reason,
-        })
-        return { kind: "halted", reason: budgetOutcome.reason }
-      }
-      if (budgetOutcome?.kind === "escalate") {
-        return {
-          kind: "gate",
-          stage,
-          deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage),
-          note: `cost $${budgetOutcome.runTotal} reached the $${budget.escalationThreshold} escalation threshold — review before continuing`,
-        }
-      }
-      if (running.gate === "human") {
-        return { kind: "gate", stage, deliverablePath: OrgArtifacts.deliverablePath(projectDir, runID, stage) }
-      }
+      for (const stage of ready) batch.instruct.push(instruct(projectDir, org, run, stage))
     }
 
-    // 3. Start the next pending stage.
-    const next = org.pipeline.find(({ stage }) => run.stages[stage].status === "pending")
-    if (next) {
-      run = await OrgState.update(projectDir, runID, (s) => {
-        s.stages[next.stage].status = "running"
-        s.stages[next.stage].startedAt = new Date().toISOString()
-        s.stages[next.stage].attempts += 1
+    // Attach the single serialized blocker (if any).
+    if (blocker?.kind === "gate") batch.gate = blocker.item
+    else if (blocker?.kind === "incomplete") batch.incomplete = blocker.item
+
+    // The run is complete only when nothing is running, awaiting, or pending, and nothing was
+    // instructed or gated this call. A lingering pending/blocked stage (requires unmet with nothing
+    // upstream to satisfy it) is NOT completion — it keeps the run active rather than silently
+    // finishing with work stranded (a valid acyclic DAG can't strand a stage whose ancestors all
+    // completed, but this guard makes the terminal condition explicit and defensive).
+    const noPendingLeft = OrgState.readyStages(org, run).length === 0 && OrgState.blockedStages(org, run).length === 0
+    if (
+      batch.instruct.length === 0 &&
+      !batch.gate &&
+      !batch.incomplete &&
+      OrgState.runningStages(org, run).length === 0 &&
+      OrgState.awaitingStages(org, run).length === 0 &&
+      noPendingLeft
+    ) {
+      await OrgState.update(projectDir, runID, (s) => {
+        s.status = "completed"
       })
-      return instruct(projectDir, org, run, next.stage)
+      return { instruct: [], done: true }
     }
 
-    // 4. Nothing pending, running, or gated: the run is complete.
-    await OrgState.update(projectDir, runID, (s) => {
-      s.status = "completed"
-    })
-    return { kind: "done" }
+    return batch
   }
 
   export async function decide(

@@ -4,6 +4,7 @@ import path from "path"
 import { mkdir } from "node:fs/promises"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
+import { advance1 } from "./batch-adapter"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgState } from "../../../src/kilocode/organization/state"
@@ -48,14 +49,14 @@ describe("Wave 0 exit verification", () => {
     // --- 1. start -> advance (instruct) -> write deliverable -> advance with ses_A -> gate ---
     const run = await OrgRunner.start(tmp.path, ORG, "wave 0 exit idea")
 
-    const instructOne = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    const instructOne = await advance1(costDeps, tmp.path, ORG, run.runID, {})
     expect(instructOne.kind).toBe("instruct")
     if (instructOne.kind !== "instruct") throw new Error("unreachable")
     expect(instructOne.stage).toBe("evaluation")
     expect(instructOne.chief).toBe("eval-chief")
 
     await writeDeliverable(tmp.path, run.runID, "evaluation")
-    const gateOne = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
+    const gateOne = await advance1(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
     expect(gateOne.kind).toBe("gate")
     if (gateOne.kind !== "gate") throw new Error("unreachable")
     expect(gateOne.stage).toBe("evaluation")
@@ -64,7 +65,7 @@ describe("Wave 0 exit verification", () => {
     //        -> advance with ses_B -> gate again ---
     await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "check EU")
 
-    const reinstruct = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    const reinstruct = await advance1(costDeps, tmp.path, ORG, run.runID, {})
     expect(reinstruct.kind).toBe("instruct")
     if (reinstruct.kind !== "instruct") throw new Error("unreachable")
     expect(reinstruct.resumeTaskID).toBe("ses_A")
@@ -72,7 +73,7 @@ describe("Wave 0 exit verification", () => {
 
     costs["ses_B"] = 2
     await writeDeliverable(tmp.path, run.runID, "evaluation", "# revised evaluation\n\n" + "eu market ".repeat(20))
-    const gateTwo = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_B" })
+    const gateTwo = await advance1(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_B" })
     expect(gateTwo.kind).toBe("gate")
     if (gateTwo.kind !== "gate") throw new Error("unreachable")
     expect(gateTwo.stage).toBe("evaluation")
@@ -100,7 +101,7 @@ describe("Wave 0 exit verification", () => {
 
     // --- 4. advance -> planning instruct; then stop(..., "user emergency") -> halted,
     //        audit gains a stop entry, subsequent advance returns halted-kind ---
-    const instructPlanning = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    const instructPlanning = await advance1(costDeps, tmp.path, ORG, run.runID, {})
     expect(instructPlanning.kind).toBe("instruct")
     if (instructPlanning.kind !== "instruct") throw new Error("unreachable")
     expect(instructPlanning.stage).toBe("planning")
@@ -119,7 +120,7 @@ describe("Wave 0 exit verification", () => {
     expect(entries.length).toBe(3)
     expect(entries[2]).toMatchObject({ stage: "planning", decision: "stop", note: "user emergency" })
 
-    const afterStop = await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    const afterStop = await advance1(costDeps, tmp.path, ORG, run.runID, {})
     expect(afterStop.kind).toBe("halted")
     if (afterStop.kind !== "halted") throw new Error("unreachable")
     expect(afterStop.reason).toBe("emergency stop: user emergency")
