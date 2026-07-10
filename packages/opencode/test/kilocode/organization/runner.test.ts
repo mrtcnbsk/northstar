@@ -128,6 +128,27 @@ describe("OrgRunner full flows", () => {
     expect(stuck.taskPrompt).toContain("evaluation")
   })
 
+  test("incomplete after revise carries the revise note in the fresh-session prompt", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea eighteen")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "add dark mode")
+    await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {}) // re-instruct clears decision/decisionNote
+
+    // the note must survive the re-instruct so an unresumable fresh session can still be briefed
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].reviseNote).toBe("add dark mode")
+
+    // chief stalled: deliverable unchanged -> incomplete; the fresh-session prompt still carries the note
+    const stuck = await OrgRunner.advance(deps, tmp.path, ORG, run.runID, {})
+    expect(stuck.kind).toBe("incomplete")
+    if (stuck.kind !== "incomplete") throw new Error("unreachable")
+    expect(stuck.taskPrompt).toContain("REVISION REQUESTED")
+    expect(stuck.taskPrompt).toContain("add dark mode")
+  })
+
   test("revise sends the stage back to running with the note", async () => {
     await using tmp = await tmpdir()
     const run = await OrgRunner.start(tmp.path, ORG, "idea four")
@@ -190,6 +211,7 @@ describe("OrgRunner full flows", () => {
     expect(regate.kind).toBe("gate")
     const state = await OrgState.read(tmp.path, run.runID)
     expect(state.stages["evaluation"].reviseBaseline).toBeUndefined()
+    expect(state.stages["evaluation"].reviseNote).toBeUndefined() // lives and dies with the baseline
     expect(state.stages["evaluation"].completedAt).toBeDefined()
   })
 

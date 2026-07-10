@@ -90,36 +90,18 @@ export namespace OrgRunner {
     return priors
   }
 
-  function instruct(
+  /**
+   * The single stage-prompt builder: `instruct` delegates here, and the `incomplete` path uses
+   * it (with the stage's persisted reviseNote) to brief a fresh chief session when the
+   * resumeTaskID turns out unresumable.
+   */
+  function stagePromptFor(
     projectDir: string,
     org: OrgSchema.Organization,
     run: OrgState.Run,
     stage: string,
-    opts: { reviseNote?: string; resumeTaskID?: string } = {},
-  ): Advance {
-    const dept = org.departments[stage]
-    return {
-      kind: "instruct",
-      stage,
-      chief: dept.chief,
-      resumeTaskID: opts.resumeTaskID,
-      taskPrompt: OrgPrompts.stagePrompt({
-        stage,
-        idea: run.idea,
-        deliverablePath: OrgArtifacts.deliverablePath(projectDir, run.runID, stage),
-        workers: dept.workers,
-        shared: org.shared,
-        priorDeliverables: priorDeliverables(projectDir, org, run, stage),
-        reviseNote: opts.reviseNote,
-      }),
-    }
-  }
-
-  /**
-   * Build the full stage prompt for an in-progress (running) stage, no reviseNote — used to
-   * brief a fresh chief session when the `incomplete` path's resumeTaskID turns out unresumable.
-   */
-  function stagePromptFor(projectDir: string, org: OrgSchema.Organization, run: OrgState.Run, stage: string): string {
+    reviseNote?: string,
+  ): string {
     const dept = org.departments[stage]
     return OrgPrompts.stagePrompt({
       stage,
@@ -128,7 +110,24 @@ export namespace OrgRunner {
       workers: dept.workers,
       shared: org.shared,
       priorDeliverables: priorDeliverables(projectDir, org, run, stage),
+      reviseNote,
     })
+  }
+
+  function instruct(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    run: OrgState.Run,
+    stage: string,
+    opts: { reviseNote?: string; resumeTaskID?: string } = {},
+  ): Advance {
+    return {
+      kind: "instruct",
+      stage,
+      chief: org.departments[stage].chief,
+      resumeTaskID: opts.resumeTaskID,
+      taskPrompt: stagePromptFor(projectDir, org, run, stage, opts.reviseNote),
+    }
   }
 
   export async function advance(
@@ -190,6 +189,9 @@ export namespace OrgRunner {
         await OrgState.update(projectDir, runID, (s) => {
           s.stages[stage].decision = undefined
           s.stages[stage].decisionNote = undefined
+          // Persisted past this clear so a later unresumable fresh session can still be briefed
+          // with what the user asked to change; cleared together with reviseBaseline on completion.
+          s.stages[stage].reviseNote = note
           s.stages[stage].attempts += 1
         })
         return instruct(projectDir, org, run, stage, { reviseNote: note, resumeTaskID: resume })
@@ -202,7 +204,7 @@ export namespace OrgRunner {
           reason: validation.reason,
           resumeTaskID: record.taskID,
           chief: org.departments[stage].chief,
-          taskPrompt: stagePromptFor(projectDir, org, run, stage),
+          taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
         }
       }
       // Revise-staleness guard: the pre-revise deliverable is still valid on disk; it must actually change.
@@ -213,7 +215,7 @@ export namespace OrgRunner {
           reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
           resumeTaskID: record.taskID,
           chief: org.departments[stage].chief,
-          taskPrompt: stagePromptFor(projectDir, org, run, stage),
+          taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
         }
       }
       const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
@@ -234,6 +236,7 @@ export namespace OrgRunner {
           rec.costTaskID = undefined
         }
         rec.reviseBaseline = undefined // changed content accepted; baseline consumed
+        rec.reviseNote = undefined // lives and dies with the baseline
         rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
       })
       if (running.gate === "human") {

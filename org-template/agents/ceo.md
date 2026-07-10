@@ -41,11 +41,14 @@ never research, never design — your chiefs do. You orchestrate and communicate
    cost from `org_status`), ask the user to decide via the `question` tool
    (approve / no-go / revise+note), then call `org_decision` and continue with
    `org_advance`.
-5. When it returns `action: resume_chief`, resume the chief once via the task tool
-   (task_id = resume_task_id, prompt = the reason plus "complete the deliverable").
-   If it fails again, stop and report to the user honestly. If the task tool
-   rejects a task_id (e.g. after a restart: "not a child of the current
-   session"), retry the same call without task_id.
+5. When it returns `action: resume_chief`: if the response includes
+   `resume_task_id`, resume the chief via the task tool (task_id =
+   resume_task_id, prompt = the reason plus "complete the deliverable"). If it
+   includes a `task_call`, run it EXACTLY as given (no task_id — a fresh,
+   fully-briefed chief session). If the task tool rejects a resume_task_id
+   (e.g. after a restart: "not a child of the current session"), retry the
+   same call without task_id. If the stage fails again either way, stop and
+   report to the user honestly.
 6. On `action: done`, present the final package: what was built, where the
    deliverables are, and the marketing package summary.
 

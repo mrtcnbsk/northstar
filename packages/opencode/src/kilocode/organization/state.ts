@@ -23,6 +23,8 @@ export namespace OrgState {
     decisionNote: z.string().optional(),
     /** Deliverable hash captured when revise was requested; unchanged content cannot re-complete the stage. */
     reviseBaseline: z.string().optional(),
+    /** The user's revise note, persisted past the re-instruct (which clears decisionNote) so an unresumable fresh session can still be briefed; lives and dies with reviseBaseline. */
+    reviseNote: z.string().optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
   })

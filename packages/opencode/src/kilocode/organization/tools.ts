@@ -133,27 +133,29 @@ export const OrgAdvanceTool = Tool.define(
               })
             case "incomplete": {
               const resumable = advance.resumeTaskID ? yield* isResumable(advance.resumeTaskID, ctx) : false
-              const unresumable = advance.resumeTaskID !== undefined && !resumable
               return result(`incomplete: ${advance.stage}`, {
                 action: "resume_chief",
                 stage: advance.stage,
                 reason: advance.reason,
                 ...(resumable ? { resume_task_id: advance.resumeTaskID } : {}),
-                ...(unresumable
+                // kilocode_change - whenever no resumable session exists (unresumable id OR one was
+                // never recorded, e.g. a crash before the first advance-with-task_id), hand the CEO
+                // a full task_call so the fresh chief session is briefed with idea/priors context.
+                ...(!resumable && advance.chief && advance.taskPrompt
                   ? {
-                      note: "previous chief session is not resumable from this session; run the task without task_id (fresh chief session)",
-                      // kilocode_change - full stage prompt so the CEO can brief a fresh chief session with idea/priors context
-                      ...(advance.chief && advance.taskPrompt
-                        ? {
-                            task_call: {
-                              subagent_type: advance.chief,
-                              description: `${advance.stage} stage (fresh session)`,
-                              prompt: advance.taskPrompt,
-                            },
-                          }
-                        : {}),
+                      task_call: {
+                        subagent_type: advance.chief,
+                        description: `${advance.stage} stage (fresh session)`,
+                        prompt: advance.taskPrompt,
+                      },
                     }
                   : {}),
+                ...(advance.resumeTaskID && !resumable
+                  ? {
+                      note: "previous chief session is not resumable; use the provided task_call to start a fresh, fully-briefed chief session",
+                    }
+                  : {}),
+                then: "when the chief's task returns, call org_advance again with task_id set to the task session id",
               })
             }
             case "halted":
