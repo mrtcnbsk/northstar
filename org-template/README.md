@@ -62,6 +62,39 @@ just the resolved `stage` ceiling for that stage, not `run`, `escalationThreshol
 or `retries`. `OrgSchema.budgetWarnings` flags (without blocking load)
 `stage`/`escalationThreshold` values greater than `run`.
 
+## DAG fields (Wave 4, opt-in)
+
+`organization.jsonc` pipeline stages support optional dependency/scheduling fields.
+None of them change behavior unless set - an org with no DAG fields runs exactly as
+before (fully sequential, linear pipeline):
+
+- `pipeline[].requires` - stage names this stage depends on. Omitted defaults to
+  `[previousStage]` (the immediately-preceding pipeline entry, i.e. today's linear
+  chain); the first stage defaults to `[]`. An explicit `requires: []` marks an
+  intentional root (stays `[]`, is not defaulted). A non-empty list lets independent
+  stages (e.g. `frontend`/`backend`) share the same upstream `requires` and become
+  eligible to run concurrently. `OrgSchema.resolveRequires(org)` computes the full
+  resolved map; `OrgSchema.validate(org)` rejects dangling references and dependency
+  cycles (reporting the cycle path, e.g. `a -> b -> a`).
+- `pipeline[].timeoutMs` - per-stage wall-clock timeout in milliseconds. A running
+  stage past this timeout with no valid deliverable is retried and eventually failed
+  instead of hanging indefinitely.
+- `pipeline[].when` - declarative skip condition, either `{ "mode": "..." }` (matches
+  the run-level mode set at `org_start`) or
+  `{ "stage": "...", "decision": "approve" | "no-go" | "revise" }` (matches a prior
+  stage's recorded decision). When `when` evaluates false the stage is marked
+  `"skipped"` - it still satisfies dependents but incurs no cost and produces no
+  deliverable.
+- `maxConcurrency` (org-level, top-level key alongside `budget`) - max stages the
+  runner runs concurrently per batch. Default `1` (sequential, current behavior);
+  set to `>1` on a template that also declares parallel `requires` to actually
+  parallelize independent stages.
+
+As of this doc, the shipped template pipeline is still fully linear (no `requires`/
+`when`/`timeoutMs`/`maxConcurrency` set) - these fields are schema-ready but not yet
+exercised by the template; see the Wave 4 DAG plan for the template update that adopts
+them.
+
 ## Editing the organization
 
 - Add/remove workers: edit the department in `organization.jsonc` AND the chief's

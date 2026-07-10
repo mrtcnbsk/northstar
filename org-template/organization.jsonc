@@ -20,6 +20,24 @@
   //   escalationThreshold: spend level that triggers a human-escalation warning
   //   retries: max retries for a stage before it is treated as failed
   "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
+  // DAG fields (all optional, opt-in, no behavior change unless set - see Wave 4 plan):
+  //   pipeline[].requires  - stage names this stage depends on. Omitted defaults to
+  //                          [previousStage] (linear chain, today's behavior); the first
+  //                          stage defaults to []. Explicit [] marks an intentional root.
+  //                          A non-empty list lets independent stages (e.g. frontend/backend)
+  //                          both depend on the same upstream stage and run concurrently.
+  //   pipeline[].timeoutMs - per-stage wall-clock timeout in ms; a running stage past this
+  //                          with no valid deliverable is retried then failed instead of
+  //                          hanging indefinitely.
+  //   pipeline[].when      - declarative skip condition: { "mode": "..." } (matches the
+  //                          run-level mode set at org_start) or
+  //                          { "stage": "...", "decision": "approve"|"no-go"|"revise" }
+  //                          (matches a prior stage's recorded decision). A false `when`
+  //                          marks the stage "skipped" (satisfies dependents, no cost).
+  //   maxConcurrency (org-level) - max stages the runner runs concurrently per batch.
+  //                          Default 1 = fully sequential (current behavior); set >1 on a
+  //                          template that declares parallel `requires` to actually
+  //                          parallelize independent stages.
   "pipeline": [
     { "stage": "evaluation", "gate": "human", "haltOn": "no-go" },
     { "stage": "planning" },
@@ -30,5 +48,9 @@
     { "stage": "debugging" },
     { "stage": "marketing", "gate": "human" }
     // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
+    // DAG example (not yet applied here - see Wave 4 plan W4.7):
+    //   { "stage": "backend", "requires": ["planning"] },
+    //   { "stage": "frontend", "requires": ["planning"] },
+    //   { "stage": "testing", "requires": ["backend", "frontend"] }
   ]
 }
