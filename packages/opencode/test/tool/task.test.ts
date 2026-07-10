@@ -511,7 +511,7 @@ describe("tool.task", () => {
     },
   )
 
-  // kilocode_change start - manager subagents (specific-pattern task allow) keep delegation open
+  // kilocode_change start - manager subagents (declared subordinates, W1.0b) keep delegation open
   it.instance(
     "execute keeps the task tool open for manager subagents",
     () =>
@@ -559,14 +559,11 @@ describe("tool.task", () => {
         agent: {
           chief: {
             mode: "subagent",
-            // "*" deny FIRST, then the specific allow — mirrors what the upcoming
-            // `subordinates` expansion emits; the non-wildcard allow marks a manager
-            permission: {
-              task: {
-                "*": "deny",
-                "worker-agent": "allow",
-              },
-            },
+            // W1.0b: the declared subordinates list IS the manager marker (nestedTask keys
+            // on it, not on task rules). Normalize expands it into ordered task rules
+            // ("*" deny first, specific allows after) for ask-time spawn enforcement,
+            // exercising the real config -> normalize -> runtime Agent.Info path.
+            subordinates: ["worker-agent"],
           },
         },
       },

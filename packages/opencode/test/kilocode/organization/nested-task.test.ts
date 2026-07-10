@@ -7,27 +7,29 @@ function agent(permission: Agent.Info["permission"]): Agent.Info {
   return { name: "x", mode: "subagent", permission, options: {} } as Agent.Info
 }
 
-// kilocode_change start - W1.0: declaredSubordinate gate tests
-function namedAgent(name: string, permission: Agent.Info["permission"]): Agent.Info {
-  return { name, mode: "subagent", permission, options: {} } as Agent.Info
+// kilocode_change start - W1.0/W1.0b: declaredSubordinate gate tests (subordinates-keyed)
+function namedAgent(name: string, permission: Agent.Info["permission"], subordinates?: string[]): Agent.Info {
+  return { name, mode: "subagent", permission, options: {}, subordinates } as Agent.Info
 }
 // kilocode_change end
 
-describe("KiloTask.nestedTask", () => {
-  test("false for a plain worker (no task rules)", () => {
+describe("KiloTask.nestedTask (W1.0b: keyed on declared subordinates, not the ruleset)", () => {
+  test("false for a plain worker (no subordinates declared)", () => {
     expect(KiloTask.nestedTask(agent([]))).toBe(false)
   })
 
-  test("false when the only task rules are denies", () => {
+  test("false when the ruleset has task denies but no subordinates are declared", () => {
     expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "deny" }]))).toBe(false)
   })
 
-  test("false when the only non-deny task rule is wildcard (global config leak)", () => {
+  test("false for wildcard task rules (global config leak): no subordinates declared", () => {
     expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "ask" }]))).toBe(false)
     expect(KiloTask.nestedTask(agent([{ permission: "task", pattern: "*", action: "allow" }]))).toBe(false)
   })
 
-  test("true for a manager with a task allow rule", () => {
+  test("false even for the old ruleset manager-signature: rules alone are not a declaration", () => {
+    // W1.0b: a specific non-wildcard task allow used to mark a manager; now only the
+    // author-declared subordinates list does. Global config can inject rules, not the list.
     expect(
       KiloTask.nestedTask(
         agent([
@@ -35,7 +37,15 @@ describe("KiloTask.nestedTask", () => {
           { permission: "task", pattern: "swiftui-dev-1", action: "allow" },
         ]),
       ),
-    ).toBe(true)
+    ).toBe(false)
+  })
+
+  test("true for a manager with a non-empty declared subordinates list", () => {
+    expect(KiloTask.nestedTask(namedAgent("chief", [], ["swiftui-dev-1"]))).toBe(true)
+  })
+
+  test("false for an empty declared subordinates list", () => {
+    expect(KiloTask.nestedTask(namedAgent("chief", [], []))).toBe(false)
   })
 })
 
@@ -73,54 +83,118 @@ describe("deriveSubagentSessionPermission canTask (unified on KiloTask.nestedTas
   // kilocode_change end
 })
 
-// kilocode_change start - W1.0: KiloTask.declaredSubordinate gate (5 combos)
-describe("KiloTask.declaredSubordinate", () => {
+// kilocode_change start - W1.0b: global deny-by-default task policy must not manufacture managers
+describe("global task hardening cannot manufacture a manager (reviewer repro)", () => {
+  // Reviewer repro: a user's global `permission: {task: {"*": "deny", "x": "allow"}}`
+  // (legitimate hardening) merges LAST into every agent's ruleset. When manager detection
+  // was keyed on the ruleset signature, this manufactured the manager signature on
+  // built-ins like `explore` (which carry edit denies and are not name-gated), silently
+  // relaxing edit-deny forwarding on that edge. Detection is now keyed on the declared
+  // `subordinates` field, which global config cannot inject.
+  const builtinLike = namedAgent("explore", [
+    // defaults + built-in narrowing (explore shape: deny-by-default, read-only allows)
+    { permission: "*", pattern: "*", action: "allow" },
+    { permission: "*", pattern: "*", action: "deny" },
+    { permission: "read", pattern: "*", action: "allow" },
+    { permission: "edit", pattern: "*", action: "deny" },
+    // user's global task hardening, merged last:
+    { permission: "task", pattern: "*", action: "deny" },
+    { permission: "task", pattern: "x", action: "allow" },
+  ])
+
+  test("nestedTask is false: no declared subordinates", () => {
+    expect(KiloTask.nestedTask(builtinLike)).toBe(false)
+  })
+
+  test("declaredSubordinate is false: no declared subordinates", () => {
+    expect(KiloTask.declaredSubordinate(builtinLike, "x")).toBe(false)
+  })
+
+  test("edit-deny forwarding is NOT relaxed on that edge", () => {
+    const worker = agent([])
+    const session = deriveSubagentSessionPermission({
+      parentSessionPermission: [],
+      parentAgent: builtinLike,
+      subagent: worker,
+    })
+    expect(session.some((r) => r.permission === "edit" && r.action === "deny")).toBe(true)
+  })
+})
+// kilocode_change end
+
+// kilocode_change start - W1.0/W1.0b: KiloTask.declaredSubordinate gate (subordinates-keyed)
+describe("KiloTask.declaredSubordinate (W1.0b: exact-name match on declared subordinates)", () => {
   test("false when there is no parent", () => {
     expect(KiloTask.declaredSubordinate(undefined, "worker")).toBe(false)
   })
 
-  test("false for plan-family parents even with a manufactured manager signature", () => {
-    const plan = namedAgent("plan", [
-      { permission: "task", pattern: "*", action: "deny" },
-      { permission: "task", pattern: "general", action: "allow" },
-    ])
-    expect(KiloTask.declaredSubordinate(plan, "general")).toBe(false)
-
-    const ask = namedAgent("ask", [
-      { permission: "task", pattern: "*", action: "deny" },
-      { permission: "task", pattern: "general", action: "allow" },
-    ])
-    expect(KiloTask.declaredSubordinate(ask, "general")).toBe(false)
-
-    const architect = namedAgent("architect", [
-      { permission: "task", pattern: "*", action: "deny" },
-      { permission: "task", pattern: "general", action: "allow" },
-    ])
-    expect(KiloTask.declaredSubordinate(architect, "general")).toBe(false)
+  test("false for plan-family parents even WITH declared subordinates (name gate, defense-in-depth)", () => {
+    for (const name of ["plan", "ask", "architect", "Plan", "ASK"]) {
+      const parent = namedAgent(name, [], ["general"])
+      expect(KiloTask.declaredSubordinate(parent, "general"), `plan-family "${name}" must be refused`).toBe(false)
+    }
   })
 
-  test("false when parent's own task,* evaluation is not deny (global-config wildcard allow shape)", () => {
-    const parent = namedAgent("chief", [
+  test("false for a ruleset manager-signature without a declaration (global-config shapes)", () => {
+    // Both global-config shapes: wildcard allow last, and deny-by-default + specific allow.
+    const wildcardShape = namedAgent("chief", [
       { permission: "task", pattern: "*", action: "allow" },
       { permission: "task", pattern: "worker", action: "allow" },
     ])
-    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(false)
-  })
+    expect(KiloTask.declaredSubordinate(wildcardShape, "worker")).toBe(false)
 
-  test("false when deny-by-default but no matching specific allow for this child", () => {
-    const parent = namedAgent("chief", [
-      { permission: "task", pattern: "*", action: "deny" },
-      { permission: "task", pattern: "other-worker", action: "allow" },
-    ])
-    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(false)
-  })
-
-  test("true for the full manager signature: task deny-by-default + specific non-wildcard allow", () => {
-    const parent = namedAgent("chief", [
+    const signatureShape = namedAgent("chief", [
       { permission: "task", pattern: "*", action: "deny" },
       { permission: "task", pattern: "worker", action: "allow" },
     ])
+    expect(KiloTask.declaredSubordinate(signatureShape, "worker")).toBe(false)
+  })
+
+  test("false when the child is not in the declared list", () => {
+    const parent = namedAgent("chief", [], ["other-worker"])
+    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(false)
+  })
+
+  test("exact-name match only: no pattern semantics in subordinates entries", () => {
+    const parent = namedAgent("chief", [], ["swiftui-*", "worker"])
+    expect(KiloTask.declaredSubordinate(parent, "swiftui-dev-1")).toBe(false)
     expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(true)
+  })
+
+  test("false for an empty child name", () => {
+    const parent = namedAgent("chief", [], [""])
+    expect(KiloTask.declaredSubordinate(parent, "")).toBe(false)
+  })
+
+  test("true when the parent declares the child by exact name", () => {
+    const parent = namedAgent("chief", [], ["worker"])
+    expect(KiloTask.declaredSubordinate(parent, "worker")).toBe(true)
+  })
+})
+
+// W1.0b rec 3: PLAN_FAMILY must stay in sync with the planner names the codebase uses.
+describe("PLAN_FAMILY sync with codebase planner names", () => {
+  test("every PLANNERS name in src/kilocode/plan-file.ts (plus the ask built-in) is refused", async () => {
+    // Authoritative source: the module-internal `PLANNERS = new Set([...])` literal in
+    // src/kilocode/plan-file.ts (not exported), plus the read-only "ask" built-in defined
+    // in src/kilocode/agent/index.ts. Parse the literal from source so this test fails
+    // if a planner name is added there without updating PLAN_FAMILY in kilocode/tool/task.ts.
+    const path = await import("path")
+    const source = await Bun.file(
+      path.resolve(import.meta.dir, "../../../src/kilocode/plan-file.ts"),
+    ).text()
+    const match = source.match(/PLANNERS\s*=\s*new Set\(\[([^\]]*)\]\)/)
+    expect(match, "PLANNERS literal must exist in src/kilocode/plan-file.ts").toBeTruthy()
+    const planners = [...match![1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    expect(planners.length).toBeGreaterThan(0)
+
+    for (const name of [...planners, "ask"]) {
+      const parent = namedAgent(name, [], ["general"])
+      expect(
+        KiloTask.declaredSubordinate(parent, "general"),
+        `planner "${name}" must be in PLAN_FAMILY (kilocode/tool/task.ts)`,
+      ).toBe(false)
+    }
   })
 })
 // kilocode_change end
@@ -128,10 +202,17 @@ describe("KiloTask.declaredSubordinate", () => {
 describe("transitive permission ceiling across 3 levels (existing derive logic composes)", () => {
   test("a CEO edit deny survives CEO -> chief -> worker", () => {
     const ceo = agent([{ permission: "edit", pattern: "*", action: "deny" }])
-    const chief = agent([
-      { permission: "task", pattern: "*", action: "deny" },
-      { permission: "task", pattern: "worker", action: "allow" },
-    ])
+    // kilocode_change - W1.0b: manager status now comes from the declared subordinates list;
+    // the task rules stay because that's what the subordinates expansion emits for ask-time
+    // spawn enforcement
+    const chief = namedAgent(
+      "chief",
+      [
+        { permission: "task", pattern: "*", action: "deny" },
+        { permission: "task", pattern: "worker", action: "allow" },
+      ],
+      ["worker"],
+    )
     const worker = agent([])
 
     // hop 1: CEO spawns chief — chief session inherits CEO's edit deny, no task deny (manager)

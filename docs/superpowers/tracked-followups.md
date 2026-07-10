@@ -18,9 +18,6 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   varsayımı yorumlarının güncellenmesi.
 - **#3 (kalan yarı):** `OrgDepth` hâlâ düz `Error` ile fail ediyor (NamedError idiyomu
   değil). Mesaj Wave 0'da nötrleştirildi (kapatıldı).
-- **#4:** Global config'te SPESİFİK desenli bir task kuralı hâlâ tüm subagent'ları
-  "yönetici" yapar (derinlik tavanı artık ask'ten ÖNCE çalışıyor — blast radius küçüldü).
-  Config dokümantasyon uyarısı veya kaynak-kapsamlı kural kontrolü.
 - **#5:** `experimental.primary_tools` dedup yerleşimi session-level task deny'ı
   findLast'ta yenebilir (pre-existing; child tools map yine de kapatıyor).
 - **#6:** `schema.ts`: `validate()` hatası `at ${file}` içermiyor; jsonc çift hata
@@ -55,6 +52,24 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   "**/.kilo/org/**": deny}` taşıyor (deny kuralları LAST — findLast org yollarını kazanır;
   son kuralın pattern'i "*" olmadığından edit tool'u worker'a hâlâ sunuluyor). W0-R1 fix'iyle
   AYNI commit'te kapatıldı.
+- **W1.0b — Yönetici tespiti ruleset imzasından bildirilmiş `subordinates` alanına
+  taşındı (+#4 kapandı).** Reviewer repro'su: kullanıcının global
+  `permission: {task: {"*": deny, x: allow}}` sertleştirmesi (meşru bir config) her
+  agent'ın ruleset'ine SON sırada merge olduğundan, edit deny taşıyan built-in'lerde
+  (ör. `explore`) W1.0'ın ruleset-imza tespitini ÜRETİYOR ve edit-deny forwarding'i
+  sessizce gevşetiyordu. Fix: `subordinates` alanı runtime `Agent.Info`'ya thread edildi
+  (`src/agent/agent.ts`, config merge loop); `nestedTask` artık "bildirilmiş subordinates
+  listesi boş değil", `declaredSubordinate` artık "parent'ın listesi child'ı TAM adla
+  içeriyor" (desen yok) — global config bu alanı enjekte EDEMEZ. PLAN_FAMILY ad kapısı
+  belt-and-suspenders olarak durdu (bugün gereksiz — hiçbir plan-family agent subordinates
+  bildirmiyor). İzin EXPANSION'ı (config/agent.ts task kural üretimi) aynen kaldı — spawn
+  yetkisi hâlâ ask-time kurallarla uygulanıyor; yalnız TESPİT re-key'lendi. Yan etki:
+  delegasyon isteyen elle yazılmış jsonc agent'lar artık `subordinates` bildirmek ZORUNDA
+  (README'nin belgelediği mekanizma) — salt task-kural haritası artık yönetici yapmıyor.
+  Eski #4 ("global config'te spesifik desenli task kuralı tüm subagent'ları yönetici
+  yapar") bu re-key ile kökten kapandı. Negatif test pinli
+  (`nested-task.test.ts` "global task hardening cannot manufacture a manager") +
+  PLAN_FAMILY↔`plan-file.ts PLANNERS` sync testi.
 
 ## Wave 0'da kapatıldı (feat/wave-0-hardening, 13 commit)
 
@@ -84,11 +99,12 @@ Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış rev
   CEO turn'ünü bloklar); persist edilen halt asıl mekanizma. Background şefler için doğru.
 - `orgEnabledCache` eviction'ı gerçek LRU değil (512 root pratikte imkânsız).
 - W0.6 "escapeFence usage notes" genişletmesi yapılmadı (guard satırları + testler var) — kozmetik.
-- **(W1.0)** Elle yazılmış, org şablonu OLMAYAN "manager" agent'lar (task-allowlist şekli:
-  kendi ruleset'i task-deny-by-default + spesifik non-wildcard allow) da bu relaxation'a
-  girer — `declaredSubordinate` yalnız İMZAYA bakıyor, "bu agent org-template'ten mi geldi"
-  diye bakmıyor. Kabul edilen davranış: aynı imza aynı güven ilişkisini ifade ediyor (kullanıcı
-  bilinçli olarak dar bir task-allowlist + child'a devredilen edit yetkisi kurmuş demektir).
+- **(W1.0, W1.0b'de daraltıldı)** Elle yazılmış, org şablonu OLMAYAN agent'lar da
+  `subordinates` bildirerek bu relaxation'a girer — `declaredSubordinate` yalnız
+  BİLDİRİLMİŞ listeye bakıyor (W1.0b re-key; ruleset imzası artık yetmiyor), "bu agent
+  org-template'ten mi geldi" diye bakmıyor. Kabul edilen davranış: `subordinates` bildirimi
+  açık bir güven ilişkisi ifadesidir (yazar bilinçli olarak dar bir delegasyon listesi +
+  child'a devredilen edit yetkisi kurmuş demektir); global config bu alanı enjekte edemez.
   Aynı güven alanı (trust domain) içinde çalıştığı için ek bir gate gerekmiyor.
 
 ## Ortam notları

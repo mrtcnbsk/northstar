@@ -22,14 +22,16 @@ export function deriveSubagentSessionPermission(input: {
   parentAgent: Agent.Info | undefined
   subagent: Agent.Info
 }): Permission.Ruleset {
-  // kilocode_change - use the stricter KiloTask.nestedTask predicate (non-deny + non-wildcard)
-  // instead of "any task rule", so deny-only/wildcard-only agents also get the task deny below
+  // kilocode_change - unified on KiloTask.nestedTask: delegation requires an author-declared
+  // `subordinates` list (W1.0b re-key), so ruleset-only shapes (global config task maps,
+  // deny-only/wildcard-only rules) always get the task deny below
   const canTask = KiloTask.nestedTask(input.subagent)
   // kilocode_change end
   const canTodo = input.subagent.permission.some((rule) => rule.permission === "todowrite")
   // kilocode_change start - W1.0: declared-subordinate deny relaxation (restores org write path)
-  // A parent whose own ruleset carries the manager signature (task deny-by-default + a
-  // specific non-wildcard allow for this child — see KiloTask.declaredSubordinate) does not
+  // A parent whose author-declared `subordinates` list contains this child by EXACT name
+  // (see KiloTask.declaredSubordinate — W1.0b re-keyed detection off the ruleset signature,
+  // which a global deny-by-default task policy could manufacture on built-ins) does not
   // forward its AGENT-level edit denies onto this child's session. Without this, a chief's
   // `edit: deny "*"` (which exists so the CHIEF itself cannot write app code) forwarded as a
   // "*" deny into every worker session and findLast-beat the worker's own edit allow, since

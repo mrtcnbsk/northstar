@@ -233,9 +233,10 @@ kısıtlanır. Böylece "sessiz deny" riski kapanır.
 > şefin/worker'ın kendi allow kurallarını findLast ile eziyordu. Düzeltilmiş model: bir org
 > edge'inin (parent → declared subordinate) **tavanı, parent'ın kendi ruleset'i DEĞİL,
 > child'ın kendi bildirilmiş (declared) ruleset'idir** — `KiloTask.declaredSubordinate`
-> parent'ın `subordinates` frontmatter'ından üretilen task-deny-by-default + spesifik-allow
-> imzasını taşıdığı edge'lerde parent'ın AGENT-seviyesi deny'larını child session'a
-> aktarmayı durdurur. Parent SESSION deny'ları (üst zincirden gelen, ör. üç seviye yukarıdan
+> parent'ın `subordinates` frontmatter bildirimi child'ı TAM adla içerdiği edge'lerde
+> (W1.0b: tespit ruleset imzasından bildirilmiş alana taşındı — global bir deny-by-default
+> task policy'si imzayı built-in'lerde üretebiliyordu; `subordinates` alanını enjekte
+> edemez) parent'ın AGENT-seviyesi deny'larını child session'a aktarmayı durdurur. Parent SESSION deny'ları (üst zincirden gelen, ör. üç seviye yukarıdan
 > bir gerçek kısıtlama) ve plan-family (`ask`/`plan`/`architect`) forwarding'i bu
 > gevşetmenin DIŞINDADIR — hâlâ tam olarak aktarılır. "Sessiz deny" riski hâlâ kapalı: CEO
 > departman ihtiyaçlarını KISITLAMIYOR (tavan artık departmanın kendi bildirdiği ruleset),

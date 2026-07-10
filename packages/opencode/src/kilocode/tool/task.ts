@@ -5,7 +5,6 @@ import { Permission } from "@/permission"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Global } from "@opencode-ai/core/global"
 import * as Log from "@opencode-ai/core/util/log"
-import { Wildcard } from "@opencode-ai/core/util/wildcard" // kilocode_change - declaredSubordinate pattern matching
 import { ModelID, ProviderID } from "@/provider/schema"
 import type { Session } from "../../session/session"
 import type { Agent } from "../../agent/agent"
@@ -39,40 +38,43 @@ export namespace KiloTask {
 
   /**
    * Kilo historically kept delegation one level deep. The agent-organization
-   * layer relaxes this for "manager" subagents only: a subagent whose own
-   * ruleset carries a non-deny task rule with a NON-WILDCARD pattern
-   * (produced by the `subordinates` frontmatter field, which emits
-   * specific-pattern allows like "swiftui-dev-1") may spawn its declared
-   * subordinates. Wildcard rules are ignored on purpose: the user's GLOBAL
-   * permission config (e.g. `permission: { task: "allow" | "ask" }`) merges
-   * into every agent's ruleset as `{task, *, allow|ask}` and must not
-   * silently promote plain workers to managers. Depth is separately capped
-   * by OrgDepth.guard in the task tool.
+   * layer relaxes this for "manager" subagents only. kilocode_change - W1.0b:
+   * the documented contract is now "delegation requires declared subordinates" —
+   * an agent may spawn subagents iff its author declared a non-empty
+   * `subordinates` list (frontmatter / config field). The ruleset is no longer
+   * consulted for DETECTION: a user's global permission config (e.g.
+   * `permission: { task: {"*": "deny", x: "allow"} }`) merges into every
+   * agent's ruleset and could manufacture the old signature on plain workers
+   * and built-ins. Spawn AUTHORITY is still enforced at ask time by the task
+   * permission rules the subordinates expansion emits (config/agent.ts).
+   * Depth is separately capped by OrgDepth.guard in the task tool.
    */
   export function nestedTask(subagent: Agent.Info): boolean {
-    return subagent.permission.some(
-      (rule) => rule.permission === "task" && rule.action !== "deny" && rule.pattern !== "*",
-    )
+    return (subagent.subordinates?.length ?? 0) > 0 // kilocode_change - W1.0b: keyed on the declaration, not the ruleset
   }
 
-  // kilocode_change start - W1.0: declared-subordinate deny relaxation (restores org write path)
-  const PLAN_FAMILY = new Set(["ask", "plan", "architect"]) // keep in sync with plan-mode agent names
+  // kilocode_change start - W1.0/W1.0b: declared-subordinate deny relaxation (restores org write path)
+  // Keep in sync with the planner agent names: PLANNERS in src/kilocode/plan-file.ts
+  // ("plan", "architect") plus the read-only "ask" built-in (src/kilocode/agent/index.ts).
+  const PLAN_FAMILY = new Set(["ask", "plan", "architect"])
 
   /** True when `parent` explicitly manages `child` as a declared subordinate:
-   * parent's own ruleset is task-deny-by-default with a specific non-wildcard allow
-   * matching the child. This is the signature the `subordinates` frontmatter expansion
-   * emits; global user config cannot manufacture it on ordinary agents (their merged
-   * ruleset ends with the defaults' allow, so evaluate(task,"*") is non-deny), and
-   * plan-family agents are excluded by name. Used to skip forwarding parent AGENT-level
-   * denies on org edges — parent SESSION denies always forward. */
+   * the parent's author-declared `subordinates` list (frontmatter / config field)
+   * contains the child's EXACT name — subordinates are exact agent names, never
+   * patterns. W1.0b re-keyed this from the ruleset manager-signature (task
+   * deny-by-default + specific allow), which a user's global deny-by-default task
+   * policy could manufacture on built-ins like `explore`. Global config cannot
+   * inject a `subordinates` declaration. The PLAN_FAMILY name gate is redundant
+   * today (no plan-family agent declares subordinates) but kept as a cheap
+   * defense-in-depth belt. Used to skip forwarding parent AGENT-level denies on
+   * org edges — parent SESSION denies always forward. Hand-written non-org agents
+   * that declare subordinates opt their edges into child-governed permissions by
+   * design: same trust domain (see docs/superpowers/tracked-followups.md ACCEPT). */
   export function declaredSubordinate(parent: Agent.Info | undefined, child: string): boolean {
     if (!parent) return false
     if (PLAN_FAMILY.has(parent.name.toLowerCase())) return false
-    if (Permission.evaluate("task", "*", parent.permission).action !== "deny") return false
-    const rule = parent.permission.findLast(
-      (r) => r.permission === "task" && r.pattern !== "*" && Wildcard.match(child, r.pattern),
-    )
-    return rule?.action === "allow"
+    if (!child) return false
+    return parent.subordinates?.includes(child) ?? false
   }
   // kilocode_change end
 

@@ -39,6 +39,9 @@ function buildAgent(name: string, raw: ConfigAgent.Info): Agent.Info {
     mode: raw.mode,
     permission: Permission.merge(DEFAULTS, Permission.fromConfig(raw.permission ?? {})),
     options: {},
+    // kilocode_change - W1.0b: manager detection keys on the declared subordinates list;
+    // mirror the runtime merge loop in src/agent/agent.ts threading it onto Agent.Info
+    subordinates: raw.subordinates,
   } as Agent.Info
 }
 
@@ -214,10 +217,12 @@ describe("W1.0 composed-seam matrix: CEO -> chief -> worker write path", () => {
 
   // ---- gate refusal cases -------------------------------------------------------------
 
-  test("9. plan-family parent (manufactured manager signature) spawning general -> edit still denied", async () => {
-    // A plan-family agent (name "plan") whose ruleset happens to carry the manager
-    // signature {task,*,deny} + {task,general,allow} must NOT get relaxation: parent
-    // AGENT denies (edit) must still forward to the child session.
+  test("9. plan-family parent (even with a declared subordinates list) spawning general -> edit still denied", async () => {
+    // A plan-family agent (name "plan") must NOT get relaxation even when it carries BOTH
+    // a declared subordinates list AND the manager-shaped task rules: parent AGENT denies
+    // (edit) must still forward to the child session. kilocode_change - W1.0b: subordinates
+    // added to the fixture so this exercises the PLAN_FAMILY name gate itself, not just
+    // the missing-declaration gate.
     const planLike: Agent.Info = {
       name: "plan",
       mode: "primary",
@@ -232,6 +237,7 @@ describe("W1.0 composed-seam matrix: CEO -> chief -> worker write path", () => {
         }),
       ),
       options: {},
+      subordinates: ["general"],
     } as Agent.Info
     const general: Agent.Info = {
       name: "general",
@@ -250,10 +256,11 @@ describe("W1.0 composed-seam matrix: CEO -> chief -> worker write path", () => {
     expect(Permission.evaluate("edit", "/some/file.ts", eff).action).toBe("deny")
   })
 
-  test("10. non-plan parent with wildcard task allow (global-config shape) -> no relaxation", async () => {
-    // Global user config merges {task,*,allow} into every agent. This must not look like
-    // a declared-manager signature (declaredSubordinate requires the parent's OWN evaluate(task,*)
-    // to be deny — a wildcard allow fails that gate outright).
+  test("10. non-plan parent with task rules but NO declared subordinates (global-config shape) -> no relaxation", async () => {
+    // Global user config merges task rules into every agent — wildcard allows AND
+    // deny-by-default maps with specific allows. kilocode_change - W1.0b: detection keys on
+    // the declared subordinates list, which global config cannot inject; a parent without
+    // one gets no relaxation no matter what its task ruleset looks like.
     const parent: Agent.Info = {
       name: "custom-parent",
       mode: "primary",
