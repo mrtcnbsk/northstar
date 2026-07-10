@@ -178,6 +178,68 @@ export namespace KiloTask {
     }
   })
 
+  // kilocode_change start - W1.5: cost-aware fallback ranking, used only when a configured
+  // model is confirmed UNAVAILABLE (see `unavailable` flag in resolveModel below).
+  //
+  // INVARIANT: this never runs against a HEALTHY configured model. Agents pin models
+  // deliberately (direct agent.model, saved sticky model, or subagent_model config) and a
+  // model that resolves successfully is always honored as-is, unchanged and unranked. Cost
+  // ranking is exclusively a replacement for the blunt "jump straight to the parent model"
+  // fallback that previously fired the instant ANY configured choice above failed to resolve.
+  //
+  // Reality check (W1.5 prereq, see docs/superpowers/plans/2026-07-10-wave-1-budget.md): the
+  // upstream `Model` schema (src/provider/provider.ts) carries reliable numeric pricing on
+  // every model via `cost.input` / `cost.output` (Schema.Finite, not optional/best-effort),
+  // and `Provider.Interface.list()` returns the live connected-provider catalog (not the full
+  // static models.dev catalog) already reachable from the same `Provider.Interface` this
+  // function receives as `input.provider`. Both preconditions hold, so this implements the
+  // cost-ranked branch rather than an ordered `fallback_models` list.
+  function rank(providers: Record<ProviderID, Provider.Info>): Model[] {
+    const candidates: Array<{ model: Model; price: number }> = []
+    for (const [providerID, provider] of Object.entries(providers) as Array<[ProviderID, Provider.Info]>) {
+      for (const [modelID, info] of Object.entries(provider.models)) {
+        if (!info.capabilities.toolcall) continue // subagents must be able to call tools
+        if (info.status === "deprecated") continue // not a "capable" candidate for fresh delegation
+        const price = (info.cost?.input ?? 0) + (info.cost?.output ?? 0)
+        candidates.push({ model: { providerID, modelID: ModelID.make(modelID) }, price })
+      }
+    }
+    candidates.sort((a, b) => a.price - b.price)
+    return candidates.map((c) => c.model)
+  }
+
+  /** Walk the cost-ranked catalog, skipping entries that are themselves unavailable
+   * (extends the chain past the FLOOR's 2 levels: a ranked model can itself 404 and the
+   * walk falls through to the next-cheapest, etc.). Returns undefined if every ranked
+   * candidate is unavailable, so the caller can fall through to the original parent-fallback
+   * tail unchanged. */
+  const rankedFallback = Effect.fn("KiloTask.rankedFallback")(function* (input: {
+    provider: Provider.Interface
+    exclude: Set<string>
+  }) {
+    const providers = yield* input.provider.list()
+    const ranked = rank(providers)
+    for (const candidate of ranked) {
+      if (input.exclude.has(key(candidate))) continue
+      const full = yield* input.provider.getModel(candidate.providerID, candidate.modelID).pipe(
+        Effect.catchTag("ProviderModelNotFoundError", (err) =>
+          Effect.sync(() => {
+            log.debug("skipping unavailable ranked fallback candidate", {
+              providerID: candidate.providerID,
+              modelID: candidate.modelID,
+              err,
+            })
+            return undefined
+          }),
+        ),
+      )
+      if (!full) continue
+      return { model: candidate, full }
+    }
+    return undefined
+  })
+  // kilocode_change end
+
   /** Resolve the task subagent model while discarding stale unavailable overrides. */
   export const resolveModel = Effect.fn("KiloTask.resolveModel")(function* (input: {
     name: string
@@ -202,8 +264,16 @@ export namespace KiloTask {
       cfg ? { model: cfg, variant: input.config.subagent_variant ?? undefined } : undefined,
     ]
 
+    // kilocode_change - W1.5: true only when a configured choice above was CONFIRMED
+    // unavailable (ProviderModelNotFoundError), never for a choice that was simply absent
+    // (e.g. no subagent_model configured). Gates cost-ranked fallback vs. the original
+    // unconditional jump to `input.parent`.
+    let unavailable = false
+    const tried = new Set<string>()
+
     for (const choice of choices) {
       if (!choice) continue
+      tried.add(key(choice.model))
       if (choice.direct) {
         const value = override(choice.model)
         if (!value) return { model: choice.model, variant: choice.variant }
@@ -219,6 +289,7 @@ export namespace KiloTask {
               modelID: choice.model.modelID,
               err,
             })
+            unavailable = true // kilocode_change - W1.5
             return undefined
           }),
         ),
@@ -232,6 +303,20 @@ export namespace KiloTask {
         variant,
       }
     }
+
+    // kilocode_change start - W1.5: cost-ranked fallback replaces the blunt parent jump, but
+    // ONLY when something configured was confirmed unavailable above. Absence (nothing
+    // configured) keeps the original unconditional parent-fallback behavior unchanged.
+    if (unavailable) {
+      tried.add(key(input.parent))
+      const picked = yield* rankedFallback({ provider: input.provider, exclude: tried })
+      if (picked) {
+        const value = override(picked.model)
+        const variant = value && picked.full.variants?.[value] ? value : undefined
+        return { model: picked.model, variant }
+      }
+    }
+    // kilocode_change end
 
     const value = override(input.parent)
     if (!value) return { model: input.parent, variant: input.variant }
