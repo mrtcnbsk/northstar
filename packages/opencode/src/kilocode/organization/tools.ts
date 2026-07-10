@@ -17,6 +17,61 @@ import { OrgState } from "./state"
 export const tryOrg = <A>(f: () => Promise<A>) =>
   Effect.tryPromise({ try: f, catch: (e) => (e instanceof Error ? e : new Error(String(e))) })
 
+// kilocode_change start - W0-R2: serialize the MUTATING org tools per run_id.
+// OrgState.update and OrgAudit.append are unlocked read-modify-write/append (see their own doc
+// comments) on the stated assumption that a single CEO session calls org tools serially. The AI
+// SDK breaks that assumption: it can execute a single assistant step's tool calls concurrently,
+// so two org_advance-shaped calls (or an org_advance racing an org_stop) against the SAME run_id
+// can interleave their read...write cycles. Concretely: org_stop reads state.json (status
+// "active"), writes it back with status "halted"; if a stale in-flight org_advance had already
+// read the pre-halt state.json and writes AFTER the stop, its write silently reintroduces
+// status "active" - the emergency stop is undone with no error and no trace beyond the audit log
+// disagreeing with state.json.
+//
+// Fix: a per-run_id async mutex, held for the full mutating body of org_advance / org_decision /
+// org_stop (every read...modify...write cycle those tools perform against a given run's
+// state.json/approvals.json). This lives at the tool boundary (not inside OrgRunner, which stays
+// pure and synchronously-composable for unit testing) because the hazard is specifically about
+// concurrent I/O against the same files, which only exists once tool execution enters the async,
+// potentially-concurrent AI SDK step.
+//
+// org_start is exempt: it always creates a brand-new run directory (OrgState.create), so there is
+// no existing run_id for another call to race against; nothing to serialize until the id exists.
+//
+// org_status is deliberately left UNLOCKED. It never mutates - list()/read()/OrgAudit.read() are
+// pure reads - and Node's single-threaded event loop means a read interleaved with a
+// lock-holder's write only ever observes the state.json/approvals.json from strictly before or
+// strictly after that writer's atomic rename (Filesystem.write renames into place), never a torn
+// read. A concurrent org_status can therefore return a snapshot that's stale by one in-flight
+// write, which is the same staleness any read-after-a-later-write already has; it cannot lose an
+// update or corrupt a file. Locking it too would only add queueing latency for a caller that's
+// explicitly asking for a point-in-time dry-run inspection, with no correctness upside.
+//
+// Residual (NOT solved here, by design): this mutex is process-local. It does nothing to
+// coordinate a second opencode instance/process pointed at the same project directory running
+// org tools against the same run_id concurrently - that hazard needs cross-process locking (e.g.
+// an OS file lock or a lockfile-with-pid protocol) and is a separate, larger piece of work than
+// this fix. Flagged in tracked-followups.md as a residual, not tracked as a new TRACK item, since
+// it's a known, intentionally-deferred boundary of this fix rather than a newly discovered gap.
+const runLocks = new Map<string, Promise<unknown>>()
+
+/** Standard promise-chain mutex keyed by run_id: chains `fn` after the current tail for that key
+ * and republishes the new tail, so callers racing on the SAME run_id serialize while callers on
+ * DIFFERENT run_ids never wait on each other. The tail promise is always allowed to settle
+ * (fulfilled or rejected) before the next link runs - `.catch(() => {})` on the stored tail
+ * absorbs failures so one caller's rejection can never wedge the queue for the next caller on the
+ * same run_id; the actual error still propagates to the ORIGINAL caller via the returned promise. */
+export function withRunLock<A>(runID: string, fn: () => Promise<A>): Promise<A> {
+  const tail = runLocks.get(runID) ?? Promise.resolve()
+  const result = tail.then(fn, fn)
+  runLocks.set(
+    runID,
+    result.catch(() => {}),
+  )
+  return result
+}
+// kilocode_change end
+
 const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
 
 const guardCeo = (org: OrgSchema.Organization, agent: string) =>
@@ -101,8 +156,12 @@ export const OrgAdvanceTool = Tool.define(
                   ).catch(() => undefined)
                 : Promise.resolve(undefined),
           }
+          // kilocode_change - W0-R2: serialize the read-modify-write body against other mutating
+          // org tool calls on the SAME run_id (see withRunLock's doc comment above).
           const advance = yield* tryOrg(() =>
-            OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
+            withRunLock(params.run_id, () =>
+              OrgRunner.advance(deps, dir, org, params.run_id, { taskID: params.task_id }),
+            ),
           )
           switch (advance.kind) {
             case "instruct": {
@@ -194,7 +253,10 @@ export const OrgDecisionTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const run = yield* tryOrg(() => OrgRunner.decide(dir, org, params.run_id, params.decision, params.note))
+          // kilocode_change - W0-R2: serialize against other mutating org tool calls on this run_id.
+          const run = yield* tryOrg(() =>
+            withRunLock(params.run_id, () => OrgRunner.decide(dir, org, params.run_id, params.decision, params.note)),
+          )
           return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
         }).pipe(Effect.orDie),
     }
@@ -272,7 +334,16 @@ export const OrgStopTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const { stage, taskID } = yield* tryOrg(() => OrgRunner.stop(dir, org, params.run_id, params.reason))
+          // kilocode_change - W0-R2: serialize against other mutating org tool calls on this
+          // run_id. org_stop still waits for its turn behind an in-flight org_advance/org_decision
+          // on the SAME run_id (there is no true priority/preemption in a promise-chain mutex) -
+          // but that is exactly what fixes the hazard: once org_stop's write runs, it is
+          // guaranteed to be the LAST write for this run_id in program order, so a stale advance
+          // that started before the stop can no longer clobber it after. Before this fix the two
+          // writes could interleave in either order; now they are strictly ordered by the queue.
+          const { stage, taskID } = yield* tryOrg(() =>
+            withRunLock(params.run_id, () => OrgRunner.stop(dir, org, params.run_id, params.reason)),
+          )
           if (!stage) {
             return result("stopped", { action: "stopped", reason: params.reason, note: "no stage was running" })
           }
