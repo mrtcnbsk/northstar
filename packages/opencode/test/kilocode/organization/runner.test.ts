@@ -57,7 +57,7 @@ describe("OrgRunner full flows", () => {
     expect(after.kind).toBe("halted")
 
     const state = await OrgState.read(tmp.path, run.runID)
-    expect(state.stages["evaluation"].cost).toBe(0.42)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_eval: 0.42 })
     expect(state.stages["evaluation"].taskID).toBe("ses_eval")
     expect(state.stages["planning"].status).toBe("pending")
   })
@@ -214,7 +214,9 @@ describe("OrgRunner full flows", () => {
     await writeDeliverable(tmp.path, run.runID, "evaluation")
     await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
     let state = await OrgState.read(tmp.path, run.runID)
-    expect(state.stages["evaluation"].cost).toBe(5)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 5 })
+    let status = await OrgRunner.status(tmp.path, ORG, run.runID)
+    expect(status.totalCost).toBe(5)
 
     // revise; the chief RESUMES ses_A whose cumulative cost grows to 7 -> overwrite, not 5 + 7
     await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "more depth")
@@ -223,7 +225,7 @@ describe("OrgRunner full flows", () => {
     await writeDeliverable(tmp.path, run.runID, "evaluation", "# take two\n\n" + "revised ".repeat(20))
     await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
     state = await OrgState.read(tmp.path, run.runID)
-    expect(state.stages["evaluation"].cost).toBe(7)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 7 })
 
     // revise again; a FRESH session ses_B costs 2 -> accumulate on top of prior spend
     await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "one more pass")
@@ -232,7 +234,55 @@ describe("OrgRunner full flows", () => {
     await writeDeliverable(tmp.path, run.runID, "evaluation", "# take three\n\n" + "fresh ".repeat(20))
     await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_B" })
     state = await OrgState.read(tmp.path, run.runID)
-    expect(state.stages["evaluation"].cost).toBe(9)
-    expect(state.stages["evaluation"].costTaskID).toBe("ses_B")
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 7, ses_B: 2 })
+    status = await OrgRunner.status(tmp.path, ORG, run.runID)
+    expect(status.totalCost).toBe(9)
+  })
+
+  test("A-B-A session alternation does not double-count re-completed session cost", async () => {
+    await using tmp = await tmpdir()
+    const costs: Record<string, number> = { ses_A: 5 }
+    const costDeps = { costOf: async (id: string) => costs[id] }
+    const run = await OrgRunner.start(tmp.path, ORG, "idea twelve")
+
+    // ses_A completes at cost 5
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 5 })
+
+    // revise; a DIFFERENT session ses_B completes at cost 2
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "try a different angle")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {}) // re-instruct
+    costs["ses_B"] = 2
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# take two\n\n" + "session b ".repeat(20))
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_B" })
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 5, ses_B: 2 })
+
+    // revise again; back to ses_A, now with cumulative cost 8 (not a fresh 5+8)
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "back to the original take")
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, {}) // re-instruct
+    costs["ses_A"] = 8
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "# take three\n\n" + "session a again ".repeat(20))
+    await OrgRunner.advance(costDeps, tmp.path, ORG, run.runID, { taskID: "ses_A" })
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].costs).toEqual({ ses_A: 8, ses_B: 2 })
+
+    const status = await OrgRunner.status(tmp.path, ORG, run.runID)
+    expect(status.totalCost).toBe(10) // NOT 15 (5 + 2 + 8)
+  })
+
+  test("legacy state.json with old-style cost and no costs map is still summed in status", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea thirteen")
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "completed"
+      s.stages["evaluation"].cost = 4.2
+      // no `costs` map: simulates a state.json written before this change
+    })
+    const status = await OrgRunner.status(tmp.path, ORG, run.runID)
+    expect(status.totalCost).toBe(4.2)
   })
 })

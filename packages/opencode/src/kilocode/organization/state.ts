@@ -12,9 +12,12 @@ export namespace OrgState {
   export const Stage = z.object({
     status: StageStatus,
     taskID: z.string().optional(),
+    /** @deprecated superseded by `costs`; kept optional for reading old state.json files. */
     cost: z.number().optional(),
-    /** Session that produced `cost`; a different session at completion means fresh spend to accumulate. */
+    /** @deprecated superseded by `costs`; kept optional for reading old state.json files. */
     costTaskID: z.string().optional(),
+    /** taskID -> that session's latest cumulative cost. Distinct sessions accumulate; a resumed session overwrites its own key. */
+    costs: z.record(z.string(), z.number()).optional(),
     attempts: z.number().default(0),
     decision: z.enum(["approve", "no-go", "revise"]).optional(),
     decisionNote: z.string().optional(),

@@ -29,6 +29,17 @@ export namespace OrgRunner {
     return OrgState.create(projectDir, org, idea)
   }
 
+  /**
+   * Total cost of a stage: sum of per-session cumulative costs, falling back to the legacy
+   * single-slot `cost` field when `costs` is absent/empty (state.json written before per-session
+   * tracking existed).
+   */
+  function stageCost(stage: OrgState.Stage): number {
+    const values = Object.values(stage.costs ?? {})
+    if (values.length > 0) return values.reduce((sum, c) => sum + c, 0)
+    return stage.cost ?? 0
+  }
+
   /** Hash of the stage deliverable as currently on disk (empty string when unreadable). */
   async function deliverableHash(projectDir: string, runID: string, stage: string): Promise<string> {
     const text = await Bun.file(OrgArtifacts.deliverablePath(projectDir, runID, stage))
@@ -164,10 +175,11 @@ export namespace OrgRunner {
       run = await OrgState.update(projectDir, runID, (s) => {
         const rec = s.stages[stage]
         rec.completedAt = new Date().toISOString()
-        if (cost !== undefined) {
-          // A fresh session adds new spend on top of prior sessions'; a resumed session reports cumulative cost, so overwrite.
-          rec.cost = rec.cost !== undefined && rec.costTaskID !== undefined && rec.costTaskID !== record.taskID ? rec.cost + cost : cost
-          rec.costTaskID = record.taskID
+        if (cost !== undefined && record.taskID) {
+          // Per-session key: a resumed session reports cumulative cost, so this is a pure
+          // overwrite of its own entry; a distinct session occupies a distinct key, so totals
+          // accumulate naturally with no double-counting across A-B-A style alternation.
+          rec.costs = { ...rec.costs, [record.taskID]: cost }
         }
         rec.reviseBaseline = undefined // changed content accepted; baseline consumed
         rec.status = running.gate === "human" ? "awaiting_approval" : "completed"
@@ -229,7 +241,7 @@ export namespace OrgRunner {
 
   export async function status(projectDir: string, org: OrgSchema.Organization, runID: string) {
     const run = await OrgState.read(projectDir, runID)
-    const totalCost = Object.values(run.stages).reduce((sum, s) => sum + (s.cost ?? 0), 0)
+    const totalCost = Object.values(run.stages).reduce((sum, s) => sum + stageCost(s), 0)
     return { run, totalCost, pipeline: org.pipeline.map(({ stage, gate }) => ({ stage, gate, ...run.stages[stage] })) }
   }
 }
