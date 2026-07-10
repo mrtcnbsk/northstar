@@ -47,6 +47,26 @@ describe("KiloTask.permissions", () => {
   })
 })
 
+describe("deriveSubagentSessionPermission canTask (unified on KiloTask.nestedTask)", () => {
+  // kilocode_change start - before the unification, deriveSubagentSessionPermission treated ANY
+  // task rule (even a wildcard-only ask, which is just the global config leaking into every
+  // agent's ruleset) as canTask=true and omitted the task deny. Now it defers to the same
+  // stricter, non-deny + non-wildcard predicate KiloTask.nestedTask uses, so a wildcard-only
+  // agent gets the task deny here too.
+  test("agent with only a wildcard {task,*,ask} rule now receives the task deny", () => {
+    const wildcardAskOnly = agent([{ permission: "task", pattern: "*", action: "ask" }])
+    expect(KiloTask.nestedTask(wildcardAskOnly)).toBe(false)
+
+    const session = deriveSubagentSessionPermission({
+      parentSessionPermission: [],
+      parentAgent: undefined,
+      subagent: wildcardAskOnly,
+    })
+    expect(session.some((r) => r.permission === "task" && r.action === "deny")).toBe(true)
+  })
+  // kilocode_change end
+})
+
 describe("transitive permission ceiling across 3 levels (existing derive logic composes)", () => {
   test("a CEO edit deny survives CEO -> chief -> worker", () => {
     const ceo = agent([{ permission: "edit", pattern: "*", action: "deny" }])

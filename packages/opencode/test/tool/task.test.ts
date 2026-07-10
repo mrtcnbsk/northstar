@@ -583,6 +583,9 @@ describe("tool.task", () => {
       const tool = yield* TaskTool
       const def = yield* tool.init()
       const promptOps = stubOps()
+      // kilocode_change - count ask invocations to prove the depth guard now runs before the
+      // permission prompt: a depth-exceeding spawn must fail without ever reaching ctx.ask
+      let askCalls = 0
 
       const exit = yield* def
         .execute(
@@ -599,7 +602,10 @@ describe("tool.task", () => {
             extra: { promptOps },
             messages: [],
             metadata: () => Effect.void,
-            ask: () => Effect.void,
+            ask: () =>
+              Effect.sync(() => {
+                askCalls++
+              }),
           },
         )
         .pipe(Effect.exit)
@@ -608,6 +614,8 @@ describe("tool.task", () => {
       const squashed = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
       const message = squashed instanceof Error ? squashed.message : String(squashed)
       expect(message).toContain("Delegation depth limit")
+      // kilocode_change - the guard fired before ctx.ask, so the user was never prompted
+      expect(askCalls).toBe(0)
       // no child session was created under the worker
       const kids = yield* sessions.children(grandchild.id)
       expect(kids).toHaveLength(0)

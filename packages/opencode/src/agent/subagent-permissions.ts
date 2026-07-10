@@ -1,5 +1,6 @@
 import type { Permission } from "../permission"
 import type { Agent } from "./agent"
+import { KiloTask } from "../kilocode/tool/task" // kilocode_change - unify canTask on the stricter nestedTask predicate
 
 /**
  * Build the `permission` ruleset for a subagent's session when it's spawned
@@ -19,7 +20,10 @@ export function deriveSubagentSessionPermission(input: {
   parentAgent: Agent.Info | undefined
   subagent: Agent.Info
 }): Permission.Ruleset {
-  const canTask = input.subagent.permission.some((rule) => rule.permission === "task")
+  // kilocode_change - use the stricter KiloTask.nestedTask predicate (non-deny + non-wildcard)
+  // instead of "any task rule", so deny-only/wildcard-only agents also get the task deny below
+  const canTask = KiloTask.nestedTask(input.subagent)
+  // kilocode_change end
   const canTodo = input.subagent.permission.some((rule) => rule.permission === "todowrite")
   const parentAgentDenies =
     input.parentAgent?.permission.filter((rule) => rule.action === "deny" && rule.permission === "edit") ?? []

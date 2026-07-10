@@ -139,6 +139,12 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error("Background subagents require KILO_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
       }
 
+      // kilocode_change start - fetch parent once; enforce max delegation depth (CEO -> chief -> worker)
+      // BEFORE the permission prompt so a depth-exceeding spawn never reaches ctx.ask
+      const parent = yield* sessions.get(ctx.sessionID)
+      yield* OrgDepth.guardFrom((id) => sessions.get(SessionID.make(id)), parent)
+      // kilocode_change end
+
       if (!ctx.extra?.bypassAgentCheck) {
         yield* ctx.ask({
           permission: id,
@@ -160,9 +166,6 @@ export const TaskTool = Tool.define(
       // kilocode_change end
 
       const canTask = KiloTask.nestedTask(next) // kilocode_change - manager subagents (subordinates) may delegate
-      // kilocode_change start - enforce max delegation depth (CEO -> chief -> worker)
-      yield* OrgDepth.guard((id) => sessions.get(SessionID.make(id)), ctx.sessionID)
-      // kilocode_change end
       const canTodo = next.permission.some((rule) => rule.permission === "todowrite")
 
       const session = params.task_id
@@ -173,7 +176,7 @@ export const TaskTool = Tool.define(
           new Error(`Cannot resume session ${params.task_id}: not a child of the current session`),
         ) // kilocode_change - prevent cross-session task resume
       }
-      const parent = yield* sessions.get(ctx.sessionID)
+      // kilocode_change - parent already fetched above (guard reorder), no redundant re-fetch
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
