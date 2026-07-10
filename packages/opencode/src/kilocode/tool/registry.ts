@@ -21,6 +21,7 @@ import * as Truncate from "@/tool/truncate"
 import { InstanceState } from "@/effect/instance-state"
 import { KiloMemory } from "@kilocode/kilo-memory/effect"
 import { MemoryPaths } from "@kilocode/kilo-memory/effect/paths"
+import { OrgSchema } from "@/kilocode/organization/schema"
 
 const log = Log.create({ service: "kilocode-tool-registry" })
 type Deps = { agent: Agent.Interface; truncate: Truncate.Interface; indexing?: boolean }
@@ -291,12 +292,49 @@ export namespace KiloToolRegistry {
       return enabled
     })
   }
-  /** Hide Kilo memory tools from the model when project memory is disabled. */
+  // Re-keyed to project directory so repeated probes within the TTL are coalesced.
+  const orgEnabledCache = new Map<string, { enabled: boolean; deadline: number }>()
+  const ORG_ENABLED_CACHE_MAX = 512
+  const ORG_ENABLED_TTL_MS = 5_000
+
+  /** Per-turn cache of the organization-config existence probe, keyed by project directory, with a
+   * short TTL so the step-loop coalesces probes inside a single turn. Cache invalidation is not
+   * needed: org config files are created rarely (once, by hand or `/org init`), so a stale "disabled"
+   * read for up to the TTL is an acceptable trade-off versus subscribing to filesystem events. */
+  export function orgToolsEnabled(input: { ctx: { directory: string } }) {
+    return Effect.gen(function* () {
+      const root = input.ctx.directory
+      const cached = orgEnabledCache.get(root)
+      if (cached && cached.deadline > Date.now()) return cached.enabled
+      const enabled = yield* Effect.tryPromise({
+        try: () => Bun.file(OrgSchema.organizationPath(root)).exists(),
+        catch: (err) => err,
+      }).pipe(
+        Effect.catch((err) =>
+          Effect.sync(() => {
+            log.warn("org tools unavailable", { error: String(err) })
+            return false
+          }),
+        ),
+      )
+      orgEnabledCache.set(root, { enabled, deadline: Date.now() + ORG_ENABLED_TTL_MS })
+      if (orgEnabledCache.size > ORG_ENABLED_CACHE_MAX) {
+        const oldest = orgEnabledCache.keys().next().value
+        if (oldest !== undefined) orgEnabledCache.delete(oldest)
+      }
+      return enabled
+    })
+  }
+
+  /** Hide Kilo memory tools from the model when project memory is disabled, and hide org_* tools
+   * from projects that have no organization config. */
   export const applyVisibility = Effect.fn("KiloToolRegistry.applyVisibility")(function* (tools: Tool.Def[]) {
     const ctx = yield* InstanceState.context
     const memoryEnabled = yield* memoryToolsEnabled({ ctx })
+    const orgEnabled = yield* orgToolsEnabled({ ctx })
     return tools.filter((tool) => {
       if (tool.id.startsWith("kilo_memory_")) return memoryEnabled
+      if (tool.id.startsWith("org_")) return orgEnabled
       return true
     })
   })

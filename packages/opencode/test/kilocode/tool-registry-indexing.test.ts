@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test"
+import fs from "fs/promises"
 import { Effect, Layer, Schema, Stream } from "effect"
 import * as Log from "@opencode-ai/core/util/log"
 import { Agent } from "../../src/agent/agent"
@@ -10,6 +11,7 @@ import { KiloMemory } from "@kilocode/kilo-memory/effect"
 import { MemoryService } from "@kilocode/kilo-memory/effect/service"
 import { InstanceState } from "../../src/effect/instance-state"
 import { KiloToolRegistry } from "../../src/kilocode/tool/registry"
+import { OrgSchema } from "../../src/kilocode/organization/schema"
 import { Provider } from "../../src/provider/provider"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Session } from "../../src/session/session"
@@ -315,6 +317,75 @@ describe("kilocode tool registry indexing", () => {
           expect(ids).toContain("kilo_memory_recall")
           expect(ids).toContain("kilo_memory_save")
           expect(ids).toContain("kilo_local_recall")
+        }),
+      { git: true },
+    ),
+  )
+
+  const orgIDs = ["org_start", "org_advance", "org_decision", "org_status"]
+
+  it.live("hides org tools when the project has no organization config", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const agent = yield* Agent.Service
+          const build = yield* agent.get("build")
+          const registry = yield* ToolRegistry.Service
+          const tools = yield* registry.tools({ ...ref, agent: build })
+          const ids = tools.map((tool) => tool.id)
+
+          for (const id of orgIDs) expect(ids).not.toContain(id)
+        }),
+      { git: true },
+    ),
+  )
+
+  it.live("includes org tools once an organization config exists", () =>
+    provideTmpdirInstance(
+      (dir) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(async () => {
+            await fs.mkdir(`${dir}/.kilo`, { recursive: true })
+            await fs.writeFile(
+              OrgSchema.organizationPath(dir),
+              JSON.stringify({
+                ceo: "ceo",
+                departments: { eng: { chief: "chief", workers: ["worker"] } },
+                pipeline: [{ stage: "eng" }],
+              }),
+            )
+          })
+
+          const agent = yield* Agent.Service
+          const build = yield* agent.get("build")
+          const registry = yield* ToolRegistry.Service
+          const tools = yield* registry.tools({ ...ref, agent: build })
+          const ids = tools.map((tool) => tool.id)
+
+          for (const id of orgIDs) expect(ids).toContain(id)
+        }),
+      { git: true },
+    ),
+  )
+
+  it.live("orgToolsEnabled coalesces consecutive probes within the TTL", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const ctx = yield* InstanceState.context
+          const probe = spyOn(Bun, "file")
+
+          try {
+            const a = yield* KiloToolRegistry.orgToolsEnabled({ ctx })
+            const b = yield* KiloToolRegistry.orgToolsEnabled({ ctx })
+            const c = yield* KiloToolRegistry.orgToolsEnabled({ ctx })
+
+            expect([a, b, c]).toEqual([false, false, false])
+            // Cache hit: only the first call should reach the filesystem probe.
+            expect(probe).toHaveBeenCalledTimes(1)
+          } finally {
+            probe.mockRestore()
+          }
         }),
       { git: true },
     ),
