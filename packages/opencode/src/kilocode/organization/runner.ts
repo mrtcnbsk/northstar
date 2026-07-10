@@ -322,16 +322,17 @@ export namespace OrgRunner {
 
   /**
    * Emergency stop: halts the run immediately regardless of current status, records the reason,
-   * and appends an audit entry. Returns the running stage's taskID (if any) so the caller can
-   * cancel the live chief session. org_advance already short-circuits on status "halted", so this
-   * alone is sufficient to stop the pipeline from progressing further.
+   * and appends an audit entry. Returns the running stage (if any) and its taskID so the caller
+   * can cancel the live chief session and word its report precisely. org_advance already
+   * short-circuits on status "halted", so this alone is sufficient to stop the pipeline from
+   * progressing further.
    */
   export async function stop(
     projectDir: string,
     org: OrgSchema.Organization,
     runID: string,
     reason: string,
-  ): Promise<{ run: OrgState.Run; taskID?: string }> {
+  ): Promise<{ run: OrgState.Run; stage?: string; taskID?: string }> {
     const run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
     const running = org.pipeline.find(({ stage }) => run.stages[stage].status === "running")
@@ -348,7 +349,7 @@ export namespace OrgRunner {
       decision: "stop",
       note: reason,
     })
-    return { run: updated, taskID }
+    return { run: updated, stage, taskID }
   }
 
   export async function status(projectDir: string, org: OrgSchema.Organization, runID: string) {

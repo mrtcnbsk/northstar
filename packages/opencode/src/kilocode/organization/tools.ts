@@ -255,15 +255,27 @@ export const OrgStopTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const { taskID } = yield* tryOrg(() => OrgRunner.stop(dir, org, params.run_id, params.reason))
-          if (!taskID) {
+          const { stage, taskID } = yield* tryOrg(() => OrgRunner.stop(dir, org, params.run_id, params.reason))
+          if (!stage) {
             return result("stopped", { action: "stopped", reason: params.reason, note: "no stage was running" })
           }
-          // Best-effort: the halt is already persisted, so a cancellation failure must degrade to
-          // a note rather than fail the stop.
-          const cancelled = yield* runState
-            .cancel(SessionID.make(taskID))
-            .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+          if (!taskID) {
+            return result("stopped", {
+              action: "stopped",
+              reason: params.reason,
+              note: `stage "${stage}" was running but no task session was recorded; nothing to cancel`,
+            })
+          }
+          // Best-effort: the halt is already persisted, so cancellation problems must degrade to
+          // a note rather than fail the stop. The startsWith guard mirrors org_advance's
+          // isResumable/costOf guards: the taskID was persisted verbatim from model input, and
+          // SessionID.make throws synchronously on non-"ses" strings — while evaluating the
+          // argument, before the catch below exists.
+          const cancelled = taskID.startsWith("ses")
+            ? yield* runState
+                .cancel(SessionID.make(taskID))
+                .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+            : false
           return result("stopped", {
             action: "stopped",
             reason: params.reason,

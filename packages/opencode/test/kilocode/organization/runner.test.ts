@@ -473,6 +473,7 @@ describe("OrgRunner full flows", () => {
     const result = await OrgRunner.stop(tmp.path, ORG, run.runID, "user asked to abort")
     expect(result.run.status).toBe("halted")
     expect(result.run.haltReason).toBe("emergency stop: user asked to abort")
+    expect(result.stage).toBe("evaluation")
     expect(result.taskID).toBe("ses_running")
 
     const state = await OrgState.read(tmp.path, run.runID)
@@ -496,6 +497,7 @@ describe("OrgRunner full flows", () => {
 
     const result = await OrgRunner.stop(tmp.path, ORG, run.runID, "changed my mind")
     expect(result.run.status).toBe("halted")
+    expect(result.stage).toBeUndefined()
     expect(result.taskID).toBeUndefined()
 
     const entries = await OrgAudit.read(tmp.path, run.runID)
