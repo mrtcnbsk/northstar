@@ -6,6 +6,7 @@ import { OrgArtifacts } from "./artifacts"
 import { OrgPrompts } from "./prompts"
 import { OrgAudit } from "./audit"
 import { OrgVersions } from "./versions" // kilocode_change - W8.5: best-effort deliverable version snapshots
+import { OrgGraph } from "./graph" // kilocode_change - W8.6: impact radius surfaced on revise
 
 export namespace OrgRunner {
   export interface Deps {
@@ -755,6 +756,9 @@ export namespace OrgRunner {
       } else {
         record.status = "running"
         record.reviseBaseline = reviseBaseline
+        // kilocode_change - W8.6: record which downstream stages this revise invalidates (pure
+        // metadata; those stages' own status is NOT touched - out of scope for this task).
+        record.invalidatedDownstream = OrgGraph.impactRadius(org, gated.stage)
         record.completedAt = undefined // the pre-revise completion timestamp is stale now
         record.incompleteAttempts = 0 // fresh revise iteration: revise churn gets its own retry budget, not the pre-completion count
         // W4-Finding#4: the revise run is a FRESH run of this stage — restart its clock, so its
