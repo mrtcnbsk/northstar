@@ -14,6 +14,7 @@ import { XcodeTestTool } from "./xcode-test"
 import { CrashSymbolicateTool } from "./crash-symbolicate"
 import { PrivacyManifestCheckTool } from "./privacy-manifest-check"
 import { AtsCheckTool } from "./ats-check"
+import { SecretScanTool } from "./secret-scan"
 import {
   OrgStartTool,
   OrgAdvanceTool,
@@ -81,6 +82,7 @@ export namespace KiloToolRegistry {
       const crashSymbolicate = yield* CrashSymbolicateTool
       const privacyManifestCheck = yield* PrivacyManifestCheckTool
       const atsCheck = yield* AtsCheckTool
+      const secretScan = yield* SecretScanTool
       const orgStart = yield* OrgStartTool
       const orgAdvance = yield* OrgAdvanceTool
       const orgDecision = yield* OrgDecisionTool
@@ -102,6 +104,7 @@ export namespace KiloToolRegistry {
           crashSymbolicate,
           privacyManifestCheck,
           atsCheck,
+          secretScan,
           orgStart,
           orgAdvance,
           orgDecision,
@@ -128,6 +131,7 @@ export namespace KiloToolRegistry {
         crashSymbolicate,
         privacyManifestCheck,
         atsCheck,
+        secretScan,
         orgStart,
         orgAdvance,
         orgDecision,
@@ -156,6 +160,7 @@ export namespace KiloToolRegistry {
       crashSymbolicate: Tool.Info
       privacyManifestCheck: Tool.Info
       atsCheck: Tool.Info
+      secretScan: Tool.Info
       orgStart: Tool.Info
       orgAdvance: Tool.Info
       orgDecision: Tool.Info
@@ -183,6 +188,7 @@ export namespace KiloToolRegistry {
         crashSymbolicate: Tool.init(tools.crashSymbolicate),
         privacyManifestCheck: Tool.init(tools.privacyManifestCheck),
         atsCheck: Tool.init(tools.atsCheck),
+        secretScan: Tool.init(tools.secretScan),
         orgStart: Tool.init(tools.orgStart),
         orgAdvance: Tool.init(tools.orgAdvance),
         orgDecision: Tool.init(tools.orgDecision),
@@ -265,6 +271,7 @@ export namespace KiloToolRegistry {
       crashSymbolicate: Tool.Def
       privacyManifestCheck: Tool.Def
       atsCheck: Tool.Def
+      secretScan: Tool.Def
       orgStart: Tool.Def
       orgAdvance: Tool.Def
       orgDecision: Tool.Def
@@ -302,6 +309,7 @@ export namespace KiloToolRegistry {
       tools.crashSymbolicate,
       tools.privacyManifestCheck,
       tools.atsCheck,
+      tools.secretScan,
       tools.orgStart,
       tools.orgAdvance,
       tools.orgDecision,

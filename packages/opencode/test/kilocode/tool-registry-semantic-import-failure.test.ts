@@ -60,6 +60,7 @@ function infos() {
     crashSymbolicate: info("crash_symbolicate"),
     privacyManifestCheck: info("privacy_manifest_check"),
     atsCheck: info("ats_check"),
+    secretScan: info("secret_scan"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),
