@@ -49,6 +49,33 @@ async function recordPostmortem(dir: string, org: OrgSchema.Organization, runID:
       dept: OrgPostmortem.keyStage(run),
       key: run.runID,
     })
+    // kilocode_change start - W6.3 fix: index THIS completed run's deliverables so `org_search`
+    // is actually functional against a real embedder (before this, nothing ever indexed org
+    // deliverables in production, so org_search queried an always-empty store).
+    //
+    // BEST-EFFORT and NON-BLOCKING to completion by construction:
+    //   - It runs strictly AFTER the run-ending result was already computed by the caller (inside
+    //     withRunLock, after OrgRunner.advance/decide/stop returned), so neither its latency nor a
+    //     failure can change what org_advance/org_decision/org_stop returns.
+    //   - `orgRagServices` NEVER throws: it catches every failure mode (no key, indexing disabled,
+    //     LanceDB unavailable) and returns `undefined`, leaving org-RAG gracefully INERT - the
+    //     common case when no embedder is configured indexes nothing and adds ~one cheap config
+    //     read of latency.
+    //   - A configured-but-failing/slow embedder throws or stalls only INSIDE this try, whose
+    //     catch below swallows it (the run already completed); it can never break run completion.
+    //   - `indexRun` uses stable per-chunk point ids, so a re-entrant recordPostmortem for the
+    //     same run (e.g. a second org_advance on an already-done run) re-indexes idempotently
+    //     rather than duplicating points.
+    // KiloIndexing + OrgRag are imported DYNAMICALLY (mirroring org-search.ts) to keep the heavy
+    // indexing module out of the tool registry's module-init graph and avoid the control-plane
+    // TDZ cycle that a static import there re-triggers.
+    const { KiloIndexing } = await import("@/kilocode/indexing")
+    const services = await KiloIndexing.orgRagServices(dir)
+    if (services) {
+      const { OrgRag } = await import("./rag")
+      await OrgRag.indexRun(dir, services.embedder, services.store, runID)
+    }
+    // kilocode_change end
   } catch (err) {
     postmortemLog.warn("org postmortem failed (best-effort; run result unaffected)", {
       runID,

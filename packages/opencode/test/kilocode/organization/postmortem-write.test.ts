@@ -74,6 +74,38 @@ describe("OrgPostmortem.write", () => {
     expect(text.indexOf(a.runID)).toBeLessThan(text.indexOf(b.runID))
   })
 
+  // Fix #3: recordPostmortem holds withRunLock(run_id) - a PER-RUN lock - but lessons.md is a
+  // SHARED file. Two DIFFERENT runs ending concurrently each do an unsynchronized
+  // read-check-append-write against it, so without a file-scoped lock the later write clobbers the
+  // earlier one and a whole postmortem section is silently lost.
+  test("Fix #3: concurrent writes for DIFFERENT runs both land (no lost update)", async () => {
+    await using tmp = await tmpdir()
+    const a = run("20260711-120000-race-a", "Race A")
+    const b = run("20260711-130000-race-b", "Race B")
+    const sa = OrgState.runSummary(a)
+    const sb = OrgState.runSummary(b)
+
+    await Promise.all([OrgPostmortem.write(tmp.path, a, sa, []), OrgPostmortem.write(tmp.path, b, sb, [])])
+
+    const text = await Bun.file(path.join(tmp.path, ".kilo", "org", "lessons.md")).text()
+    expect(text).toContain(`<!-- postmortem:${a.runID} -->`)
+    expect(text).toContain(`<!-- postmortem:${b.runID} -->`)
+  })
+
+  // The file lock must NOT weaken fire-once: two concurrent writes for the SAME run still produce
+  // exactly one section (the second observes the first's marker under the lock and no-ops).
+  test("Fix #3: concurrent writes for the SAME run still fire once", async () => {
+    await using tmp = await tmpdir()
+    const r = run("20260711-120000-same-run", "Same Run")
+    const s = OrgState.runSummary(r)
+
+    await Promise.all([OrgPostmortem.write(tmp.path, r, s, []), OrgPostmortem.write(tmp.path, r, s, [])])
+
+    const text = await Bun.file(path.join(tmp.path, ".kilo", "org", "lessons.md")).text()
+    const marker = `<!-- postmortem:${r.runID} -->`
+    expect(text.split(marker).length - 1).toBe(1)
+  })
+
   test("propagates a real write failure (does NOT silently succeed) when the destination path is unwritable", async () => {
     await using tmp = await tmpdir()
     // Pre-create a DIRECTORY at the exact lessons.md path so any read/write against it as a file fails.

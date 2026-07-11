@@ -65,17 +65,37 @@ export namespace OrgMemory {
     return Memory.remember({ root: orgRoot, text: tag(input.dept, input.text), key: input.key })
   }
 
+  // The engine (MemoryRecall.search) clamps any requested recall limit to [1, 20].
+  const ENGINE_MAX_LIMIT = 20
+  // When narrowing by dept, ask the engine for the widest candidate window it allows BEFORE the
+  // dept post-filter runs, so a matching-dept record ranked beyond the caller's (or the default)
+  // limit is not truncated away by the engine before we ever get to filter by dept.
+  const DEPT_OVERFETCH = ENGINE_MAX_LIMIT
+
   /** Lexical recall over the org pool, optionally narrowed to a `dept`. Never throws on an empty
    * or never-written pool: `Memory.recall` against a root with no `state.json` yet returns a
    * disabled-state shape with no `hits` field, which is normalized to `[]` here rather than
-   * accessed directly. */
+   * accessed directly.
+   *
+   * Two bugs this guards against (W6 fix #4/#5):
+   *   #5: the caller's `limit` MUST be threaded to `Memory.recall`; otherwise the engine caps at
+   *       its own default of 5 and a caller asking for more can never receive more.
+   *   #4: the `[dept::name]` filter is a POST-filter over the engine's hits. If the engine first
+   *       truncated to its top-N, a matching-dept record ranked below N would be gone before the
+   *       filter ran (recall wrongly reports "no results"). So when `dept` is set we over-fetch the
+   *       engine's max candidate window, filter by dept, THEN slice to the caller's `limit`.
+   */
   export async function recall(projectDir: string, input: RecallInput) {
     const orgRoot = root(projectDir)
-    const raw = await Memory.recall({ root: orgRoot, query: input.query })
-    const hits = "hits" in raw ? (raw.hits ?? []) : []
     const dept = input.dept
-    const scoped = dept ? hits.filter((hit) => hit.text.includes(marker(dept))) : hits
     const limit = input.limit
+    // Non-dept: thread the caller's limit straight through (engine clamps to [1, 20]; undefined =>
+    // its default of 5). Dept: over-fetch the widest window so the post-filter can see records
+    // ranked past `limit`, then re-slice to `limit` below.
+    const engineLimit = dept ? Math.min(ENGINE_MAX_LIMIT, Math.max(limit ?? 0, DEPT_OVERFETCH)) : limit
+    const raw = await Memory.recall({ root: orgRoot, query: input.query, limit: engineLimit })
+    const hits = "hits" in raw ? (raw.hits ?? []) : []
+    const scoped = dept ? hits.filter((hit) => hit.text.includes(marker(dept))) : hits
     const limited = typeof limit === "number" && limit >= 0 ? scoped.slice(0, limit) : scoped
     return {
       root: orgRoot,

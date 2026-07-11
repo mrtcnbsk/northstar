@@ -90,6 +90,36 @@ function memoryStore(): IVectorStore & { points: PointStruct[] } {
   return store as unknown as IVectorStore & { points: PointStruct[] }
 }
 
+// The exact required-key set enforced by LanceDBVectorStore.isPayloadValid (see
+// packages/kilo-indexing/src/indexing/vector-store/lancedb-vector-store.ts). Any point whose
+// payload is missing ANY of these is silently dropped by the REAL store's upsertPoints.
+const ISPAYLOADVALID_REQUIRED = ["filePath", "fileHash", "codeChunk", "startLine", "endLine"] as const
+
+// A store that ENFORCES isPayloadValid exactly like LanceDBVectorStore.upsertPoints's `valids`
+// filter: a point missing any required key is dropped rather than stored. This is the real-store
+// contract the plain memoryStore() above does NOT model (it stores anything), which is what let
+// the missing-fileHash bug hide against the in-memory stub.
+function enforcingStore(): IVectorStore & { points: PointStruct[] } {
+  const points: PointStruct[] = []
+  const valid = (payload: Record<string, unknown> | null | undefined) =>
+    !!payload && ISPAYLOADVALID_REQUIRED.every((key) => key in payload)
+  const store = {
+    points,
+    async upsertPoints(pts: PointStruct[]) {
+      points.push(...pts.filter((p) => valid(p.payload)))
+    },
+    async search(queryVector: number[], directoryPrefix?: string, minScore?: number, maxResults?: number) {
+      const scored = points
+        .filter((p) => !directoryPrefix || String(p.payload.filePath).startsWith(directoryPrefix))
+        .map((p) => ({ id: p.id, score: cosine(queryVector, p.vector), payload: p.payload }))
+        .filter((r) => (minScore === undefined ? true : r.score >= minScore))
+        .sort((a, b) => b.score - a.score)
+      return (maxResults !== undefined ? scored.slice(0, maxResults) : scored) as VectorStoreSearchResult[]
+    },
+  }
+  return store as unknown as IVectorStore & { points: PointStruct[] }
+}
+
 async function seedDeliverable(projectDir: string, runID: string, stage: string, text: string) {
   const file = OrgArtifacts.deliverablePath(projectDir, runID, stage)
   await mkdir(path.dirname(file), { recursive: true })
@@ -158,6 +188,104 @@ describe("OrgRag.indexDeliverables", () => {
     const result = await OrgRag.indexDeliverables(tmp.path, stubEmbedder(), store)
     expect(result.indexed).toBe(0)
     expect(store.points.length).toBe(0)
+  })
+
+  // Fix #1: every point must carry the FULL isPayloadValid required-key set (fileHash was missing,
+  // so the real LanceDB store silently dropped every org point — valids.length === 0).
+  test("every indexed point payload contains fileHash and the full isPayloadValid required-key set", async () => {
+    await using tmp = await tmpdir()
+    await seedDeliverable(tmp.path, "run-eval", "evaluation", EVAL_DOC)
+    await seedDeliverable(tmp.path, "run-eng", "engineering", ENG_DOC)
+
+    const store = memoryStore()
+    const result = await OrgRag.indexDeliverables(tmp.path, stubEmbedder(), store)
+
+    expect(result.indexed).toBeGreaterThan(0)
+    for (const point of store.points) {
+      for (const key of ISPAYLOADVALID_REQUIRED) {
+        expect(point.payload[key]).toBeDefined()
+        expect(key in point.payload).toBe(true)
+      }
+      // fileHash specifically: a stable non-empty content hash.
+      expect(typeof point.payload["fileHash"]).toBe("string")
+      expect((point.payload["fileHash"] as string).length).toBeGreaterThan(0)
+    }
+  })
+
+  // Fix #1 (RED before fix): against a store that ENFORCES isPayloadValid like the real
+  // LanceDBVectorStore, points were dropped (valids.length === 0). With fileHash present they are
+  // ACCEPTED — points.length now equals indexed instead of 0.
+  test("an isPayloadValid-enforcing store (mirroring LanceDBVectorStore) ACCEPTS every indexed point", async () => {
+    await using tmp = await tmpdir()
+    await seedDeliverable(tmp.path, "run-eval", "evaluation", EVAL_DOC)
+    await seedDeliverable(tmp.path, "run-eng", "engineering", ENG_DOC)
+
+    const store = enforcingStore()
+    const result = await OrgRag.indexDeliverables(tmp.path, stubEmbedder(), store)
+
+    expect(result.indexed).toBeGreaterThan(0)
+    // Not one point was dropped by the real-store filter: acceptance == everything indexed.
+    expect(store.points.length).toBe(result.indexed)
+  })
+})
+
+describe("OrgRag.indexRun", () => {
+  // Fix #2: production needs to index ONE run's deliverables at completion (the postmortem hook),
+  // not every run. indexRun scopes to a single runID.
+  test("indexes only the given run's deliverables, not other runs'", async () => {
+    await using tmp = await tmpdir()
+    await seedDeliverable(tmp.path, "run-eval", "evaluation", EVAL_DOC)
+    await seedDeliverable(tmp.path, "run-eng", "engineering", ENG_DOC)
+
+    const store = enforcingStore()
+    const result = await OrgRag.indexRun(tmp.path, stubEmbedder(), store, "run-eng")
+
+    expect(result.indexed).toBeGreaterThan(0)
+    expect(store.points.length).toBe(result.indexed)
+    const runIDs = new Set(store.points.map((p) => p.payload["runID"]))
+    expect(runIDs).toEqual(new Set(["run-eng"]))
+    // Every accepted point also satisfies the real store's required-key set.
+    for (const point of store.points) {
+      for (const key of ISPAYLOADVALID_REQUIRED) expect(key in point.payload).toBe(true)
+    }
+  })
+
+  test("is a no-op for a run with no deliverables", async () => {
+    await using tmp = await tmpdir()
+    const store = enforcingStore()
+    const result = await OrgRag.indexRun(tmp.path, stubEmbedder(), store, "run-missing")
+    expect(result.indexed).toBe(0)
+    expect(store.points.length).toBe(0)
+  })
+
+  // Re-indexing the SAME run twice must not duplicate points against the real store's
+  // delete-by-id-then-add upsert (deterministic per-chunk ids make re-index idempotent). The
+  // enforcing store here mirrors that delete-by-id semantics so the invariant is actually exercised.
+  test("re-indexing the same run is idempotent (stable ids, no duplicate points)", async () => {
+    await using tmp = await tmpdir()
+    await seedDeliverable(tmp.path, "run-eng", "engineering", ENG_DOC)
+
+    const points: PointStruct[] = []
+    const required = ISPAYLOADVALID_REQUIRED
+    const idStore = {
+      points,
+      async upsertPoints(pts: PointStruct[]) {
+        const valids = pts.filter((p) => !!p.payload && required.every((k) => k in p.payload))
+        const ids = new Set(valids.map((p) => p.id))
+        // Mirror LanceDBVectorStore.upsertPoints: delete existing ids first, then add.
+        for (let i = points.length - 1; i >= 0; i--) if (ids.has(points[i]!.id)) points.splice(i, 1)
+        points.push(...valids)
+      },
+      async search() {
+        return [] as VectorStoreSearchResult[]
+      },
+    } as unknown as IVectorStore & { points: PointStruct[] }
+
+    const first = await OrgRag.indexRun(tmp.path, stubEmbedder(), idStore, "run-eng")
+    const afterFirst = idStore.points.length
+    expect(afterFirst).toBe(first.indexed)
+    await OrgRag.indexRun(tmp.path, stubEmbedder(), idStore, "run-eng")
+    expect(idStore.points.length).toBe(afterFirst) // no duplication on re-index
   })
 })
 

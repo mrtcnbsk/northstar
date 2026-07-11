@@ -1,6 +1,6 @@
 // kilocode_change - new file
 import path from "path"
-import { randomUUID } from "node:crypto"
+import { createHash } from "node:crypto"
 import { readdir } from "node:fs/promises"
 import type { IEmbedder, IVectorStore, PointStruct, VectorStoreSearchResult } from "@kilocode/kilo-indexing/engine"
 import { OrgState } from "./state"
@@ -97,6 +97,71 @@ export namespace OrgRag {
   }
 
   /**
+   * A deterministic, UUID-SHAPED point id derived from the chunk's stable LOCATION
+   * (`filePath:startLine:endLine`), NOT its content. Two reasons this matters against the real
+   * `LanceDBVectorStore`:
+   *   1. `upsertPoints` runs `isValidId` on every id, which only accepts the canonical UUID shape
+   *      `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (see lancedb-vector-store.ts) - a raw hash would be
+   *      rejected. This slices a sha256 into exactly that shape (hex-only, correct group lengths).
+   *   2. `upsertPoints` deletes-by-id then re-adds, so a STABLE id makes re-indexing the same run
+   *      idempotent (replace-in-place) instead of appending duplicates with fresh random ids. This
+   *      is what keeps the best-effort re-index at run completion (see tools.ts `recordPostmortem`,
+   *      which can fire re-entrantly for the same run) from growing the collection without bound.
+   * Keying on location (not content) is deliberate: a revised deliverable re-embeds the SAME
+   * location id, so the point's vector/content is replaced rather than duplicated. (A chunk whose
+   * line range shifts leaves its old-range point orphaned - the known incremental-indexing gap,
+   * not addressed here; a full CacheManager-style diff is out of scope for W6.3.)
+   */
+  function pointId(filePath: string, startLine: number, endLine: number): string {
+    const h = createHash("sha256").update(`${filePath}:${startLine}:${endLine}`).digest("hex")
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`
+  }
+
+  /** Index one run's deliverables into `store`. Extracted so both the whole-org
+   * `indexDeliverables` and the single-run production hook (`indexRun`) share identical
+   * chunk->embed->upsert logic with no divergence. */
+  async function indexOne(
+    projectDir: string,
+    runID: string,
+    embedder: IEmbedder,
+    store: IVectorStore,
+  ): Promise<number> {
+    const dir = OrgArtifacts.deliverablesDir(projectDir, runID)
+    const entries = await deliverableFiles(dir)
+    const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    let indexed = 0
+    for (const entry of files) {
+      const stage = entry.name.slice(0, -3)
+      const filePath = OrgArtifacts.deliverablePath(projectDir, runID, stage)
+      const text = await Bun.file(filePath).text()
+      const chunks = chunk(text)
+      if (chunks.length === 0) continue
+
+      const embedded = await embedder.createEmbeddings(chunks.map((c) => c.text))
+      const points: PointStruct[] = chunks.map((c, i) => ({
+        id: pointId(filePath, c.startLine, c.endLine),
+        vector: embedded.embeddings[i] ?? [],
+        payload: {
+          filePath,
+          // fileHash is a REQUIRED key of the real store's `isPayloadValid` (alongside filePath,
+          // codeChunk, startLine, endLine) - a point missing it is silently dropped by
+          // LanceDBVectorStore.upsertPoints (valids.length === 0 => nothing stored). It is a
+          // content hash of the chunk so a revised deliverable's re-embed carries a changed hash.
+          fileHash: createHash("sha256").update(c.text).digest("hex"),
+          codeChunk: c.text,
+          startLine: c.startLine,
+          endLine: c.endLine,
+          runID,
+          stage,
+        },
+      }))
+      await store.upsertPoints(points)
+      indexed += points.length
+    }
+    return indexed
+  }
+
+  /**
    * Enumerates every run's deliverables via `OrgState.list` + `OrgArtifacts`, chunks each file,
    * embeds the chunks, and upserts them into `store`. Safe to call repeatedly (re-indexing) - it
    * does not attempt incremental/dedup tracking (no `CacheManager` reuse); callers that need that
@@ -110,34 +175,24 @@ export namespace OrgRag {
     const runIDs = await OrgState.list(projectDir)
     let indexed = 0
     for (const runID of runIDs) {
-      const dir = OrgArtifacts.deliverablesDir(projectDir, runID)
-      const entries = await deliverableFiles(dir)
-      const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-      for (const entry of files) {
-        const stage = entry.name.slice(0, -3)
-        const filePath = OrgArtifacts.deliverablePath(projectDir, runID, stage)
-        const text = await Bun.file(filePath).text()
-        const chunks = chunk(text)
-        if (chunks.length === 0) continue
-
-        const embedded = await embedder.createEmbeddings(chunks.map((c) => c.text))
-        const points: PointStruct[] = chunks.map((c, i) => ({
-          id: randomUUID(),
-          vector: embedded.embeddings[i] ?? [],
-          payload: {
-            filePath,
-            codeChunk: c.text,
-            startLine: c.startLine,
-            endLine: c.endLine,
-            runID,
-            stage,
-          },
-        }))
-        await store.upsertPoints(points)
-        indexed += points.length
-      }
+      indexed += await indexOne(projectDir, runID, embedder, store)
     }
     return { indexed, runs: runIDs.length }
+  }
+
+  /**
+   * Index a SINGLE run's deliverables. This is the production entry point used by the best-effort
+   * postmortem hook (`tools.ts` `recordPostmortem`) at run completion, so a finished run's
+   * deliverables become `org_search`-able WITHOUT re-embedding every prior run. A run with no
+   * deliverables directory (e.g. a run that halted before producing any) is a clean no-op.
+   */
+  export async function indexRun(
+    projectDir: string,
+    embedder: IEmbedder,
+    store: IVectorStore,
+    runID: string,
+  ): Promise<{ indexed: number }> {
+    return { indexed: await indexOne(projectDir, runID, embedder, store) }
   }
 
   const DELIVERABLE_PATH_RE = /\/\.kilo\/org\/runs\/([^/]+)\/deliverables\/([^/]+)\.md$/

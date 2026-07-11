@@ -114,6 +114,53 @@ describe("OrgMemory", () => {
     }
   })
 
+  // A 6-record pool for Fix #4/#5. Each query term is UNIQUE to a single record (appears in
+  // exactly one), so the lexical scorer never drops one as "ubiquitous" (corpus floor = 3). The
+  // five eng records each match TWO query terms (score 2); the sole design record matches ONE
+  // (score 1), so it deterministically ranks LAST (6th) - outside the engine's default top-5.
+  const SIX_QUERY = "zephyr xylophone quokka narwhal obsidian tungsten cinnabar basalt marlin haddock wombat"
+  async function seedSixPool(dir: string) {
+    await OrgMemory.save(dir, { text: "The zephyr rollout needs a xylophone gate.", dept: "eng", key: "eng-1" })
+    await OrgMemory.save(dir, { text: "A quokka cache precedes the narwhal migration.", dept: "eng", key: "eng-2" })
+    await OrgMemory.save(dir, { text: "Guard the obsidian queue with a tungsten retry.", dept: "eng", key: "eng-3" })
+    await OrgMemory.save(dir, { text: "The cinnabar worker batches basalt jobs.", dept: "eng", key: "eng-4" })
+    await OrgMemory.save(dir, { text: "Route marlin traffic via the haddock proxy.", dept: "eng", key: "eng-5" })
+    // The ONLY design-tagged record, and the lowest-scoring match -> ranked ~6th.
+    await OrgMemory.save(dir, { text: "Audit the wombat spacing.", dept: "design", key: "design-1" })
+  }
+
+  // Fix #4: the [dept::name] post-filter used to run AFTER the engine already truncated to top-5,
+  // so a matching-dept record ranked outside the top-5 was dropped and recall reported "no results"
+  // though it existed. Over-fetching a wider candidate window before the post-filter recovers it.
+  test("Fix #4: a dept match ranked outside the default top-5 is still found (over-fetch before post-filter)", async () => {
+    const t = await tmp()
+    try {
+      await seedSixPool(t.dir)
+
+      const designOnly = await OrgMemory.recall(t.dir, { query: SIX_QUERY, dept: "design" })
+      expect(designOnly.hits.length).toBe(1)
+      expect(designOnly.hits[0]?.text).toContain("[dept::design]")
+      expect(designOnly.hits[0]?.text).toContain("wombat")
+    } finally {
+      await t.done()
+    }
+  })
+
+  // Fix #5: recall never threaded its `limit` to the engine, which caps at its own default of 5, so
+  // a caller asking for more than 5 could never receive more than 5. Threading the limit lets a
+  // >5 request return >5 hits (up to the engine max of 20).
+  test("Fix #5: a limit above 5 can return more than 5 hits (limit is threaded to the engine)", async () => {
+    const t = await tmp()
+    try {
+      await seedSixPool(t.dir)
+
+      const many = await OrgMemory.recall(t.dir, { query: SIX_QUERY, limit: 10 })
+      expect(many.hits.length).toBeGreaterThan(5)
+    } finally {
+      await t.done()
+    }
+  })
+
   test("limit caps the number of returned hits", async () => {
     const t = await tmp()
     try {

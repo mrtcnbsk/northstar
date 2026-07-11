@@ -300,7 +300,7 @@ export namespace Memory {
     })
   }
 
-  export async function recall(input: { root: string; query: string; sessionID?: string }) {
+  export async function recall(input: { root: string; query: string; sessionID?: string; limit?: number }) {
     const state = await MemoryFiles.readState(input.root)
     if (!state.enabled) return { root: input.root, state }
     const result = await MemoryRecall.search({
@@ -308,6 +308,10 @@ export namespace Memory {
       query: input.query,
       state,
       currentSessionID: input.sessionID,
+      // kilocode_change - W6 fix #5: forward an explicit recall limit so callers wanting more than
+      // the engine's default of 5 (e.g. OrgMemory's dept over-fetch) actually get a wider result
+      // set. Undefined preserves the prior default (MemoryRecall.search clamps to [1, 20]).
+      limit: input.limit,
     })
     const hits = result?.hits ?? []
     const files = [...new Set(hits.map((hit) => hit.source))]

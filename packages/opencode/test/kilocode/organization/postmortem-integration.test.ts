@@ -6,10 +6,11 @@
 // to drive runs through OrgRunner-shaped state via the real tools. Also proves the load-bearing
 // best-effort invariant: a FAILING lessons.md write must never change what org_advance/org_decision/
 // org_stop return.
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import path from "path"
 import { mkdir } from "node:fs/promises"
 import { Effect, Layer, ManagedRuntime } from "effect"
+import type { EmbedderInfo, IEmbedder, IVectorStore, PointStruct, VectorStoreSearchResult } from "@kilocode/kilo-indexing/engine"
 import { provideTestInstance, tmpdir } from "../../fixture/fixture"
 import { OrgAdvanceTool, OrgDecisionTool, OrgStopTool } from "../../../src/kilocode/organization/tools"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
@@ -18,6 +19,7 @@ import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgState } from "../../../src/kilocode/organization/state"
 import { OrgPostmortem } from "../../../src/kilocode/organization/postmortem"
 import { OrgMemory } from "../../../src/kilocode/organization/memory"
+import { KiloIndexing } from "../../../src/kilocode/indexing"
 import { Session } from "../../../src/session/session"
 import { SessionID, MessageID } from "../../../src/session/schema"
 import { Truncate } from "../../../src/tool/truncate"
@@ -158,6 +160,154 @@ async function stopTool(runtime: ReturnType<typeof makeRuntime>, runID: string, 
 function lessonsFile(dir: string) {
   return path.join(dir, ".kilo", "org", "lessons.md")
 }
+
+// --- key-free stub embedder + in-memory store (same shape as org-search-tool.test.ts) so the
+// completion-path org-RAG indexing (Fix #2) can be exercised with no key / no real LanceDB. ---
+const DIMS = 32
+function vectorize(text: string): number[] {
+  const vec = new Array(DIMS).fill(0)
+  const words = text.toLowerCase().match(/[a-z0-9]+/g) ?? []
+  for (const word of words) {
+    let h = 0
+    for (const ch of word) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+    vec[h % DIMS] += 1
+  }
+  return vec
+}
+function stubEmbedder(): IEmbedder {
+  return {
+    async createEmbeddings(texts) {
+      return { embeddings: texts.map(vectorize) }
+    },
+    async validateConfiguration() {
+      return { valid: true }
+    },
+    get embedderInfo(): EmbedderInfo {
+      return { name: "openai" }
+    },
+  }
+}
+function throwingEmbedder(): IEmbedder {
+  return {
+    async createEmbeddings() {
+      throw new Error("embedder unreachable / no key")
+    },
+    async validateConfiguration() {
+      return { valid: false, error: "no key" }
+    },
+    get embedderInfo(): EmbedderInfo {
+      return { name: "openai" }
+    },
+  }
+}
+// In-memory store that ENFORCES the real store's isPayloadValid required-key set, so this test
+// would catch a regression that reintroduced the missing-fileHash drop (Fix #1) on the hook path.
+function enforcingStore(): IVectorStore & { points: PointStruct[] } {
+  const points: PointStruct[] = []
+  const required = ["filePath", "fileHash", "codeChunk", "startLine", "endLine"]
+  return {
+    points,
+    async upsertPoints(pts: PointStruct[]) {
+      points.push(...pts.filter((p) => !!p.payload && required.every((k) => k in p.payload)))
+    },
+    async search() {
+      return [] as VectorStoreSearchResult[]
+    },
+  } as unknown as IVectorStore & { points: PointStruct[] }
+}
+
+describe("W6.2/W6.3 postmortem hook: best-effort org-RAG indexing at completion (Fix #2)", () => {
+  test("a completed run indexes ITS deliverables when an embedder is configured", async () => {
+    await using tmp = await tmpdir()
+    await seedOrg(tmp.path, LINEAR)
+    const run = await OrgRunner.start(tmp.path, LINEAR, "index on completion idea")
+    const store = enforcingStore()
+    // Inject a stub embedder+store: the hook resolves services via KiloIndexing.orgRagServices,
+    // which the tool dynamically imports (same module singleton the spy patches).
+    const services = spyOn(KiloIndexing, "orgRagServices").mockResolvedValue({ embedder: stubEmbedder(), store })
+    const runtime = makeRuntime()
+    try {
+      await provideTestInstance({
+        directory: tmp.path,
+        fn: async () => {
+          await advanceTool(runtime, run.runID)
+          await writeDeliverable(tmp.path, run.runID, "plan")
+          await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
+          await writeDeliverable(tmp.path, run.runID, "marketing")
+          const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
+          expect(done.action).toBe("done")
+
+          // The run's deliverables are now searchable: points were indexed for THIS run.
+          expect(store.points.length).toBeGreaterThan(0)
+          expect(new Set(store.points.map((p) => p.payload["runID"]))).toEqual(new Set([run.runID]))
+        },
+      })
+    } finally {
+      services.mockRestore()
+    }
+  })
+
+  test("a completed run with NO embedder (orgRagServices -> undefined) still completes and indexes nothing", async () => {
+    await using tmp = await tmpdir()
+    await seedOrg(tmp.path, LINEAR)
+    const run = await OrgRunner.start(tmp.path, LINEAR, "no embedder still completes idea")
+    const services = spyOn(KiloIndexing, "orgRagServices").mockResolvedValue(undefined)
+    const runtime = makeRuntime()
+    try {
+      await provideTestInstance({
+        directory: tmp.path,
+        fn: async () => {
+          await advanceTool(runtime, run.runID)
+          await writeDeliverable(tmp.path, run.runID, "plan")
+          await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
+          await writeDeliverable(tmp.path, run.runID, "marketing")
+          const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
+          expect(done.action).toBe("done")
+
+          // Postmortem still landed (org-RAG being inert never blocks the rest of the hook).
+          const text = await Bun.file(lessonsFile(tmp.path)).text()
+          expect(text).toContain(run.runID)
+          const state = await OrgState.read(tmp.path, run.runID)
+          expect(state.status).toBe("completed")
+        },
+      })
+    } finally {
+      services.mockRestore()
+    }
+  })
+
+  test("best-effort: a THROWING embedder on the completion path never changes the returned action", async () => {
+    await using tmp = await tmpdir()
+    await seedOrg(tmp.path, LINEAR)
+    const run = await OrgRunner.start(tmp.path, LINEAR, "throwing embedder best effort idea")
+    const services = spyOn(KiloIndexing, "orgRagServices").mockResolvedValue({
+      embedder: throwingEmbedder(),
+      store: enforcingStore(),
+    })
+    const runtime = makeRuntime()
+    try {
+      await provideTestInstance({
+        directory: tmp.path,
+        fn: async () => {
+          await advanceTool(runtime, run.runID)
+          await writeDeliverable(tmp.path, run.runID, "plan")
+          await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
+          await writeDeliverable(tmp.path, run.runID, "marketing")
+          const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
+
+          expect(done.action).toBe("done")
+          const state = await OrgState.read(tmp.path, run.runID)
+          expect(state.status).toBe("completed")
+          // The postmortem itself is unaffected by the embedder blowing up afterward.
+          const text = await Bun.file(lessonsFile(tmp.path)).text()
+          expect(text).toContain(run.runID)
+        },
+      })
+    } finally {
+      services.mockRestore()
+    }
+  })
+})
 
 describe("W6.2 postmortem hook: tool-level integration", () => {
   test("completed run (org_advance done): lessons.md gains the section and org memory recalls the lesson", async () => {

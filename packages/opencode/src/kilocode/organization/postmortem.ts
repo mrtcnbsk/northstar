@@ -32,6 +32,38 @@ export namespace OrgPostmortem {
     return path.join(projectDir, ".kilo", "org", "lessons.md")
   }
 
+  // kilocode_change start - W6 fix #3: file-scoped lock for the SHARED lessons.md.
+  // `recordPostmortem` runs under `withRunLock(run_id)` (tools.ts), which is keyed PER RUN - it
+  // serializes concurrent org tool calls for the SAME run, but does nothing for two DIFFERENT runs
+  // ending at the same time. lessons.md is a single shared file, and `write` below is an
+  // unsynchronized read-check-append-write; two different runs racing it would each read the same
+  // prior content and the later `Filesystem.write` (temp-file + rename, last-rename-wins) would
+  // clobber the earlier run's freshly-appended section - a silently lost postmortem.
+  //
+  // Fix: a standard promise-chain mutex keyed by the lessons.md path, INDEPENDENT of run_id, so the
+  // full read-check-append-write body of `write` is serialized across all runs targeting the same
+  // file. Keyed by path (not a single global) so distinct project directories never wait on each
+  // other. Same idiom as tools.ts's `withRunLock`: the stored tail is `.catch(() => {})`-guarded so
+  // one caller's failure can never wedge the queue, while the real error still propagates to that
+  // caller via the returned promise.
+  //
+  // The shared org-memory pool write (OrgMemory.save) does NOT need this: `Memory.remember` routes
+  // through `MemoryOperations.apply`, whose entire read-modify-write is wrapped in a per-root
+  // `MemoryFiles.queue` (promise-chain + on-disk lock), so concurrent saves to the same org pool
+  // are already serialized by the memory engine itself.
+  const lessonsLocks = new Map<string, Promise<unknown>>()
+
+  function withLessonsLock<A>(file: string, fn: () => Promise<A>): Promise<A> {
+    const tail = lessonsLocks.get(file) ?? Promise.resolve()
+    const result = tail.then(fn, fn)
+    lessonsLocks.set(
+      file,
+      result.catch(() => {}),
+    )
+    return result
+  }
+  // kilocode_change end
+
   function marker(runID: string): string {
     return `<!-- postmortem:${runID} -->`
   }
@@ -123,15 +155,19 @@ export namespace OrgPostmortem {
     audit: OrgAudit.Entry[],
   ): Promise<void> {
     const file = lessonsPath(projectDir)
-    const existing = await Bun.file(file)
-      .text()
-      .catch((e: unknown) => {
-        if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return ""
-        throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
-      })
-    if (existing.includes(marker(run.runID))) return // fire-once: this run's section is already present
-    const section = build(run, summary, audit)
-    const next = existing.length > 0 ? `${existing}\n${section}` : section
-    await Filesystem.write(file, next)
+    // kilocode_change - W6 fix #3: serialize the read-check-append-write against other runs writing
+    // the SAME lessons.md, so a concurrent postmortem for a different run can't clobber this append.
+    return withLessonsLock(file, async () => {
+      const existing = await Bun.file(file)
+        .text()
+        .catch((e: unknown) => {
+          if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return ""
+          throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
+        })
+      if (existing.includes(marker(run.runID))) return // fire-once: this run's section is already present
+      const section = build(run, summary, audit)
+      const next = existing.length > 0 ? `${existing}\n${section}` : section
+      await Filesystem.write(file, next)
+    })
   }
 }
