@@ -25,7 +25,7 @@ interface RemovalTargets {
 
 export const UninstallCommand = {
   command: "uninstall",
-  describe: "uninstall kilo and remove all related files", // kilocode_change
+  describe: "uninstall northstar and remove all related files", // kilocode_change
   builder: (yargs: Argv) =>
     yargs
       .option("keep-config", {
@@ -56,7 +56,7 @@ export const UninstallCommand = {
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()
-    prompts.intro("Uninstall Kilo") // kilocode_change
+    prompts.intro("Uninstall northstar") // kilocode_change
 
     const method = await Installation.method()
     prompts.log.info(`Installation method: ${method}`)
@@ -130,10 +130,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string> = {
-      npm: "npm uninstall -g @kilocode/cli", // kilocode_change
-      pnpm: "pnpm uninstall -g @kilocode/cli", // kilocode_change
-      bun: "bun remove -g @kilocode/cli", // kilocode_change
-      yarn: "yarn global remove @kilocode/cli", // kilocode_change
+      npm: "npm uninstall -g @ilura/northstar", // kilocode_change
+      pnpm: "pnpm uninstall -g @ilura/northstar", // kilocode_change
+      bun: "bun remove -g @ilura/northstar", // kilocode_change
+      yarn: "yarn global remove @ilura/northstar", // kilocode_change
       brew: `brew uninstall ${KiloBrew.name}`, // kilocode_change
       choco: "choco uninstall kilo", // kilocode_change
       scoop: "scoop uninstall kilo", // kilocode_change
@@ -181,10 +181,10 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "@kilocode/cli"], // kilocode_change
-      pnpm: ["pnpm", "uninstall", "-g", "@kilocode/cli"], // kilocode_change
-      bun: ["bun", "remove", "-g", "@kilocode/cli"], // kilocode_change
-      yarn: ["yarn", "global", "remove", "@kilocode/cli"], // kilocode_change
+      npm: ["npm", "uninstall", "-g", "@ilura/northstar"], // kilocode_change
+      pnpm: ["pnpm", "uninstall", "-g", "@ilura/northstar"], // kilocode_change
+      bun: ["bun", "remove", "-g", "@ilura/northstar"], // kilocode_change
+      yarn: ["yarn", "global", "remove", "@ilura/northstar"], // kilocode_change
       brew: ["brew", "uninstall", KiloBrew.name], // kilocode_change
       choco: ["choco", "uninstall", "kilo"], // kilocode_change
       scoop: ["scoop", "uninstall", "kilo"], // kilocode_change
@@ -225,7 +225,7 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
   }
 
   UI.empty()
-  prompts.log.success("Thank you for using Kilo!") // kilocode_change
+  prompts.log.success("Thank you for using northstar!") // kilocode_change
 }
 
 async function getShellConfigFile(): Promise<string | null> {

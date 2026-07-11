@@ -50,7 +50,7 @@ function View(props: { api: TuiPluginApi }) {
               </text>
             </box>
             {/* kilocode_change start */}
-            <text fg={theme().textMuted}>Kilo includes free models so you can start immediately.</text>
+            <text fg={theme().textMuted}>northstar includes free models so you can start immediately.</text>
             {/* kilocode_change end */}
             <text fg={theme().textMuted}>
               Connect from 75+ providers to use other models, including Claude, GPT, Gemini etc
@@ -68,7 +68,7 @@ function View(props: { api: TuiPluginApi }) {
       </text>
       {/* kilocode_change start */}
       <text fg={theme().textMuted}>
-        <span style={{ fg: theme().success }}>•</span> <b>Kilo</b> <span>{props.api.app.version}</span>
+        <span style={{ fg: theme().success }}>•</span> <b>northstar</b> <span>{props.api.app.version}</span>
       </text>
       {/* kilocode_change end */}
     </box>
