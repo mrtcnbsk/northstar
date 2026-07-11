@@ -413,6 +413,9 @@ describe("kilocode tool registry indexing", () => {
       xcodeBuild: def("xcode_build"),
       xcodeTest: def("xcode_test"),
       crashSymbolicate: def("crash_symbolicate"),
+      privacyManifestCheck: def("privacy_manifest_check"),
+      atsCheck: def("ats_check"),
+      secretScan: def("secret_scan"),
       orgStart: def("org_start"),
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
@@ -436,6 +439,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra(tools, { experimental: { codebase_search: true } }).map((tool) => tool.id)).toEqual(
@@ -450,6 +456,9 @@ describe("kilocode tool registry indexing", () => {
           "xcode_build",
           "xcode_test",
           "crash_symbolicate",
+          "privacy_manifest_check",
+          "ats_check",
+          "secret_scan",
           ...orgIDs,
         ],
       )
@@ -469,6 +478,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
 
@@ -486,6 +498,9 @@ describe("kilocode tool registry indexing", () => {
           "xcode_build",
           "xcode_test",
           "crash_symbolicate",
+          "privacy_manifest_check",
+          "ats_check",
+          "secret_scan",
           ...orgIDs,
         ],
       )
@@ -508,6 +523,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra({ ...tools, semantic: undefined }, {}).map((tool) => tool.id)).toEqual([
@@ -520,6 +538,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
 
@@ -532,6 +553,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
 
@@ -544,6 +568,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
 
@@ -556,6 +583,9 @@ describe("kilocode tool registry indexing", () => {
         "xcode_build",
         "xcode_test",
         "crash_symbolicate",
+        "privacy_manifest_check",
+        "ats_check",
+        "secret_scan",
         ...orgIDs,
       ])
     } finally {

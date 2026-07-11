@@ -1,0 +1,11 @@
+Check an Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) for compliance gaps instead of hand-reading raw XML plist.
+
+Reads the XML plist at `manifestPath`, parses its top-level `NSPrivacyAccessedAPITypes` array (each entry has an `NSPrivacyAccessedAPIType` string and an `NSPrivacyAccessedAPITypeReasons` array of declared reason codes), and flags problems: a declared Required-Reason API with an empty reasons array, and (when `requiredReasonAPIs` is provided) any of those APIs that are missing from the manifest entirely or present with no reasons declared.
+
+Use this before submitting an app that uses Required Reason APIs (UserDefaults, file timestamps, system boot time, disk space, active keyboard, etc.) to catch App Store Connect privacy-manifest rejections before they happen, or when reviewing a manifest a teammate/agent produced.
+
+Parameters:
+- `manifestPath`: filesystem path to the `PrivacyInfo.xcprivacy` file.
+- `requiredReasonAPIs` (optional): list of `NSPrivacyAccessedAPICategory*` reason codes the app is known to use; each must be declared in the manifest with at least one non-empty reason.
+
+Returns `{ ok, status, violations, rawPath }` where `status` is one of `"ok"`, `"missing_manifest"` (file not found), or `"invalid"` (unparsable XML). `violations` is a list of `{ api?, key?, message }` — never throws on a missing or malformed file; those degrade to a structured `ok: false` result.
