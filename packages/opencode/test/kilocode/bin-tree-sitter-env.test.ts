@@ -3,14 +3,14 @@ import { mkdir, mkdtemp, rm, writeFile } from "fs/promises"
 import { tmpdir } from "os"
 import { join } from "path"
 
-const script = join(import.meta.dir, "..", "..", "bin", "kilo")
+const script = join(import.meta.dir, "..", "..", "bin", "northstar")
 const platform = process.platform === "win32" ? "windows" : process.platform
-const binary = platform === "windows" ? "kilo.exe" : "kilo"
+const binary = platform === "windows" ? "northstar.exe" : "northstar"
 
-describe("bin/kilo tree-sitter resources", () => {
+describe("bin/northstar tree-sitter resources", () => {
   async function setup(root: string, nested: boolean) {
     const dir = nested
-      ? join(root, "node_modules", "@kilocode", `cli-${platform}-${process.arch}`, "bin")
+      ? join(root, "node_modules", "@ilura", `northstar-${platform}-${process.arch}`, "bin")
       : join(root, "node_modules", "@kilocode", "cli", "bin")
     const wasm = join(dir, "tree-sitter")
     const bin = join(dir, nested ? binary : ".kilo")

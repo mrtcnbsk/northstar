@@ -58,7 +58,7 @@ function compareVersion(
 }
 
 async function fetchLatest() {
-  const data: any = await fetch("https://registry.npmjs.org/@kilocode/cli/latest").then((res) => {
+  const data: any = await fetch("https://registry.npmjs.org/@ilura/northstar/latest").then((res) => {
     if (!res.ok) throw new Error(res.statusText)
     return res.json()
   })

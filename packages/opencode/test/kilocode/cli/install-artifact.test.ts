@@ -5,7 +5,7 @@ import os from "os"
 import path from "path"
 
 const root = path.join(import.meta.dir, "..", "..", "..")
-const wrapper = path.join(root, "bin", "kilo")
+const wrapper = path.join(root, "bin", "northstar")
 const postinstall = path.join(root, "script", "postinstall.mjs")
 
 describe("npm install artifact behavior", () => {
@@ -13,7 +13,7 @@ describe("npm install artifact behavior", () => {
     const text = await fs.readFile(wrapper, "utf8")
     expect(text.startsWith("#!/usr/bin/env node")).toBe(true)
     expect(text).toContain("const envPath = process.env.KILO_BIN_PATH")
-    expect(text).toContain('const base = "@kilocode/cli-" + platform + "-" + arch')
+    expect(text).toContain('const base = "@ilura/northstar-" + platform + "-" + arch')
     expect(text).toContain("function findBinary(startDir)")
   })
 

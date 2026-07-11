@@ -106,8 +106,8 @@ let arch = archMap[os.arch()]
 if (!arch) {
   arch = os.arch()
 }
-const base = "@kilocode/cli-" + platform + "-" + arch
-const binary = platform === "windows" ? "kilo.exe" : "kilo"
+const base = "@ilura/northstar-" + platform + "-" + arch
+const binary = platform === "windows" ? "northstar.exe" : "northstar"
 
 function supportsAvx2() {
   if (arch !== "x64") return false
