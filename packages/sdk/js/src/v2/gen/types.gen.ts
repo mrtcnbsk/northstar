@@ -1310,7 +1310,12 @@ export type PermissionConfig =
       notebook_execute?: PermissionRuleConfig
       xcode_build?: PermissionRuleConfig
       xcode_test?: PermissionRuleConfig
+      xcode_archive?: PermissionRuleConfig
+      ipa_export?: PermissionRuleConfig
       crash_symbolicate?: PermissionRuleConfig
+      asc_metadata_validate?: PermissionRuleConfig
+      asc_submit?: PermissionRuleConfig
+      asc_status?: PermissionRuleConfig
       [key: string]: PermissionRuleConfig | PermissionActionConfig | undefined
     }
 
@@ -1348,6 +1353,8 @@ export type AgentConfig = {
     }>
   }
   subordinates?: Array<string>
+  capabilities?: Array<string>
+  preferredTypes?: Array<string>
   [key: string]:
     | unknown
     | string
@@ -1380,6 +1387,8 @@ export type AgentConfig = {
           id: string
         }>
       }
+    | Array<string>
+    | Array<string>
     | Array<string>
     | undefined
 }
@@ -2106,6 +2115,8 @@ export type Agent = {
     }>
   }
   subordinates?: Array<string>
+  capabilities?: Array<string>
+  preferredTypes?: Array<string>
   steps?: number
 }
 
@@ -2429,6 +2440,29 @@ export type WorkspaceWarpError = {
   data: {
     message: string
   }
+}
+
+export type AgentHealthView = {
+  score: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  band: "healthy" | "degraded" | "unhealthy"
+}
+
+export type AgentMetricsRow = {
+  agent: string
+  runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  stages: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  avgCostPerStage: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  blocked: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  successRate: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  avgLatencyMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  health: AgentHealthView
+}
+
+export type AgentMetricsResponse = {
+  agents: Array<AgentMetricsRow>
 }
 
 export type BackgroundProcessLogs = {
@@ -9944,6 +9978,34 @@ export type AgentBuilderSaveResponses = {
 }
 
 export type AgentBuilderSaveResponse = AgentBuilderSaveResponses[keyof AgentBuilderSaveResponses]
+
+export type AgentsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/agents"
+}
+
+export type AgentsListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type AgentsListError = AgentsListErrors[keyof AgentsListErrors]
+
+export type AgentsListResponses = {
+  /**
+   * Per-chief metrics rollup with health score/band
+   */
+  200: AgentMetricsResponse
+}
+
+export type AgentsListResponse = AgentsListResponses[keyof AgentsListResponses]
 
 export type BackgroundProcessListData = {
   body?: never

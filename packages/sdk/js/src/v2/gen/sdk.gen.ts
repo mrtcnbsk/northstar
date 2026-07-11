@@ -8,6 +8,8 @@ import type {
   AgentBuilderSaveErrors,
   AgentBuilderSaveResponses,
   AgentPartInput,
+  AgentsListErrors,
+  AgentsListResponses,
   AnacondaDesktopOpenErrors,
   AnacondaDesktopOpenResponses,
   AnacondaDesktopStatusErrors,
@@ -6093,6 +6095,38 @@ export class AgentBuilder extends HeyApiClient {
   }
 }
 
+export class Agents extends HeyApiClient {
+  /**
+   * List agent metrics
+   *
+   * Summarize every chief's cross-run metrics for the active workspace (summed cost, stage/outcome counts, success rate, avg latency) together with a threshold-driven health score and band.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AgentsListResponses, AgentsListErrors, ThrowOnError>({
+      url: "/agents",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class BackgroundProcess extends HeyApiClient {
   /**
    * List background processes
@@ -9143,6 +9177,11 @@ export class KiloClient extends HeyApiClient {
   private _agentBuilder?: AgentBuilder
   get agentBuilder(): AgentBuilder {
     return (this._agentBuilder ??= new AgentBuilder({ client: this.client }))
+  }
+
+  private _agents?: Agents
+  get agents(): Agents {
+    return (this._agents ??= new Agents({ client: this.client }))
   }
 
   private _backgroundProcess?: BackgroundProcess
