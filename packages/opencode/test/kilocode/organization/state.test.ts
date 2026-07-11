@@ -184,3 +184,110 @@ describe("OrgState.runSummary", () => {
     expect(summary.stageCount).toBe(2)
   })
 })
+
+describe("OrgState readiness selectors", () => {
+  const LINEAR = OrgSchema.parse({
+    ceo: "ceo",
+    departments: {
+      a: { chief: "a-chief", workers: ["a-worker"] },
+      b: { chief: "b-chief", workers: ["b-worker"] },
+      c: { chief: "c-chief", workers: ["c-worker"] },
+    },
+    pipeline: [{ stage: "a" }, { stage: "b" }, { stage: "c" }],
+  })
+
+  const DIAMOND = OrgSchema.parse({
+    ceo: "ceo",
+    departments: {
+      plan: { chief: "plan-chief", workers: ["plan-worker"] },
+      frontend: { chief: "frontend-chief", workers: ["frontend-worker"] },
+      backend: { chief: "backend-chief", workers: ["backend-worker"] },
+      integrate: { chief: "integrate-chief", workers: ["integrate-worker"] },
+    },
+    pipeline: [
+      { stage: "plan" },
+      { stage: "frontend", requires: ["plan"] },
+      { stage: "backend", requires: ["plan"] },
+      { stage: "integrate", requires: ["frontend", "backend"] },
+    ],
+  })
+
+  function stage(status: OrgState.StageStatus): OrgState.Stage {
+    return { status, attempts: 0 }
+  }
+
+  function runOf(org: OrgSchema.Organization, statuses: Record<string, OrgState.StageStatus>): OrgState.Run {
+    return {
+      runID: "test-run",
+      idea: "test",
+      createdAt: new Date().toISOString(),
+      status: "active",
+      stages: Object.fromEntries(org.pipeline.map((p) => [p.stage, stage(statuses[p.stage] ?? "pending")])),
+    }
+  }
+
+  describe("linear pipeline (no requires)", () => {
+    test("only the first stage is ready initially", () => {
+      const run = runOf(LINEAR, {})
+      expect(OrgState.readyStages(LINEAR, run)).toEqual(["a"])
+      expect(OrgState.blockedStages(LINEAR, run)).toEqual(["b", "c"])
+    })
+
+    test("only the next stage is ready once the prior one completes", () => {
+      const run = runOf(LINEAR, { a: "completed" })
+      expect(OrgState.readyStages(LINEAR, run)).toEqual(["b"])
+      expect(OrgState.blockedStages(LINEAR, run)).toEqual(["c"])
+    })
+  })
+
+  describe("diamond pipeline (explicit requires)", () => {
+    test("readyStages after plan completes is [frontend, backend] (both, pipeline order)", () => {
+      const run = runOf(DIAMOND, { plan: "completed" })
+      expect(OrgState.readyStages(DIAMOND, run)).toEqual(["frontend", "backend"])
+    })
+
+    test("integrate is blocked while only one of its two requirements is completed", () => {
+      const run = runOf(DIAMOND, { plan: "completed", frontend: "completed", backend: "running" })
+      expect(OrgState.readyStages(DIAMOND, run)).toEqual([])
+      expect(OrgState.blockedStages(DIAMOND, run)).toEqual(["integrate"])
+    })
+
+    test("integrate becomes ready once both frontend and backend are completed", () => {
+      const run = runOf(DIAMOND, { plan: "completed", frontend: "completed", backend: "completed" })
+      expect(OrgState.readyStages(DIAMOND, run)).toEqual(["integrate"])
+      expect(OrgState.blockedStages(DIAMOND, run)).toEqual([])
+    })
+
+    test("a skipped dependency satisfies its dependents just like completed", () => {
+      const run = runOf(DIAMOND, { plan: "completed", frontend: "skipped", backend: "completed" })
+      expect(OrgState.readyStages(DIAMOND, run)).toEqual(["integrate"])
+      expect(OrgState.blockedStages(DIAMOND, run)).toEqual([])
+    })
+  })
+
+  describe("blockedStages", () => {
+    test("a pending stage whose requirement is still running is blocked, not ready", () => {
+      const run = runOf(LINEAR, { a: "running" })
+      expect(OrgState.readyStages(LINEAR, run)).toEqual([])
+      expect(OrgState.blockedStages(LINEAR, run)).toEqual(["b", "c"])
+    })
+  })
+
+  describe("runningStages / awaitingStages", () => {
+    test("runningStages returns exactly the running stage names in pipeline order", () => {
+      const run = runOf(DIAMOND, { plan: "completed", frontend: "running", backend: "running" })
+      expect(OrgState.runningStages(DIAMOND, run)).toEqual(["frontend", "backend"])
+    })
+
+    test("awaitingStages returns exactly the awaiting_approval stage names in pipeline order", () => {
+      const run = runOf(DIAMOND, { plan: "completed", frontend: "awaiting_approval", backend: "running" })
+      expect(OrgState.awaitingStages(DIAMOND, run)).toEqual(["frontend"])
+    })
+
+    test("both return [] when no stage matches", () => {
+      const run = runOf(LINEAR, {})
+      expect(OrgState.runningStages(LINEAR, run)).toEqual([])
+      expect(OrgState.awaitingStages(LINEAR, run)).toEqual([])
+    })
+  })
+})

@@ -3,10 +3,17 @@ import path from "path"
 import { readdir } from "node:fs/promises"
 import z from "zod"
 import { Filesystem } from "../../util/filesystem"
-import type { OrgSchema } from "./schema"
+import { OrgSchema } from "./schema"
 
 export namespace OrgState {
-  export const StageStatus = z.enum(["pending", "running", "awaiting_approval", "completed", "failed"])
+  export const StageStatus = z.enum([
+    "pending",
+    "running",
+    "awaiting_approval",
+    "completed",
+    "skipped",
+    "failed",
+  ])
   export type StageStatus = z.output<typeof StageStatus>
 
   export const Stage = z.object({
@@ -29,6 +36,13 @@ export namespace OrgState {
     reviseBaseline: z.string().optional(),
     /** The user's revise note, persisted past the re-instruct (which clears decisionNote) so an unresumable fresh session can still be briefed; lives and dies with reviseBaseline. */
     reviseNote: z.string().optional(),
+    /** Set together with the once-per-run cost-escalation gate (see OrgRunner.settleRunningStage);
+     * the persisted home for the note transient GateItems used to carry directly. Needed because
+     * under maxConcurrency>1 an earlier-in-pipeline stage's plain gate can be the serialized blocker
+     * on the call the escalation actually fires, so the note must survive to be re-surfaced once
+     * THIS stage's own gate is later selected as the blocker. Cleared when the gated stage is
+     * resolved (decide) so a later re-gate never carries a stale note. */
+    escalationNote: z.string().optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
   })
@@ -43,6 +57,8 @@ export namespace OrgState {
     stages: z.record(z.string(), Stage),
     /** Set once the soft cost-escalation gate has fired for this run; prevents it from firing again. */
     escalated: z.boolean().optional(),
+    /** Optional run-level mode (e.g. "mvp", "full"), set at org_start and consulted by stage `when: {mode}` conditions. */
+    mode: z.string().optional(),
   })
   export type Run = z.output<typeof Run>
 
@@ -75,6 +91,47 @@ export namespace OrgState {
       currentStage: current?.[0] ?? null,
       stageCount: entries.length,
     }
+  }
+
+  /** A requirement is satisfied for readiness purposes once its stage is completed OR skipped. */
+  function isSatisfied(run: Run, stageName: string): boolean {
+    const status = run.stages[stageName]?.status
+    return status === "completed" || status === "skipped"
+  }
+
+  /**
+   * Stage names whose status is "pending" and whose every resolved `requires` entry is
+   * "completed" or "skipped" (a stage with `requires: []` is ready as soon as it's pending).
+   * Pure - no I/O. Iterates in `org.pipeline` order for deterministic output.
+   */
+  export function readyStages(org: OrgSchema.Organization, run: Run): string[] {
+    const requiresGraph = OrgSchema.resolveRequires(org)
+    return org.pipeline
+      .filter((p) => run.stages[p.stage]?.status === "pending")
+      .filter((p) => (requiresGraph[p.stage] ?? []).every((dep) => isSatisfied(run, dep)))
+      .map((p) => p.stage)
+  }
+
+  /** Stage names currently "running", in pipeline order. Pure - no I/O. */
+  export function runningStages(org: OrgSchema.Organization, run: Run): string[] {
+    return org.pipeline.filter((p) => run.stages[p.stage]?.status === "running").map((p) => p.stage)
+  }
+
+  /** Stage names currently "awaiting_approval", in pipeline order. Pure - no I/O. */
+  export function awaitingStages(org: OrgSchema.Organization, run: Run): string[] {
+    return org.pipeline.filter((p) => run.stages[p.stage]?.status === "awaiting_approval").map((p) => p.stage)
+  }
+
+  /**
+   * Stage names that are "pending" but NOT ready - at least one resolved `requires` entry is not
+   * yet completed/skipped. Pure - no I/O. Iterates in `org.pipeline` order.
+   */
+  export function blockedStages(org: OrgSchema.Organization, run: Run): string[] {
+    const requiresGraph = OrgSchema.resolveRequires(org)
+    return org.pipeline
+      .filter((p) => run.stages[p.stage]?.status === "pending")
+      .filter((p) => !(requiresGraph[p.stage] ?? []).every((dep) => isSatisfied(run, dep)))
+      .map((p) => p.stage)
   }
 
   export function runsDir(projectDir: string): string {
@@ -110,7 +167,12 @@ export namespace OrgState {
     )
   }
 
-  export async function create(projectDir: string, org: OrgSchema.Organization, idea: string): Promise<Run> {
+  export async function create(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    idea: string,
+    mode?: string,
+  ): Promise<Run> {
     const now = new Date()
     const runID = `${stamp(now)}-${slugify(idea)}`
     const run: Run = {
@@ -119,6 +181,7 @@ export namespace OrgState {
       createdAt: now.toISOString(),
       status: "active",
       stages: Object.fromEntries(org.pipeline.map((s) => [s.stage, { status: "pending" as const, attempts: 0 }])),
+      mode,
     }
     await write(projectDir, run)
     return run

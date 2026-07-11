@@ -20,15 +20,62 @@
   //   escalationThreshold: spend level that triggers a human-escalation warning
   //   retries: max retries for a stage before it is treated as failed
   "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
+  // DAG fields (all optional, opt-in - see Wave 4 plan). As of W4.7 this template actually
+  // exercises them (see the pipeline below), so this is no longer just reference documentation:
+  //   pipeline[].requires  - stage names this stage depends on. Omitted defaults to
+  //                          [previousStage] (linear chain, today's behavior); the first
+  //                          stage defaults to []. Explicit [] marks an intentional root.
+  //                          A non-empty list lets independent stages (e.g. frontend/backend)
+  //                          both depend on the same upstream stage and run concurrently.
+  //   pipeline[].timeoutMs - per-stage wall-clock timeout in ms; a running stage past this
+  //                          with no valid deliverable is retried then failed instead of
+  //                          hanging indefinitely. (Not set on any stage below yet.)
+  //   pipeline[].when      - declarative skip condition. Runs the stage ONLY when the
+  //                          condition matches (a positive-equality test, not a negative
+  //                          "skip if"): { "mode": "X" } matches only when the run's mode
+  //                          (set once at org_start, otherwise undefined) is exactly "X" -
+  //                          an unset mode never matches, so {mode:"X"} skips by default on
+  //                          a normal run. { "stage": "...", "decision": "approve"|"no-go"|
+  //                          "revise" } matches a prior stage's recorded decision (must be
+  //                          a requires-ancestor of this stage - OrgSchema.validate rejects
+  //                          a sibling/non-ancestor reference, since its decision may still
+  //                          be undefined when this stage is evaluated). A false `when`
+  //                          marks the stage "skipped" (satisfies dependents, no cost). Do
+  //                          NOT put `when` on a stage whose deliverable is required output
+  //                          of the pipeline - reserve it for genuinely OPTIONAL extra work.
+  //   maxConcurrency (org-level) - max stages the runner runs concurrently per batch.
+  //                          Default 1 = fully sequential (current behavior); set >1 on a
+  //                          template that declares parallel `requires` to actually
+  //                          parallelize independent stages.
+  // W4.7: the pipeline is a diamond around the design handoff. `backend` and `frontend` both
+  // consume the `ux` deliverable but not each other's output, so they both declare
+  // `requires: ["ux"]` and become siblings (see OrgSchema.resolveRequires) instead of the default
+  // previous-stage chain. `testing` is the join: it explicitly `requires: ["backend", "frontend"]`
+  // so it only starts once BOTH branches are completed (or skipped). Every other stage omits
+  // `requires` and keeps the default linear previous-stage dependency - the diamond is the only
+  // branch point. `maxConcurrency: 2` (below) lets the runner actually run backend+frontend
+  // concurrently instead of just resolving them as both-ready. `marketing` is terminal (nothing
+  // depends on it) and carries NO `when` - it is the App-Store deliverable this org exists to
+  // produce, so it always runs; every run completes with marketing either "completed" or (if the
+  // human gate rejects it) handled via the normal gate/halt path, never silently "skipped".
   "pipeline": [
     { "stage": "evaluation", "gate": "human", "haltOn": "no-go" },
     { "stage": "planning" },
     { "stage": "ux" },
-    { "stage": "backend" },
-    { "stage": "frontend" },
-    { "stage": "testing" },
+    { "stage": "backend", "requires": ["ux"] },
+    { "stage": "frontend", "requires": ["ux"] },
+    { "stage": "testing", "requires": ["backend", "frontend"] },
     { "stage": "debugging" },
+    // Always runs (no `when`): marketing is the terminal App-Store deliverable (ASO/copy/
+    // pricing/preview) - the whole reason this org exists - so it must not be gated behind a
+    // condition that defaults to skip. See the `when` doc comment above for why a positive-match
+    // condition like {mode:"full"} is the wrong shape for a required stage: a run's mode is
+    // undefined unless something explicitly sets it, so {mode:"full"} would skip it by default.
     { "stage": "marketing", "gate": "human" }
     // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
-  ]
+  ],
+  // Default 1 (sequential) would still resolve backend/frontend as both-ready together, but only
+  // run one at a time; 2 lets the runner actually dispatch both branches of the diamond above in
+  // the same batch.
+  "maxConcurrency": 2
 }

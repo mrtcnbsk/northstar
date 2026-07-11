@@ -4,6 +4,7 @@ import path from "path"
 import { mkdir } from "node:fs/promises"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
+import { advance1 } from "./batch-adapter"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgState } from "../../../src/kilocode/organization/state"
@@ -57,13 +58,13 @@ describe("Wave 1 exit verification", () => {
     const costs: Record<string, number> = { ses_eval: 3 }
     const costDeps = { costOf: async (id: string) => costs[id] }
 
-    const instructEval = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
+    const instructEval = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
     expect(instructEval.kind).toBe("instruct")
     if (instructEval.kind !== "instruct") throw new Error("unreachable")
     expect(instructEval.stage).toBe("evaluation")
 
     await writeDeliverable(tmp.path, run.runID, "evaluation")
-    const afterEval = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_eval" })
+    const afterEval = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_eval" })
     expect(afterEval.kind).toBe("instruct") // no gate: cost 3 stays under the threshold
     if (afterEval.kind !== "instruct") throw new Error("unreachable")
     expect(afterEval.stage).toBe("planning")
@@ -76,7 +77,7 @@ describe("Wave 1 exit verification", () => {
     //        NON-gated stage: the escalation gate fires ONCE, with a non-empty note. ---
     costs["ses_plan"] = 3
     await writeDeliverable(tmp.path, run.runID, "planning")
-    const escalated = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_plan" })
+    const escalated = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_plan" })
     expect(escalated.kind).toBe("gate")
     if (escalated.kind !== "gate") throw new Error("unreachable")
     expect(escalated.stage).toBe("planning")
@@ -115,7 +116,7 @@ describe("Wave 1 exit verification", () => {
 
     // --- 3. decide(approve) on the escalation gate continues the pipeline normally. ---
     await OrgRunner.decide(tmp.path, WAVE1_ORG, run.runID, "approve")
-    const afterApprove = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
+    const afterApprove = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
     expect(afterApprove.kind).toBe("instruct")
     if (afterApprove.kind !== "instruct") throw new Error("unreachable")
     expect(afterApprove.stage).toBe("design")
@@ -124,7 +125,7 @@ describe("Wave 1 exit verification", () => {
     //        (stage total 7 stays under the stage cap 8, so this is unambiguously the run ceiling). ---
     costs["ses_design"] = 7
     await writeDeliverable(tmp.path, run.runID, "design")
-    const halted = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_design" })
+    const halted = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_design" })
     expect(halted.kind).toBe("halted")
     if (halted.kind !== "halted") throw new Error("unreachable")
     expect(halted.reason).toContain("budget ceiling exceeded")
@@ -141,7 +142,7 @@ describe("Wave 1 exit verification", () => {
     expect(entries.at(-1)?.note).toContain("budget ceiling exceeded")
 
     // subsequent advance keeps returning halted (no further progress, no un-halting).
-    const again = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
+    const again = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, {})
     expect(again.kind).toBe("halted")
     if (again.kind !== "halted") throw new Error("unreachable")
     expect(again.reason).toBe(halted.reason)
@@ -154,17 +155,17 @@ describe("Wave 1 exit verification", () => {
     const run = await OrgRunner.start(tmp.path, WAVE1_ORG, "wave 1 exit retry idea")
     const costDeps = { costOf: async () => 1 } // cheap: this scenario is about retry exhaustion, not budget
 
-    await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, {}) // instruct evaluation
+    await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, {}) // instruct evaluation
 
     // 1st chief run: no deliverable ever appears -> incomplete (attempt 1 of 1 retry).
-    const first = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_stuck" })
+    const first = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_stuck" })
     expect(first.kind).toBe("incomplete")
     let state = await OrgState.read(tmp.path, run.runID)
     expect(state.stages["evaluation"].incompleteAttempts).toBe(1)
     expect(state.stages["evaluation"].status).toBe("running")
 
     // 2nd chief run: still no deliverable -> exceeds budget.retries (1) -> fails + halts.
-    const second = await OrgRunner.advance(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_stuck" })
+    const second = await advance1(costDeps, tmp.path, WAVE1_ORG, run.runID, { taskID: "ses_stuck" })
     expect(second.kind).toBe("halted")
     if (second.kind !== "halted") throw new Error("unreachable")
     expect(second.reason).toContain('stage "evaluation" failed after 2 incomplete chief runs')

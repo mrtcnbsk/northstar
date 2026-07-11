@@ -249,6 +249,248 @@ describe("OrgSchema.budgetWarnings", () => {
   })
 })
 
+describe("OrgSchema.resolveRequires", () => {
+  test("linear pipeline with no requires: each stage defaults to [prevStage], first is []", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: {
+        a: { chief: "a-chief", workers: ["a-worker"] },
+        b: { chief: "b-chief", workers: ["b-worker"] },
+        c: { chief: "c-chief", workers: ["c-worker"] },
+      },
+      pipeline: [{ stage: "a" }, { stage: "b" }, { stage: "c" }],
+    })
+    expect(OrgSchema.resolveRequires(org)).toEqual({ a: [], b: ["a"], c: ["b"] })
+  })
+
+  test("explicit requires on a later stage is preserved verbatim", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: {
+        a: { chief: "a-chief", workers: ["a-worker"] },
+        b: { chief: "b-chief", workers: ["b-worker"] },
+        c: { chief: "c-chief", workers: ["c-worker"] },
+      },
+      pipeline: [{ stage: "a" }, { stage: "b" }, { stage: "c", requires: ["a"] }],
+    })
+    expect(OrgSchema.resolveRequires(org)).toEqual({ a: [], b: ["a"], c: ["a"] })
+  })
+
+  test("explicit empty requires on the first stage stays [] (intentional root, not defaulted)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: {
+        a: { chief: "a-chief", workers: ["a-worker"] },
+        b: { chief: "b-chief", workers: ["b-worker"] },
+      },
+      pipeline: [{ stage: "a", requires: [] }, { stage: "b" }],
+    })
+    expect(OrgSchema.resolveRequires(org)).toEqual({ a: [], b: ["a"] })
+  })
+
+  test("diamond: plan -> {frontend, backend} -> integrate resolves correctly", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: {
+        plan: { chief: "plan-chief", workers: ["plan-worker"] },
+        frontend: { chief: "frontend-chief", workers: ["frontend-worker"] },
+        backend: { chief: "backend-chief", workers: ["backend-worker"] },
+        integrate: { chief: "integrate-chief", workers: ["integrate-worker"] },
+      },
+      pipeline: [
+        { stage: "plan" },
+        { stage: "frontend", requires: ["plan"] },
+        { stage: "backend", requires: ["plan"] },
+        { stage: "integrate", requires: ["frontend", "backend"] },
+      ],
+    })
+    expect(OrgSchema.resolveRequires(org)).toEqual({
+      plan: [],
+      frontend: ["plan"],
+      backend: ["plan"],
+      integrate: ["frontend", "backend"],
+    })
+  })
+})
+
+describe("OrgSchema.validate - DAG checks", () => {
+  const dagDepartments = {
+    a: { chief: "a-chief", workers: ["a-worker"] },
+    b: { chief: "b-chief", workers: ["b-worker"] },
+    c: { chief: "c-chief", workers: ["c-worker"] },
+  }
+
+  test("rejects a requires entry naming an unknown stage", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", requires: ["ghost"] }],
+    })
+    const errors = OrgSchema.validate(org)
+    expect(errors.some((e) => e.includes('requires unknown stage "ghost"'))).toBe(true)
+  })
+
+  test("rejects a 2-cycle (a requires b, b requires a) with the path in the message", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a", requires: ["b"] }, { stage: "b", requires: ["a"] }],
+    })
+    const errors = OrgSchema.validate(org)
+    const cycleError = errors.find((e) => e.includes("dependency cycle"))
+    expect(cycleError).toBeDefined()
+    expect(cycleError).toContain("a")
+    expect(cycleError).toContain("b")
+  })
+
+  test("rejects a self-cycle (a requires a)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a", requires: ["a"] }, { stage: "b" }],
+    })
+    const errors = OrgSchema.validate(org)
+    expect(errors.some((e) => e.includes("dependency cycle"))).toBe(true)
+  })
+
+  test("rejects a dangling when.stage reference", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", when: { stage: "ghost", decision: "approve" } }],
+    })
+    const errors = OrgSchema.validate(org)
+    expect(errors.some((e) => e.includes('when-condition references unknown stage "ghost"'))).toBe(true)
+  })
+
+  // kilocode_change - Finding #6: when.stage must reference a transitive requires-ancestor,
+  // not just any pipeline stage. A sibling reference reads a decision that is still undefined
+  // when both stages are ready in the same batch.
+  test("rejects a when.stage referencing a SIBLING (both require the same upstream stage, neither is an ancestor of the other)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: { ...dagDepartments, z: { chief: "z-chief", workers: ["z-worker"] } },
+      pipeline: [
+        { stage: "a" },
+        { stage: "b", requires: ["a"] },
+        // c is b's sibling (both require "a"), not b's ancestor - c's decision is undefined
+        // whenever b is evaluated in the same ready batch as c.
+        { stage: "z", requires: ["a"] },
+        { stage: "c", requires: ["a"], when: { stage: "z", decision: "approve" } },
+      ],
+    })
+    const errors = OrgSchema.validate(org)
+    expect(
+      errors.some(
+        (e) =>
+          e.includes('stage "c" when-condition references "z"') &&
+          e.includes("not one of its (transitive) requires") &&
+          e.includes("may be undefined"),
+      ),
+    ).toBe(true)
+  })
+
+  test("accepts a when.stage referencing a stage that IS a transitive requires-ancestor", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [
+        { stage: "a" },
+        { stage: "b", requires: ["a"] },
+        // c requires b (direct ancestor) and refers to a (transitive ancestor via b) - both are fine.
+        { stage: "c", requires: ["b"], when: { stage: "a", decision: "approve" } },
+      ],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("a when.stage referencing its OWN direct requires entry is accepted", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", requires: ["a"], when: { stage: "a", decision: "approve" } }],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("when.mode is unaffected by the ancestor check (no stage ref to validate)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", requires: ["a"], when: { mode: "full" } }],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("a valid diamond passes with [] errors", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: {
+        plan: { chief: "plan-chief", workers: ["plan-worker"] },
+        frontend: { chief: "frontend-chief", workers: ["frontend-worker"] },
+        backend: { chief: "backend-chief", workers: ["backend-worker"] },
+        integrate: { chief: "integrate-chief", workers: ["integrate-worker"] },
+      },
+      pipeline: [
+        { stage: "plan" },
+        { stage: "frontend", requires: ["plan"] },
+        { stage: "backend", requires: ["plan"] },
+        { stage: "integrate", requires: ["frontend", "backend"] },
+      ],
+      maxConcurrency: 2,
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+})
+
+describe("OrgSchema back-compat with DAG fields absent", () => {
+  test("an existing linear pipeline with no new fields still parses and validates clean", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("resolveRequires on a linear pipeline with no new fields yields the linear chain", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(OrgSchema.resolveRequires(org)).toEqual({
+      evaluation: [],
+      planning: ["evaluation"],
+    })
+  })
+})
+
+describe("OrgSchema.parse round-trip for new DAG fields", () => {
+  test("a stage with requires/timeoutMs/when and an org with maxConcurrency round-trips through parse", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      pipeline: [
+        { stage: "evaluation", gate: "human", haltOn: "no-go" },
+        {
+          stage: "planning",
+          requires: ["evaluation"],
+          timeoutMs: 60000,
+          when: { stage: "evaluation", decision: "approve" },
+        },
+      ],
+      maxConcurrency: 3,
+    })
+    expect(org.pipeline[1].requires).toEqual(["evaluation"])
+    expect(org.pipeline[1].timeoutMs).toBe(60000)
+    expect(org.pipeline[1].when).toEqual({ stage: "evaluation", decision: "approve" })
+    expect(org.maxConcurrency).toBe(3)
+  })
+
+  test("a stage with when: { mode } round-trips through parse", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      pipeline: [
+        { stage: "evaluation", gate: "human", haltOn: "no-go" },
+        { stage: "planning", when: { mode: "full" } },
+      ],
+    })
+    expect(org.pipeline[1].when).toEqual({ mode: "full" })
+  })
+})
+
 describe("OrgSchema.crossCheck", () => {
   test("flags chiefs missing subordinates coverage and missing agents", () => {
     const org = OrgSchema.parse(VALID)

@@ -2830,7 +2830,7 @@ export type OrgRunsListResponse = {
 }
 
 export type OrgRunStage = {
-  status: "pending" | "running" | "awaiting_approval" | "completed" | "failed"
+  status: "pending" | "running" | "awaiting_approval" | "completed" | "skipped" | "failed"
   taskID?: string
   cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   costTaskID?: string
@@ -2869,7 +2869,7 @@ export type OrgAuditEntry = {
 
 export type OrgRunStageView = {
   stage: string
-  status: "pending" | "running" | "awaiting_approval" | "completed" | "failed"
+  status: "pending" | "running" | "awaiting_approval" | "completed" | "skipped" | "failed"
   cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   attempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   startedAt: string

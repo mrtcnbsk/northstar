@@ -11,6 +11,7 @@ import { Effect, Layer, ManagedRuntime } from "effect"
 import { provideTestInstance, tmpdir } from "../../fixture/fixture"
 import { OrgStatusTool, OrgAdvanceTool } from "../../../src/kilocode/organization/tools"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
+import { advance1 } from "./batch-adapter"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { Session } from "../../../src/session/session"
@@ -100,7 +101,7 @@ describe("org_status budget block", () => {
     await seedOrg(tmp.path)
     const deps = { costOf: async () => 3 }
     const run = await OrgRunner.start(tmp.path, BUDGET_ORG, "budget surface idea")
-    await OrgRunner.advance(deps, tmp.path, BUDGET_ORG, run.runID, {}) // evaluation -> running
+    await advance1(deps, tmp.path, BUDGET_ORG, run.runID, {}) // evaluation -> running
 
     const runtime = makeRuntime()
     await provideTestInstance({

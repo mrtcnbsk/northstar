@@ -9,12 +9,25 @@ export namespace OrgSchema {
     workers: z.array(z.string().min(1)).min(1),
   })
 
+  /** Declarative skip condition (v1, no expression DSL - see decision #4 in the wave-4 plan). */
+  export const When = z.union([
+    z.object({ mode: z.string().min(1) }),
+    z.object({ stage: z.string().min(1), decision: z.enum(["approve", "no-go", "revise"]) }),
+  ])
+  export type When = z.output<typeof When>
+
   export const Stage = z.object({
     stage: z.string().min(1),
     gate: z.enum(["human"]).optional(),
     haltOn: z.enum(["no-go"]).optional(),
     /** Per-stage budget ceiling override (USD), falls back to the org's resolved stage budget. */
     budget: z.number().nonnegative().optional(),
+    /** Stage names this stage depends on. Absent defaults to [previousStage] (see resolveRequires); explicit [] is an intentional root. */
+    requires: z.array(z.string().min(1)).optional(),
+    /** Per-stage wall-clock timeout in ms (poll-checked by the runner, not a background timer). */
+    timeoutMs: z.number().int().positive().optional(),
+    /** Declarative skip condition; a false `when` marks the stage "skipped" instead of running it. */
+    when: When.optional(),
   })
 
   /** Budget config (USD, except retries which is an integer count). All fields optional; see resolveBudget for defaults. */
@@ -31,6 +44,8 @@ export namespace OrgSchema {
     shared: z.array(z.string().min(1)).default([]),
     pipeline: z.array(Stage).min(1),
     budget: Budget.optional(),
+    /** Max stages the runner will run concurrently per advance() batch. Default 1 (sequential, current behavior). */
+    maxConcurrency: z.number().int().positive().optional(),
   })
   export type Organization = z.output<typeof Organization>
 
@@ -82,6 +97,25 @@ export namespace OrgSchema {
     return warnings
   }
 
+  /**
+   * Resolves each pipeline stage's `requires` list. Pure function - no validation, no I/O.
+   * - `requires` ABSENT: defaults to `[previousStageName]` (the immediately-preceding pipeline
+   *   entry); the FIRST stage defaults to `[]`.
+   * - `requires` explicit `[]`: stays `[]` (an intentional root, not defaulted).
+   * - `requires` explicit non-empty list: used verbatim.
+   */
+  export function resolveRequires(org: Organization): Record<string, string[]> {
+    const resolved: Record<string, string[]> = {}
+    org.pipeline.forEach((entry, i) => {
+      if (entry.requires !== undefined) {
+        resolved[entry.stage] = entry.requires
+      } else {
+        resolved[entry.stage] = i === 0 ? [] : [org.pipeline[i - 1].stage]
+      }
+    })
+    return resolved
+  }
+
   /** Agent names that would break permission-rule ordering or wildcard semantics. */
   function invalidName(name: string): string | undefined {
     if (name === "*") return `agent name "*" is not allowed (wildcard collides with permission patterns)`
@@ -122,7 +156,91 @@ export namespace OrgSchema {
     if (chiefs.has(org.ceo) || workers.has(org.ceo)) {
       errors.push(`ceo agent "${org.ceo}" cannot also be a chief or worker`)
     }
+
+    const pipelineStages = new Set(org.pipeline.map((p) => p.stage))
+    const requiresGraph = resolveRequires(org)
+    for (const { stage, requires } of org.pipeline) {
+      if (requires === undefined) continue
+      for (const dep of requires) {
+        if (!pipelineStages.has(dep)) {
+          errors.push(`pipeline stage "${stage}" requires unknown stage "${dep}"`)
+        }
+      }
+    }
+    const cycle = findCycle(requiresGraph)
+    if (cycle) {
+      errors.push(`pipeline has a dependency cycle: ${cycle.join(" -> ")}`)
+    }
+    for (const { stage, when } of org.pipeline) {
+      if (when && "stage" in when) {
+        if (!pipelineStages.has(when.stage)) {
+          errors.push(`stage "${stage}" when-condition references unknown stage "${when.stage}"`)
+        } else if (!isAncestor(requiresGraph, stage, when.stage)) {
+          errors.push(
+            `stage "${stage}" when-condition references "${when.stage}", which is not one of its (transitive) requires — its decision may be undefined when "${stage}" is evaluated`,
+          )
+        }
+      }
+    }
+
     return errors
+  }
+
+  /**
+   * True if `candidate` is `stage`'s own transitive requires-ancestor (reachable by walking
+   * `requires` backward from `stage`). Used to ensure a `when: {stage}` condition only ever reads
+   * a decision that is guaranteed to be settled before `stage` is evaluated — a sibling (or any
+   * stage not on `stage`'s dependency path) may still be `undefined` when `stage` is checked.
+   * Cycles are tolerated (findCycle reports them separately) via a visited set.
+   */
+  function isAncestor(graph: Record<string, string[]>, stage: string, candidate: string): boolean {
+    const visited = new Set<string>()
+    const stack = [...(graph[stage] ?? [])]
+    while (stack.length) {
+      const node = stack.pop()!
+      if (node === candidate) return true
+      if (visited.has(node)) continue
+      visited.add(node)
+      stack.push(...(graph[node] ?? []))
+    }
+    return false
+  }
+
+  /** DFS cycle detection over a resolved requires graph. Returns the cycle path (a -> b -> ... -> a) or undefined. */
+  function findCycle(graph: Record<string, string[]>): string[] | undefined {
+    const WHITE = 0,
+      GRAY = 1,
+      BLACK = 2
+    const color = new Map<string, number>(Object.keys(graph).map((k) => [k, WHITE]))
+    const path: string[] = []
+
+    function visit(node: string): string[] | undefined {
+      color.set(node, GRAY)
+      path.push(node)
+      for (const dep of graph[node] ?? []) {
+        if (!(dep in graph)) continue // dangling ref already reported separately
+        const depColor = color.get(dep)
+        if (depColor === GRAY) {
+          const cycleStart = path.indexOf(dep)
+          return [...path.slice(cycleStart), dep]
+        }
+        if (depColor === WHITE) {
+          const found = visit(dep)
+          if (found) return found
+        }
+      }
+      path.pop()
+      color.set(node, BLACK)
+      return undefined
+    }
+
+    for (const node of Object.keys(graph)) {
+      if (color.get(node) === WHITE) {
+        const found = visit(node)
+        if (found) return found
+      }
+    }
+    return undefined
   }
 
   export function organizationPath(projectDir: string): string {

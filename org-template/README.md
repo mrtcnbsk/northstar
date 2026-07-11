@@ -62,6 +62,57 @@ just the resolved `stage` ceiling for that stage, not `run`, `escalationThreshol
 or `retries`. `OrgSchema.budgetWarnings` flags (without blocking load)
 `stage`/`escalationThreshold` values greater than `run`.
 
+## DAG fields (Wave 4, opt-in)
+
+`organization.jsonc` pipeline stages support optional dependency/scheduling fields.
+None of them change behavior unless set - an org with no DAG fields runs exactly as
+before (fully sequential, linear pipeline):
+
+- `pipeline[].requires` - stage names this stage depends on. Omitted defaults to
+  `[previousStage]` (the immediately-preceding pipeline entry, i.e. today's linear
+  chain); the first stage defaults to `[]`. An explicit `requires: []` marks an
+  intentional root (stays `[]`, is not defaulted). A non-empty list lets independent
+  stages (e.g. `frontend`/`backend`) share the same upstream `requires` and become
+  eligible to run concurrently. `OrgSchema.resolveRequires(org)` computes the full
+  resolved map; `OrgSchema.validate(org)` rejects dangling references and dependency
+  cycles (reporting the cycle path, e.g. `a -> b -> a`).
+- `pipeline[].timeoutMs` - per-stage wall-clock timeout in milliseconds. A running
+  stage past this timeout with no valid deliverable is retried and eventually failed
+  instead of hanging indefinitely.
+- `pipeline[].when` - declarative skip condition that runs the stage ONLY when the
+  condition matches - it is a positive-equality test, not a "skip if" test. Either
+  `{ "mode": "X" }` (runs the stage only when the run's mode, set once at
+  `org_start`, is exactly `"X"`; an **unset mode never matches**, so a stage gated
+  this way is skipped by default on a normal run) or
+  `{ "stage": "...", "decision": "approve" | "no-go" | "revise" }` (runs the stage
+  only when the named prior stage recorded that exact decision; that stage must be
+  one of this stage's `requires` ancestors - `OrgSchema.validate` rejects a
+  `when.stage` that isn't a transitive dependency, since a sibling's decision can
+  still be `undefined` when this stage is evaluated). When `when` evaluates false
+  the stage is marked `"skipped"` - it still satisfies dependents but incurs no
+  cost and produces no deliverable. **Caution:** because `{ "mode": "X" }` defaults
+  to skip, never put `when` on a stage whose deliverable is a required pipeline
+  output - reserve it for genuinely optional extra work (e.g. an in-depth audit
+  stage gated on `when: { "mode": "deep" }` that a normal run intentionally
+  skips).
+- `maxConcurrency` (org-level, top-level key alongside `budget`) - max stages the
+  runner runs concurrently per batch. Default `1` (sequential, current behavior);
+  set to `>1` on a template that also declares parallel `requires` to actually
+  parallelize independent stages.
+
+As of W4.7, the shipped template pipeline is a live diamond, not just linear: `backend`
+and `frontend` both set `requires: ["ux"]` (instead of defaulting to their previous
+pipeline entry) and so become siblings once `ux` completes; `testing` explicitly sets
+`requires: ["backend", "frontend"]` and only starts once both branches are done. The
+org sets `maxConcurrency: 2` so the runner actually dispatches `backend` and `frontend`
+in the same batch instead of just resolving them as both-ready. Every other stage
+(`evaluation`, `planning`, `ux`, `debugging`, `marketing`) keeps the default
+previous-stage `requires` - the diamond is the pipeline's only branch point.
+`marketing` carries no `when` condition: it is the terminal App-Store deliverable
+(ASO/copy/pricing/preview package) this org exists to produce, so every run drives it
+to completion (subject to its own `gate: "human"` approval) rather than skipping it.
+No `timeoutMs` is set on any stage yet.
+
 ## Editing the organization
 
 - Add/remove workers: edit the department in `organization.jsonc` AND the chief's
