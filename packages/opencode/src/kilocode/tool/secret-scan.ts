@@ -53,10 +53,61 @@ const BINARY_EXTENSIONS = new Set([
 
 const PRIVATE_KEY_RE = /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/
 const AWS_ACCESS_KEY_ID_RE = /AKIA[0-9A-Z]{16}/
-// Key-name + assignment + quoted literal. The key-name group is deliberately narrow (known secret
-// field names) rather than matching any identifier — see the scoping note below.
-const ASSIGNED_SECRET_RE =
-  /(?<key>(?:api[_-]?key|secret|token|password|passwd|client[_-]?secret|access[_-]?token))\s*[:=]\s*["'](?<value>[^"']{8,})["']/i
+
+// The set of key-name substrings that mark an assignment as secret-ish. Deliberately narrow (known
+// secret field names) rather than any identifier — see the scoping note in scanText. Shared by all
+// three assignment patterns below so they stay in lock-step.
+const SECRET_KEY_NAMES = "api[_-]?key|secret|token|password|passwd|client[_-]?secret|access[_-]?token"
+
+// Quoted-literal assignment: `key = "value"` / `key: "value"`, and — via the OPTIONAL quotes around
+// the key name — the quoted-key JSON/plist-dict form `"api_key": "value"`. The key group excludes
+// the surrounding quotes.
+const ASSIGNED_SECRET_RE = new RegExp(
+  `["']?(?<key>(?:${SECRET_KEY_NAMES}))["']?\\s*[:=]\\s*["'](?<value>[^"']{8,})["']`,
+  "i",
+)
+
+// Unquoted-value assignment: `API_KEY=sk-live-...` (dotenv/.xcconfig/shell — the #1 committed-secret
+// vector). Applied ONLY to config-file contexts (see isConfigFile) so plain code such as
+// `apiKey = computeKey()` in a .swift file is NOT matched. The value charset is a bare token with no
+// spaces and no `(`/`)`, so a function call is not mistaken for a literal secret; the value ends at
+// the first whitespace/comment/end-of-line.
+const ASSIGNED_SECRET_UNQUOTED_RE = new RegExp(
+  `(?<key>(?:${SECRET_KEY_NAMES}))\\s*[:=]\\s*(?<value>[A-Za-z0-9_\\-./+~]{8,})(?:\\s|#|;|$)`,
+  "i",
+)
+
+// Apple plist `<key>secretName</key><string>value</string>` form (JSON/plist configs). The key and
+// string are frequently on SEPARATE lines in a real plist, so this pattern is run against the whole
+// file text (not line-by-line) — see the plist pass in scanText.
+const PLIST_SECRET_RE = new RegExp(
+  `<key>\\s*(?<key>[A-Za-z0-9_\\-]*(?:${SECRET_KEY_NAMES})[A-Za-z0-9_\\-]*)\\s*</key>\\s*<string>(?<value>[^<]{8,})</string>`,
+  "i",
+)
+
+// Config-file extensions whose values are literal config, not code — the only contexts in which the
+// unquoted-value pattern is applied, to avoid flagging `apiKey = fn()` in ordinary source.
+const CONFIG_EXTENSIONS = new Set([
+  ".env", ".xcconfig", ".properties", ".ini", ".cfg", ".conf",
+  ".sh", ".bash", ".zsh", ".yaml", ".yml", ".toml",
+])
+
+/** True when the file is a config-type context for the unquoted-value pattern: a known config
+ * extension, or a dotenv dotfile (`.env`, `.env.local`, `.env.production`, …) which Node reports as
+ * having no extension. */
+function isConfigFile(filename: string): boolean {
+  const base = path.basename(filename).toLowerCase()
+  if (base === ".env" || base.startsWith(".env.")) return true
+  return CONFIG_EXTENSIONS.has(path.extname(base))
+}
+
+/** True when the file is an Apple plist / privacy-manifest, for the cross-line `<key>/<string>`
+ * pass. Extension-based, with a content sniff for XML plists carrying an unusual extension. */
+function isPlistFile(filename: string, text: string): boolean {
+  const ext = path.extname(filename).toLowerCase()
+  if (ext === ".plist" || ext === ".xcprivacy" || ext === ".entitlements") return true
+  return text.includes("<plist")
+}
 
 /**
  * Placeholder guard for the assigned-secret pattern. A quoted literal that LOOKS like a secret
@@ -109,10 +160,20 @@ function redactAwsKey(value: string): string {
  * false-positive-rate than raw entropy, at the cost of missing secrets that don't match either
  * shape (e.g. a random API token pasted into a comment with no assignment). That's an accepted
  * tradeoff for a conservative, low-noise first pass.
+ *
+ * The name-assignment signal is matched in three formats: (1) a quoted literal `key = "value"`,
+ * including the quoted-key JSON/plist-dict form `"api_key": "value"`; (2) an UNQUOTED value
+ * `API_KEY=sk-live-...` — but ONLY in config-file contexts (dotenv/.xcconfig/shell/…; see
+ * isConfigFile), because scoping the bare-token pattern to config extensions is what keeps ordinary
+ * code like `apiKey = computeKey()` in a .swift file from being flagged (an unavoidable trade-off:
+ * an unquoted secret in a non-config extension is not caught by this pass); and (3) the Apple plist
+ * `<key>secretName</key><string>value</string>` form, scanned across the whole file text since key
+ * and value are usually on separate lines. Every format applies the same isPlaceholder guard.
  */
 export function scanText(text: string, filename: string): Finding[] {
   const findings: Finding[] = []
   const lines = text.split(/\r?\n/)
+  const configFile = isConfigFile(filename)
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -145,6 +206,39 @@ export function scanText(text: string, filename: string): Finding[] {
           snippet: redactAssignment(key, value),
         })
       }
+      continue
+    }
+
+    // Unquoted values are only trustworthy signal in config files (see docstring/scoping note).
+    if (configFile) {
+      const unquotedMatch = ASSIGNED_SECRET_UNQUOTED_RE.exec(line)
+      if (unquotedMatch?.groups) {
+        const { key, value } = unquotedMatch.groups
+        if (!isPlaceholder(value)) {
+          findings.push({
+            file: filename,
+            line: lineNo,
+            kind: "assigned_secret",
+            snippet: redactAssignment(key, value),
+          })
+        }
+      }
+    }
+  }
+
+  // Cross-line plist pass: `<key>secretName</key>` and its `<string>value</string>` usually sit on
+  // separate lines, so match against the whole text and derive the line number from the offset.
+  if (isPlistFile(filename, text)) {
+    const re = new RegExp(PLIST_SECRET_RE.source, "gi")
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      const key = m.groups?.key ?? ""
+      const value = m.groups?.value ?? ""
+      if (isPlaceholder(value)) continue
+      const lineNo = text.slice(0, m.index).split(/\r?\n/).length
+      // Guard against double-reporting a same-line entry the loop above could also have matched.
+      if (findings.some((f) => f.line === lineNo && f.kind === "assigned_secret")) continue
+      findings.push({ file: filename, line: lineNo, kind: "assigned_secret", snippet: redactAssignment(key, value) })
     }
   }
 

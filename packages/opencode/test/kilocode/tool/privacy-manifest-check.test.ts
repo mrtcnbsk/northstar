@@ -126,6 +126,54 @@ describe("parsePrivacyManifest", () => {
     expect(result.status).toBe("invalid")
   })
 
+  // ---- Fix #4: an empty reason STRING is not a valid reason. `<array><string></string></array>`
+  // parses to `[""]`, which the OLD length-only check treated as "has a reason" -> shipped. ----
+
+  test("declared API with a single empty-string reason (<array><string></string></array>) -> violation", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string></string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>`
+    const result = parsePrivacyManifest(xml)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe("ok")
+    expect(result.violations.some((v) => v.api === "NSPrivacyAccessedAPICategoryUserDefaults")).toBe(true)
+  })
+
+  test("whitespace-only reason string is treated as empty -> violation", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>   </string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>`
+    const result = parsePrivacyManifest(xml, ["NSPrivacyAccessedAPICategoryUserDefaults"])
+    expect(result.ok).toBe(false)
+    expect(result.violations.some((v) => v.api === "NSPrivacyAccessedAPICategoryUserDefaults")).toBe(true)
+  })
+
   test("multiple declared APIs, only one with empty reasons -> only that one flagged", () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">

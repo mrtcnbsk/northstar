@@ -214,9 +214,13 @@ export function parsePrivacyManifest(
 
   const violations: PrivacyViolation[] = []
 
-  // Any declared API with empty reasons is a violation, independent of requiredReasonAPIs.
+  // Any declared API without at least one NON-EMPTY reason is a violation, independent of
+  // requiredReasonAPIs. An empty or whitespace-only `<string></string>` parses to `[""]`, which a
+  // length-only check would wrongly accept as "has a reason" — a blank reason satisfies no App
+  // Store requirement, so it must be treated as no reason at all.
+  const hasNonEmptyReason = (entry: ParsedApiType): boolean => entry.reasons.some((r) => r.trim().length > 0)
   for (const entry of accessedApiTypes) {
-    if (entry.reasons.length === 0) {
+    if (!hasNonEmptyReason(entry)) {
       violations.push({
         api: entry.type,
         message: `Declared API "${entry.type}" has no NSPrivacyAccessedAPITypeReasons declared.`,
@@ -226,7 +230,7 @@ export function parsePrivacyManifest(
 
   // Every API the caller says the app actually uses must be declared with at least one reason.
   if (requiredReasonAPIs) {
-    const declaredWithReasons = new Set(accessedApiTypes.filter((e) => e.reasons.length > 0).map((e) => e.type))
+    const declaredWithReasons = new Set(accessedApiTypes.filter(hasNonEmptyReason).map((e) => e.type))
     for (const required of requiredReasonAPIs) {
       if (!declaredWithReasons.has(required)) {
         const isDeclaredAtAll = accessedApiTypes.some((e) => e.type === required)

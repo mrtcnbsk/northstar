@@ -151,6 +151,85 @@ describe("checkAts", () => {
     expect(result.violations).toHaveLength(1)
     expect(result.violations[0].domain).toBe("insecure.example.com")
   })
+
+  // ---- Fix #1: XML comments must be stripped BEFORE the well-formedness/tag-balance check, and a
+  // genuinely malformed plist must FAIL CLOSED (ok:false) instead of reporting secure. ----
+
+  test("comment with a stray <key> no longer trips balance; the insecure setting IS caught (fail-open bug closed)", () => {
+    // Without comment-stripping, the `<key>` inside the comment makes the tag-balance heuristic
+    // report the plist malformed, and the OLD code silently returned ok:true — shipping an
+    // ATS-disabled app as compliant. This is the exact adversarial-review input.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- the <key> below disables ATS entirely -->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
+</plist>`
+    const result = checkAts(xml)
+    expect(result.ok).toBe(false)
+    expect(result.violations.some((v) => v.key === "NSAllowsArbitraryLoads")).toBe(true)
+  })
+
+  test("genuinely malformed/truncated plist -> ok:false with a file violation (fail closed, never silently secure)", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>` // truncated: missing closing dicts + </plist>
+    const result = checkAts(xml)
+    expect(result.ok).toBe(false)
+    expect(result.violations.some((v) => v.key === "file")).toBe(true)
+  })
+
+  test("valid plist with a benign comment still parses; clean config -> ok:true (no false-malformed)", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<!-- App Transport Security: all secure, comment intentionally left in -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+</dict>
+</plist>`
+    const result = checkAts(xml)
+    expect(result.ok).toBe(true)
+    expect(result.violations).toEqual([])
+  })
+
+  // ---- Fix #5: the third-party insecure-HTTP exception key. ----
+
+  test("NSThirdPartyExceptionAllowsInsecureHTTPLoads=true -> violation with domain", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>ads.thirdparty.com</key>
+			<dict>
+				<key>NSThirdPartyExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>`
+    const result = checkAts(xml)
+    expect(result.ok).toBe(false)
+    const violation = result.violations.find((v) => v.key === "NSThirdPartyExceptionAllowsInsecureHTTPLoads")
+    expect(violation).toBeDefined()
+    expect(violation!.domain).toBe("ads.thirdparty.com")
+  })
 })
 
 // ---- Effect-harness tests for the execute path ----
@@ -218,6 +297,24 @@ describe("AtsCheckTool execute", () => {
   harness.instance("missing file -> ok:false, file violation, never throws", () =>
     Effect.gen(function* () {
       const result = yield* runExecute({ plistPath: path.join(FIXTURES, "does-not-exist.plist") })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.violations.some((v: any) => v.key === "file")).toBe(true)
+    }),
+  )
+
+  harness.instance("plist with a comment hiding a stray <key> -> insecure setting still caught", () =>
+    Effect.gen(function* () {
+      const result = yield* runExecute({ plistPath: path.join(FIXTURES, "Info-comment-arbitrary-loads.plist") })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.violations.some((v: any) => v.key === "NSAllowsArbitraryLoads")).toBe(true)
+    }),
+  )
+
+  harness.instance("malformed plist fixture -> ok:false, file violation (fail closed, not silently secure)", () =>
+    Effect.gen(function* () {
+      const result = yield* runExecute({ plistPath: path.join(FIXTURES, "Info-malformed.plist") })
       const summary = JSON.parse(result.output)
       expect(summary.ok).toBe(false)
       expect(summary.violations.some((v: any) => v.key === "file")).toBe(true)

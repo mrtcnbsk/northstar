@@ -120,6 +120,84 @@ describe("scanText", () => {
     const findings = scanText(text, "Multi.swift")
     expect(findings.map((f) => f.line).sort()).toEqual([2, 4])
   })
+
+  // ---- Fix #2: unquoted values in config files (.env/.xcconfig/shell) — the #1 committed-secret
+  // vector. Scoped to config-file extensions so code like `apiKey = computeKey()` in a .swift file
+  // is NOT flagged (that would be a false positive). ----
+
+  test("unquoted .env assignment (API_KEY=sk-live-...) is flagged and redacted", () => {
+    const findings = scanText("API_KEY=sk-live-abcdef123456\n", ".env")
+    expect(findings).toHaveLength(1)
+    expect(findings[0].kind).toBe("assigned_secret")
+    expect(findings[0].snippet).not.toContain("sk-live-abcdef123456")
+    expect(findings[0].snippet).toContain("API_KEY")
+  })
+
+  test("unquoted .env assignment inside a .env.local dotfile is flagged", () => {
+    const findings = scanText("ACCESS_TOKEN=ghp_abcdef1234567890\n", ".env.local")
+    expect(findings.some((f) => f.kind === "assigned_secret")).toBe(true)
+  })
+
+  test("unquoted .xcconfig assignment is flagged", () => {
+    const findings = scanText("API_KEY = sk-live-abcdef123456\n", "Secrets.xcconfig")
+    expect(findings).toHaveLength(1)
+    expect(findings[0].kind).toBe("assigned_secret")
+  })
+
+  test("unquoted assignment in a .swift file is NOT flagged (config-scoped, still code)", () => {
+    // The false-positive guard for the scoping decision: `computeKey()` is a function call in code,
+    // not a committed literal, and .swift is not a config extension, so the unquoted pattern must
+    // not apply here.
+    const findings = scanText("let apiKey = computeKey()\n", "Service.swift")
+    expect(findings).toEqual([])
+  })
+
+  test("unquoted .env placeholder (API_KEY=YOUR_KEY_HERE) is NOT flagged (placeholder guard)", () => {
+    const findings = scanText("API_KEY=YOUR_KEY_HERE\n", ".env")
+    expect(findings).toEqual([])
+  })
+
+  test("unquoted .env value that is a bare function-call is NOT flagged (no parens in value charset)", () => {
+    const findings = scanText("API_KEY=compute()\n", "config.env")
+    expect(findings).toEqual([])
+  })
+
+  // ---- Fix #3: quoted-key formats — JSON `"api_key": "..."` and plist `<key>..</key><string>..`. ----
+
+  test('JSON quoted-key ("api_key": "sk_live_...") is flagged and redacted', () => {
+    const findings = scanText('{"api_key": "sk_live_51H8xQ2eZvKYbadf00d"}\n', "config.json")
+    expect(findings).toHaveLength(1)
+    expect(findings[0].kind).toBe("assigned_secret")
+    expect(findings[0].snippet).not.toContain("sk_live_51H8xQ2eZvKYbadf00d")
+    expect(findings[0].snippet).toContain("api_key")
+  })
+
+  test("JSON quoted-key placeholder is NOT flagged", () => {
+    const findings = scanText('{"api_key": "YOUR_KEY"}\n', "config.json")
+    expect(findings).toEqual([])
+  })
+
+  test("plist <key>api_key</key><string>...</string> on one line is flagged, redacted", () => {
+    const findings = scanText("<key>api_key</key><string>sk-live-abc12345</string>\n", "Secrets.plist")
+    expect(findings.some((f) => f.kind === "assigned_secret")).toBe(true)
+    expect(findings.every((f) => !f.snippet.includes("sk-live-abc12345"))).toBe(true)
+  })
+
+  test("plist <key>/<string> across separate lines is flagged (real plist shape)", () => {
+    const xml = ["<dict>", "  <key>api_key</key>", "  <string>sk-live-abc12345</string>", "</dict>"].join("\n")
+    const findings = scanText(xml, "Secrets.plist")
+    expect(findings.some((f) => f.kind === "assigned_secret")).toBe(true)
+  })
+
+  test("plist <key>/<string> placeholder value is NOT flagged", () => {
+    const findings = scanText("<key>api_key</key><string>YOUR_KEY_HERE</string>\n", "Secrets.plist")
+    expect(findings).toEqual([])
+  })
+
+  test("plist non-secret key is NOT flagged (CFBundleName)", () => {
+    const findings = scanText("<key>CFBundleName</key><string>MyApplication</string>\n", "Info.plist")
+    expect(findings).toEqual([])
+  })
 })
 
 // ---- Effect-harness tests for the execute path (fixture-based) ----
@@ -222,6 +300,36 @@ describe("SecretScanTool execute", () => {
       const summary = JSON.parse(result.output)
       expect(summary.ok).toBe(true)
       expect(summary.filesScanned).toBe(0)
+    }),
+  )
+
+  harness.instance(".env fixture with an unquoted secret -> flagged (dotenv is the #1 leak vector)", () =>
+    Effect.gen(function* () {
+      const result = yield* runExecute({ paths: [path.join(FIXTURES, "dotenv-secret.env")] })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.findings.some((f: any) => f.kind === "assigned_secret")).toBe(true)
+    }),
+  )
+
+  harness.instance("config.json fixture with a quoted-key secret -> flagged, value never exposed", () =>
+    Effect.gen(function* () {
+      const result = yield* runExecute({ paths: [path.join(FIXTURES, "config-secret.json")] })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.findings.some((f: any) => f.kind === "assigned_secret")).toBe(true)
+      for (const f of summary.findings) expect(f.snippet).not.toContain("sk_live_51H8xQ2eZvKYbadf00d")
+    }),
+  )
+
+  harness.instance("plist fixture with a <key>/<string> secret -> flagged; non-secret keys ignored", () =>
+    Effect.gen(function* () {
+      const result = yield* runExecute({ paths: [path.join(FIXTURES, "Secrets.plist")] })
+      const summary = JSON.parse(result.output)
+      expect(summary.ok).toBe(false)
+      expect(summary.findings.some((f: any) => f.kind === "assigned_secret")).toBe(true)
+      // Only the api_key entry — CFBundleName is not secret-ish.
+      expect(summary.findings).toHaveLength(1)
     }),
   )
 })

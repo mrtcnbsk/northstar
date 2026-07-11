@@ -31,6 +31,19 @@ export type AtsResult = {
  */
 type XmlPlistError = { message: string }
 
+/**
+ * Strip XML comments (`<!-- ... -->`) and CDATA sections (`<![CDATA[ ... ]]>`) out of the plist
+ * text BEFORE any well-formedness / tag-balance check or value extraction. A `<key>` (or any other
+ * plist tag) appearing inside a comment or CDATA is character data, not markup — but the naive
+ * tag-balance heuristic below would count it and wrongly declare an otherwise-valid plist malformed
+ * (which, before the fail-closed fix, silently returned "secure" and shipped an ATS-disabled app).
+ * Removing these regions first makes the balance check see only real markup, and keeps the value
+ * scanner from tripping on tags that live inside comments.
+ */
+function stripCommentsAndCdata(xml: string): string {
+  return xml.replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "")
+}
+
 function isWellFormedPlist(xml: string): boolean {
   const trimmed = xml.trim()
   if (!trimmed) return false
@@ -150,15 +163,23 @@ const GLOBAL_INSECURE_KEYS = [
 
 /**
  * Pure parser: reads raw Info.plist XML text and flags insecure App Transport Security settings.
- * No I/O — safe to unit test with captured fixtures. Malformed XML degrades to `ok: true` with no
- * violations found (nothing to flag) rather than a distinct "invalid" status — ATS's contract is
- * narrower than the privacy-manifest tool's, so an unparsable file simply yields no ATS dict to
- * inspect, matching the "ATS key absent = default-secure" rule.
+ * No I/O — safe to unit test with captured fixtures.
+ *
+ * A gate must FAIL CLOSED: a genuinely malformed / unparsable plist degrades to `ok: false` with a
+ * `file` violation (status invalid), NOT `ok: true`. Reporting an unverifiable plist as secure is a
+ * false-negative — it would let a truncated Info.plist whose `NSAllowsArbitraryLoads=true` we could
+ * not read ship as compliant. This matches privacy-manifest-check's safe malformed default. XML
+ * comments / CDATA are stripped first (see stripCommentsAndCdata) so a stray `<key>` inside a
+ * comment does not falsely trip the malformed path.
  */
 export function checkAts(xml: string): AtsResult {
-  const parsed = parsePlistDict(xml)
+  const cleaned = stripCommentsAndCdata(xml)
+  const parsed = parsePlistDict(cleaned)
   if (isXmlPlistError(parsed)) {
-    return { ok: true, violations: [] }
+    return {
+      ok: false,
+      violations: [{ key: "file", message: "Info.plist is malformed / could not be parsed — cannot verify ATS" }],
+    }
   }
 
   const atsTag = findValueForKey(parsed.root, "NSAppTransportSecurity")
@@ -187,6 +208,16 @@ export function checkAts(xml: string): AtsResult {
           domain,
           key: "NSExceptionAllowsInsecureHTTPLoads",
           message: `Domain "${domain}" has NSExceptionAllowsInsecureHTTPLoads=true, allowing plaintext HTTP.`,
+        })
+      }
+      // The third-party variant carries the same insecure-HTTP meaning for SDK/library domains and
+      // must be flagged too — omitting it let a third-party plaintext-HTTP opt-out ship unflagged.
+      const thirdPartyInsecure = boolValue(findValueForKey(body, "NSThirdPartyExceptionAllowsInsecureHTTPLoads"))
+      if (thirdPartyInsecure === true) {
+        violations.push({
+          domain,
+          key: "NSThirdPartyExceptionAllowsInsecureHTTPLoads",
+          message: `Domain "${domain}" has NSThirdPartyExceptionAllowsInsecureHTTPLoads=true, allowing plaintext HTTP.`,
         })
       }
     }
