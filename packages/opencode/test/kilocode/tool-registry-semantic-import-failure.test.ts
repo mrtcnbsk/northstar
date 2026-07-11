@@ -74,6 +74,7 @@ function infos() {
     orgMemorySave: info("org_memory_save"),
     orgRecall: info("org_recall"),
     orgSearch: info("org_search"),
+    routeTask: info("org_route"),
     notebookRead: info("notebook_read"),
     notebookEdit: info("notebook_edit"),
     notebookExecute: info("notebook_execute"),

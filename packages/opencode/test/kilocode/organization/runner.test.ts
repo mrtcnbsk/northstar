@@ -1858,3 +1858,57 @@ describe("OrgRunner revise resets startedAt for timeout correctness (Finding #4)
     expect(state.haltReason).not.toContain("timeout")
   })
 })
+
+// kilocode_change - new tests (W9.3): stagePromptFor sources workerCapabilities from the roster
+// (ConfigAgent.load(projectDir)) so a chief's stage prompt shows what each of its workers is good
+// at. Mirrors org-template's real swiftui-dev-1 (tagged: [swiftui, ui-implementation,
+// state-management]) / swiftui-dev-2 (untagged) pair from org-template/agents/, proving both the
+// annotated and the back-compat-plain rendering against a REAL roster load, not a fabricated one.
+const FRONTEND_ORG = OrgSchema.parse({
+  ceo: "ceo",
+  departments: {
+    frontend: { chief: "frontend-chief", workers: ["swiftui-dev-1", "swiftui-dev-2"] },
+  },
+  shared: [],
+  pipeline: [{ stage: "frontend" }],
+})
+
+async function writeAgentFile(dir: string, name: string, frontmatter: string) {
+  const file = path.join(dir, "agents", `${name}.md`)
+  await mkdir(path.dirname(file), { recursive: true })
+  await writeFile(file, `---\n${frontmatter}\n---\n\nYou are ${name}.\n`)
+}
+
+describe("OrgRunner stagePromptFor capability annotation (W9.3)", () => {
+  test("annotates a tagged worker's capabilities from the roster; leaves an untagged worker plain", async () => {
+    await using tmp = await tmpdir()
+    await writeAgentFile(
+      tmp.path,
+      "swiftui-dev-1",
+      "mode: subagent\nmodel: anthropic/claude-sonnet-5\ncapabilities: [swiftui, ui-implementation, state-management]",
+    )
+    // no `capabilities:` line at all - the untagged back-compat case, mirroring the real template's swiftui-dev-2.md
+    await writeAgentFile(tmp.path, "swiftui-dev-2", "mode: subagent\nmodel: anthropic/claude-sonnet-5")
+    await writeAgentFile(tmp.path, "frontend-chief", "mode: subagent\nmodel: anthropic/claude-sonnet-5")
+    await writeAgentFile(tmp.path, "ceo", "mode: primary\nmodel: anthropic/claude-sonnet-5")
+
+    const run = await OrgRunner.start(tmp.path, FRONTEND_ORG, "a habit tracker for sailors")
+    const result = await advance1({ costOf: async () => 0 }, tmp.path, FRONTEND_ORG, run.runID, {})
+    expect(result.kind).toBe("instruct")
+    if (result.kind !== "instruct") throw new Error("unreachable")
+    expect(result.taskPrompt).toContain("swiftui-dev-1 (swiftui, ui-implementation, state-management)")
+    // the untagged worker renders bare, not annotated
+    expect(result.taskPrompt).not.toContain("swiftui-dev-2 (")
+    expect(result.taskPrompt).toContain("swiftui-dev-2")
+  })
+
+  test("falls back to plain worker names when the roster has no agent files (best-effort, never breaks prompt building)", async () => {
+    await using tmp = await tmpdir()
+    // No agents/ directory at all - ConfigAgent.load must not throw, and the prompt still builds.
+    const run = await OrgRunner.start(tmp.path, FRONTEND_ORG, "a habit tracker for sailors")
+    const result = await advance1({ costOf: async () => 0 }, tmp.path, FRONTEND_ORG, run.runID, {})
+    expect(result.kind).toBe("instruct")
+    if (result.kind !== "instruct") throw new Error("unreachable")
+    expect(result.taskPrompt).toContain("swiftui-dev-1, swiftui-dev-2")
+  })
+})
