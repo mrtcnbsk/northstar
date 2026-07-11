@@ -3,8 +3,12 @@ import { Effect, Schema } from "effect"
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import { guardCeo, load, tryOrg } from "@/kilocode/organization/tools"
-import { OrgRag } from "@/kilocode/organization/rag"
-import { KiloIndexing } from "@/kilocode/indexing"
+// kilocode_change - W6.3 fix: KiloIndexing (indexing.ts) and OrgRag (rag.ts) are imported LAZILY
+// inside execute() rather than at module top-level. A static import of the heavy KiloIndexing module
+// here pulls it into the registry's module-init graph (registry.ts imports this tool), perturbing
+// module load order enough to trip a latent circular-import TDZ in control-plane/workspace.ts across
+// the whole suite. Deferring to call-time keeps this tool's static footprint minimal. Types are erased.
+import type { OrgRag as OrgRagNs } from "@/kilocode/organization/rag"
 
 import DESCRIPTION from "./org-search.txt"
 
@@ -24,7 +28,7 @@ const Parameters = Schema.Struct({
 })
 
 type Meta = {
-  results: OrgRag.SearchHit[]
+  results: OrgRagNs.SearchHit[]
 }
 
 export const OrgSearchTool = Tool.define(
@@ -41,6 +45,11 @@ export const OrgSearchTool = Tool.define(
         const dir = instance.directory
         const org = yield* load(dir)
         yield* guardCeo(org, ctx.agent)
+
+        // kilocode_change - W6.3 fix: lazy-load the heavy indexing modules at call-time (see the
+        // top-of-file note on the module-init cycle). These awaits happen only when the tool runs.
+        const { KiloIndexing } = yield* Effect.promise(() => import("@/kilocode/indexing"))
+        const { OrgRag } = yield* Effect.promise(() => import("@/kilocode/organization/rag"))
 
         // kilocode_change - W6.3: resolve a real embedder/store from KiloIndexing (production);
         // orgRagServices NEVER throws (it catches internally and returns undefined), so this is a
