@@ -21,8 +21,8 @@ Options:
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
-    curl -fsSL https://kilo.ai/cli/install | bash
-    curl -fsSL https://kilo.ai/cli/install | bash -s -- --version 1.0.180
+    curl -fsSL https://raw.githubusercontent.com/mrtcnbsk/northstar/main/install | bash
+    curl -fsSL https://raw.githubusercontent.com/mrtcnbsk/northstar/main/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/northstar
 EOF
 }
@@ -347,21 +347,25 @@ download_and_install() {
     fi
 
     # kilocode_change start
-    mv "$tmp_dir/northstar" "$INSTALL_DIR"
+    bin_ext=""
+    if [ "$os" = "windows" ]; then bin_ext=".exe"; fi
+    mv "$tmp_dir/northstar${bin_ext}" "${INSTALL_DIR}/northstar${bin_ext}"
     rm -rf "${INSTALL_DIR}/tree-sitter"
     if [ -d "$tmp_dir/tree-sitter" ]; then
         mv "$tmp_dir/tree-sitter" "$INSTALL_DIR"
     fi
-    chmod 755 "${INSTALL_DIR}/northstar"
+    chmod 755 "${INSTALL_DIR}/northstar${bin_ext}"
     # kilocode_change end
     rm -rf "$tmp_dir"
 }
 
 install_from_binary() {
     # kilocode_change start
+    bin_ext=""
+    if [ "$os" = "windows" ]; then bin_ext=".exe"; fi
     print_message info "\n${MUTED}Installing ${NC}northstar ${MUTED}from: ${NC}$binary_path"
-    cp "$binary_path" "${INSTALL_DIR}/northstar"
-    chmod 755 "${INSTALL_DIR}/northstar"
+    cp "$binary_path" "${INSTALL_DIR}/northstar${bin_ext}"
+    chmod 755 "${INSTALL_DIR}/northstar${bin_ext}"
     # kilocode_change end
 }
 
@@ -568,7 +572,7 @@ echo -e ""
 echo -e "cd <project>  ${MUTED}# Open directory${NC}"
 echo -e "northstar     ${MUTED}# Run northstar${NC}"
 echo -e ""
-echo -e "${MUTED}For more information visit ${NC}https://kilo.ai/docs"
+echo -e "${MUTED}For more information visit ${NC}https://github.com/mrtcnbsk/northstar"
 echo -e ""
 echo -e ""
 # kilocode_change end

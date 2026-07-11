@@ -175,28 +175,15 @@ jobs:
   # kilocode_change end
 
   # kilocode_change start
-  jetbrains:
-    name: jetbrains
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: read
-    uses: ./.github/workflows/test-jetbrains.yml
-  # kilocode_change end
-
-  # kilocode_change start
   required:
     name: test (linux)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - unit
-      - jetbrains
     if: always()
     steps:
       - name: Verify upstream test jobs passed
         run: |
           echo "unit=${{ needs.unit.result }}"
-          echo "jetbrains=${{ needs.jetbrains.result }}"
           test "${{ needs.unit.result }}" = "success"
-          test "${{ needs.jetbrains.result }}" = "success"
   # kilocode_change end
