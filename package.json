@@ -105,8 +105,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kilo-Org/kilocode"
+    "url": "https://github.com/mrtcnbsk/northstar"
   },
+  "author": "Ilura Technology OÜ",
   "license": "MIT",
   "prettier": {
     "semi": false,

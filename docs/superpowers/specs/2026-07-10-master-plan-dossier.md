@@ -1,4 +1,6 @@
-# Master-Plan Dossier — Northstar Autonomous Apple Software Company
+# Master-Plan Dossier — Ilura Autonomous Apple Software Company
+
+> Owner: **Ilura Technology OÜ**. (Project codename: `northstar` — became Ilura property on 2026-07-11.)
 
 **Date:** 2026-07-10
 **Repo:** /Users/mertcanbasak/Now/northstar — branch `feat/agent-organization`

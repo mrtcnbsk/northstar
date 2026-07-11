@@ -1,4 +1,6 @@
-# Northstar Master Plan — Otonom Apple Yazılım Şirketi
+# Ilura Agent-Org Master Plan — Otonom Apple Yazılım Şirketi
+
+> Sahip: **Ilura Technology OÜ**. (Proje kod adı: `northstar` — 2026-07-11'de Ilura mülkiyetine geçti.)
 
 **Tarih:** 2026-07-10
 **Girdiler:** Kullanıcının 30 bölümlük eksik listesi (2026-07-10 mesajı) · [Master-plan dossier](2026-07-10-master-plan-dossier.md) (10 küme raporunun sentezi, codebase-doğrulanmış) · [tracked-followups](../tracked-followups.md) · v1 org çekirdeği ([spec](2026-07-09-agent-organization-core-design.md))

@@ -1,0 +1,21 @@
+Ilura Technology OÜ — NOTICE
+============================
+
+This repository is a private, proprietary derivative work owned by Ilura
+Technology OÜ ("Ilura"). It is built upon, and incorporates source code from,
+the following open-source projects, each licensed under the MIT License:
+
+  - Kilo Code  — Copyright (c) 2026 Kilo Code  — https://github.com/Kilo-Org/kilocode
+  - opencode   — Copyright (c) 2025 opencode    — https://github.com/sst/opencode
+
+The MIT License terms of the upstream projects are retained in full; see the
+LICENSE file, which lists the upstream copyright holders alongside Ilura's.
+
+Ilura's own additions and modifications — including the autonomous multi-agent
+organization layer (packages/opencode/src/kilocode/ and org-template/), the
+App Store Connect delivery pipeline, and the supporting tooling and tests — are
+Copyright (c) 2026 Ilura Technology OÜ.
+
+Nothing in this NOTICE removes, limits, or supersedes the rights or attribution
+required by the upstream MIT licenses. This NOTICE records the provenance of the
+combined work and its current ownership by Ilura Technology OÜ.
