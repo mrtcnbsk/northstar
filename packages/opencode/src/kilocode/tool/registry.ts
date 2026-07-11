@@ -22,6 +22,9 @@ import {
   OrgStatusTool,
   OrgStopTool,
 } from "@/kilocode/organization/tools"
+import { OrgMemorySaveTool } from "./org-memory-save"
+import { OrgRecallTool } from "./org-recall"
+import { OrgSearchTool } from "./org-search"
 import * as Tool from "../../tool/tool"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect } from "effect"
@@ -88,6 +91,9 @@ export namespace KiloToolRegistry {
       const orgDecision = yield* OrgDecisionTool
       const orgStatus = yield* OrgStatusTool
       const orgStop = yield* OrgStopTool
+      const orgMemorySave = yield* OrgMemorySaveTool
+      const orgRecall = yield* OrgRecallTool
+      const orgSearch = yield* OrgSearchTool
       if (!notebook)
         return {
           codebase,
@@ -110,6 +116,9 @@ export namespace KiloToolRegistry {
           orgDecision,
           orgStatus,
           orgStop,
+          orgMemorySave,
+          orgRecall,
+          orgSearch,
         }
       const tools = yield* Effect.all({
         notebookRead: NotebookReadTool,
@@ -137,6 +146,9 @@ export namespace KiloToolRegistry {
         orgDecision,
         orgStatus,
         orgStop,
+        orgMemorySave,
+        orgRecall,
+        orgSearch,
         ...tools,
       }
     })
@@ -166,6 +178,9 @@ export namespace KiloToolRegistry {
       orgDecision: Tool.Info
       orgStatus: Tool.Info
       orgStop: Tool.Info
+      orgMemorySave: Tool.Info
+      orgRecall: Tool.Info
+      orgSearch: Tool.Info
       notebookRead?: Tool.Info
       notebookEdit?: Tool.Info
       notebookExecute?: Tool.Info
@@ -194,6 +209,9 @@ export namespace KiloToolRegistry {
         orgDecision: Tool.init(tools.orgDecision),
         orgStatus: Tool.init(tools.orgStatus),
         orgStop: Tool.init(tools.orgStop),
+        orgMemorySave: Tool.init(tools.orgMemorySave),
+        orgRecall: Tool.init(tools.orgRecall),
+        orgSearch: Tool.init(tools.orgSearch),
       })
       const terminal = tools.terminal ? yield* Tool.init(tools.terminal) : undefined
       const notebooks =
@@ -277,6 +295,9 @@ export namespace KiloToolRegistry {
       orgDecision: Tool.Def
       orgStatus: Tool.Def
       orgStop: Tool.Def
+      orgMemorySave: Tool.Def
+      orgRecall: Tool.Def
+      orgSearch: Tool.Def
       notebookRead?: Tool.Def
       notebookEdit?: Tool.Def
       notebookExecute?: Tool.Def
@@ -315,6 +336,9 @@ export namespace KiloToolRegistry {
       tools.orgDecision,
       tools.orgStatus,
       tools.orgStop,
+      tools.orgMemorySave,
+      tools.orgRecall,
+      tools.orgSearch,
     ]
   }
 

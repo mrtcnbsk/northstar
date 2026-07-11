@@ -1,5 +1,6 @@
 // kilocode_change - new file
 import { Effect, Schema } from "effect"
+import * as Log from "@opencode-ai/core/util/log" // kilocode_change - W6.2: best-effort postmortem logging
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import { Session } from "@/session/session"
@@ -10,6 +11,79 @@ import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
 import { OrgSchema } from "./schema"
 import { OrgRunner } from "./runner"
 import { OrgState } from "./state"
+import { OrgAudit } from "./audit" // kilocode_change - W6.2: postmortem's gate-decision trail
+import { OrgPostmortem } from "./postmortem" // kilocode_change - W6.2: postrun postmortem hook
+import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson in the org memory pool
+
+// kilocode_change start - W6.2: postrun postmortem hook.
+const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
+
+/**
+ * Best-effort postmortem recorder, shared by every run-END choke point (`OrgAdvanceTool`'s
+ * `done`/`halted` results, `OrgDecisionTool`'s no-go path, `OrgStopTool`'s unconditional halt).
+ * Called INSIDE `withRunLock`, AFTER the run-ending result each tool returns is already fully
+ * determined - so this function's own I/O can only run once the state write that produced that
+ * result has landed, and nothing it does can change what already got returned.
+ *
+ * CRITICAL INVARIANT: this function must NEVER throw and must NEVER be awaited for its result to
+ * shape a tool's response. The entire body is wrapped in try/catch: any failure (reading the run,
+ * reading the audit trail, writing lessons.md, saving the org-memory lesson) is logged via
+ * `Log.warn` and swallowed. A caller only ever needs `void recordPostmortem(...)` /
+ * `await recordPostmortem(...)` for sequencing (so it stays inside the lock) - its outcome is
+ * never inspected or propagated.
+ *
+ * Fire-once is NOT this function's job: it re-reads state and unconditionally calls
+ * `OrgPostmortem.write` (whose own marker check is the actual fire-once guarantee - see
+ * postmortem.ts) and `OrgMemory.save` (keyed by `run.runID`, which the underlying `Memory.remember`
+ * upserts in place rather than duplicating - see memory.ts/kilo-memory). So a re-entrant call for
+ * the same run_id (e.g. a second `org_advance` on an already-completed run) is safe to make again.
+ */
+async function recordPostmortem(dir: string, org: OrgSchema.Organization, runID: string): Promise<void> {
+  try {
+    const run = await OrgState.read(dir, runID)
+    const summary = OrgState.runSummary(run)
+    const audit = await OrgAudit.read(dir, runID)
+    await OrgPostmortem.write(dir, run, summary, audit)
+    await OrgMemory.save(dir, {
+      text: `${run.idea}: ${OrgPostmortem.outcome(run)}, $${summary.totalCost}`,
+      dept: OrgPostmortem.keyStage(run),
+      key: run.runID,
+    })
+    // kilocode_change start - W6.3 fix: index THIS completed run's deliverables so `org_search`
+    // is actually functional against a real embedder (before this, nothing ever indexed org
+    // deliverables in production, so org_search queried an always-empty store).
+    //
+    // BEST-EFFORT and NON-BLOCKING to completion by construction:
+    //   - It runs strictly AFTER the run-ending result was already computed by the caller (inside
+    //     withRunLock, after OrgRunner.advance/decide/stop returned), so neither its latency nor a
+    //     failure can change what org_advance/org_decision/org_stop returns.
+    //   - `orgRagServices` NEVER throws: it catches every failure mode (no key, indexing disabled,
+    //     LanceDB unavailable) and returns `undefined`, leaving org-RAG gracefully INERT - the
+    //     common case when no embedder is configured indexes nothing and adds ~one cheap config
+    //     read of latency.
+    //   - A configured-but-failing/slow embedder throws or stalls only INSIDE this try, whose
+    //     catch below swallows it (the run already completed); it can never break run completion.
+    //   - `indexRun` uses stable per-chunk point ids, so a re-entrant recordPostmortem for the
+    //     same run (e.g. a second org_advance on an already-done run) re-indexes idempotently
+    //     rather than duplicating points.
+    // KiloIndexing + OrgRag are imported DYNAMICALLY (mirroring org-search.ts) to keep the heavy
+    // indexing module out of the tool registry's module-init graph and avoid the control-plane
+    // TDZ cycle that a static import there re-triggers.
+    const { KiloIndexing } = await import("@/kilocode/indexing")
+    const services = await KiloIndexing.orgRagServices(dir)
+    if (services) {
+      const { OrgRag } = await import("./rag")
+      await OrgRag.indexRun(dir, services.embedder, services.store, runID)
+    }
+    // kilocode_change end
+  } catch (err) {
+    postmortemLog.warn("org postmortem failed (best-effort; run result unaffected)", {
+      runID,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+// kilocode_change end
 
 /** Two-arg tryPromise so the real Error (with its readable message) lands in the failure channel;
  * bare single-arg tryPromise wraps rejections in UnknownError whose .message is a fixed opaque string,
@@ -72,14 +146,16 @@ export function withRunLock<A>(runID: string, fn: () => Promise<A>): Promise<A> 
 }
 // kilocode_change end
 
-const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
+// kilocode_change - exported (was module-private) so org-memory-save.ts/org-recall.ts (W6.1) can
+// reuse the SAME dir-loading/CEO-guard/result-shaping logic instead of duplicating it a third time.
+export const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
 
-const guardCeo = (org: OrgSchema.Organization, agent: string) =>
+export const guardCeo = (org: OrgSchema.Organization, agent: string) =>
   agent === org.ceo
     ? Effect.void
     : Effect.fail(new Error(`org tools are reserved for the CEO agent "${org.ceo}" (called by "${agent}")`))
 
-function result(title: string, body: unknown) {
+export function result(title: string, body: unknown) {
   return { title, metadata: {}, output: typeof body === "string" ? body : JSON.stringify(body, null, 2) }
 }
 
@@ -174,12 +250,21 @@ export const OrgAdvanceTool = Tool.define(
           // onto the runner's widened input, so a parallel fan-out threads each chief's result to its
           // OWN stage (renaming the tool-facing `task_id` -> runner-facing `taskID`).
           const batch = yield* tryOrg(() =>
-            withRunLock(params.run_id, () =>
-              OrgRunner.advance(deps, dir, org, params.run_id, {
+            withRunLock(params.run_id, async () => {
+              const advanced = await OrgRunner.advance(deps, dir, org, params.run_id, {
                 taskID: params.task_id,
                 taskResults: params.task_results?.map((r) => ({ stage: r.stage, taskID: r.task_id })),
-              }),
-            ),
+              })
+              // kilocode_change start - W6.2: best-effort postmortem at the run-END choke point.
+              // Runs AFTER `advanced` is fully computed (still inside the lock), so a postmortem
+              // failure can never change the Batch this tool returns. Covers BOTH end states:
+              // `done` (normal completion) and `halted` (budget/timeout/failed-stage halts).
+              if (advanced.done || advanced.halted) {
+                await recordPostmortem(dir, org, params.run_id)
+              }
+              // kilocode_change end
+              return advanced
+            }),
           )
           // kilocode_change - W4.6: the Batch (parallel instructs + at most one serialized blocker)
           // maps to a widened action vocabulary. Precedence: halted -> done -> run_tasks (fan-out; a
@@ -332,7 +417,16 @@ export const OrgDecisionTool = Tool.define(
           yield* guardCeo(org, ctx.agent)
           // kilocode_change - W0-R2: serialize against other mutating org tool calls on this run_id.
           const run = yield* tryOrg(() =>
-            withRunLock(params.run_id, () => OrgRunner.decide(dir, org, params.run_id, params.decision, params.note)),
+            withRunLock(params.run_id, async () => {
+              const updated = await OrgRunner.decide(dir, org, params.run_id, params.decision, params.note)
+              // kilocode_change start - W6.2: a "no-go" decision halts the run right here; record
+              // the postmortem now, AFTER `updated` is fully computed, best-effort.
+              if (updated.status === "halted") {
+                await recordPostmortem(dir, org, params.run_id)
+              }
+              // kilocode_change end
+              return updated
+            }),
           )
           return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
         }).pipe(Effect.orDie),
@@ -419,7 +513,14 @@ export const OrgStopTool = Tool.define(
           // that started before the stop can no longer clobber it after. Before this fix the two
           // writes could interleave in either order; now they are strictly ordered by the queue.
           const { stage, taskID } = yield* tryOrg(() =>
-            withRunLock(params.run_id, () => OrgRunner.stop(dir, org, params.run_id, params.reason)),
+            withRunLock(params.run_id, async () => {
+              const stopped = await OrgRunner.stop(dir, org, params.run_id, params.reason)
+              // kilocode_change start - W6.2: org_stop always halts the run; record the postmortem
+              // now, AFTER `stopped` is fully computed, best-effort.
+              await recordPostmortem(dir, org, params.run_id)
+              // kilocode_change end
+              return stopped
+            }),
           )
           if (!stage) {
             return result("stopped", { action: "stopped", reason: params.reason, note: "no stage was running" })

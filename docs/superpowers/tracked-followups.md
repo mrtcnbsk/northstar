@@ -429,3 +429,53 @@ GDPR checklist derinliği. Doğruluk sorunu değil.
 `session-processor-retry-limit`) fail etti AMA izole koşuda 4/4 GEÇTİ ve hiçbir Wave 5 sembolüne dokunmuyorlar —
 bu oturumdaki gerçek ağ kararsızlığına (ConnectionRefused/MCP kopmaları) duyarlı, önceden-var-olan çevresel flaky'ler,
 Wave 5 regresyonu DEĞİL.
+
+## Wave 6'da kapatıldı (feat/wave-6-memory, W6.1-W6.4)
+
+Wave 6 = bellek & öğrenme: her koşu ders çıkarsın, sonraki koşular ısınsın. Tasarım: MEVCUT altyapıyı yeniden kullan —
+`kilo-memory` `Memory.*` motoru `{root}`-parametreli (org havuzu = aynı motor `.kilo/org/memory`'de, leksikal recall,
+keyless); `kilo-indexing` RAG'ı (embedder iface + LanceDB + directoryPrefix namespace + açık payload) inject ile
+yeniden kullanılır (test'te stub embedder). Postmortem DETERMİNİSTİK (LLM yok), koşu bitiş choke point'inde
+(OrgAdvanceTool done/halt + decide no-go + stop, withRunLock içinde), BEST-EFFORT (postmortem hatası koşu tamamlanmasını
+ASLA bozmaz).
+
+- **W6.1 — org-scoped memory havuzu.** `OrgMemory` = `Memory.*` `.kilo/org/memory` root'ta (proje-yerel, cross-run,
+  committable, session-memory'den İZOLE — doğrulandı). Dept-tag = `[dept::name]` marker + post-filter. Yeni
+  `org_memory_save`/`org_recall` (CEO-scoped, org_* görünürlük). Motor değiştirilmedi.
+- **W6.2 — postrun postmortem hook.** Saf `OrgPostmortem.build` (per-stage status/cost/attempts/decision + total + outcome,
+  Date.now yok) → `.kilo/org/lessons.md` (fire-once `<!-- postmortem:runID -->` marker) + org memory (upsert key=runID).
+  Best-effort: gerçek EISDIR failing-writer ile RED→GREEN kanıtlı (catch kaldırılınca 4 test fail).
+- **W6.3 — org-scoped RAG + citations.** `OrgRag` deliverable'ları inject store'a indexler (payload runID/stage;
+  arama-zamanı runID/stage'i filePath'ten TÜRETİR çünkü gerçek LanceDB fazladan payload key'lerini düşürür); directoryPrefix
+  scoping (run-1/run-10 trailing-sep guard); graceful degradation ({unavailable:true}, embedder yoksa asla throw etmez).
+  `semantic_search`'e `cite: file:line`. `KiloIndexing.orgRagServices` gerçek BYOK wiring (.kilo/org/rag'a namespace'li).
+- **W6.4 — exit testi.** 5 kriter uçtan uca: postmortem→lessons+memory (tamam+no-go), org-RAG 2-koşu runID-scoped arama,
+  citations+graceful-no-key, best-effort (gerçek EISDIR → tamamlanma etkilenmez) + fire-once.
+
+**KRİTİK regresyon (tam sweep yakaladı, task-test subset'leri KAÇIRDI) — FIXED (`8341de8fcb`):** W6.3'ün `org-search.ts`'i
+`KiloIndexing`'i (ağır indexing.ts modülü) TOP-LEVEL import ediyordu; registry.ts her tool'u yüklediğinden bu, ağır modülü
+registry'nin module-init grafiğine çekip yükleme sırasını bozarak `control-plane/workspace.ts`'te latent bir circular-import
+TDZ'yi (`SessionPrompt.defaultLayer before initialization`) TÜM suite genelinde tetikliyordu — tam sweep'te 81 sahte fail.
+Bisect W6.3'ü, registry-revert testi org-search girişini suçlu buldu. Fix: `KiloIndexing`+`OrgRag` org-search.ts'te
+call-time DYNAMIC import'a alındı (statik ayak izi minimal). **DERS: load-order-duyarlı circular-import bug'ları yalnız TAM
+sweep'te görünür; task-test subset'leri (izole dosyalar) kaçırır — wave-close tam sweep zorunlu.**
+
+**Wave-close review (adversarial, 4-boyut, 25 agent, 3-şüpheci) — 5 bulgu (0 critical, 2 important, 3 minor), HEPSİ FIXED
+(`8aaec5347c`):**
+- **Important — org-RAG üretimde ATIL'dı → FIXED.** (1) `indexDeliverables` payload'da `fileHash` yoktu; gerçek
+  LanceDBVectorStore.isPayloadValid `[filePath,fileHash,codeChunk,startLine,endLine]` şart koşar → her org noktası SESSİZCE
+  düşüyordu (stub store isPayloadValid zorlamadığından test'te görünmüyordu). Fix: `fileHash = sha256(chunk)`. (2)
+  `indexDeliverables`'ın ÜRETİM çağıranı YOKTU → org_search hep boş store'u arıyordu. Fix: `OrgRag.indexRun` + postmortem
+  hook'unda best-effort indexleme (embedder varsa; yoksa atıl kalır, tamamlanmayı bozmaz).
+- **Minor — FIXED:** lessons.md cross-run yarışı (withRunLock per-run-id ama lessons.md paylaşımlı → eş-zamanlı iki koşu
+  birbirinin bölümünü clobber ediyordu) → path-keyed file-lock. org_recall `limit`'i motora geçirmiyordu (hep 5'e cap) +
+  dept post-filter'ı top-5 truncation'dan SONRA (dept match'i düşüyordu) → limit thread + dept için 20'ye over-fetch.
+
+**TRACK (Wave 6 kalan, bilinçli):** org-RAG re-index maliyeti (indexRun her tamamlanmada tüm deliverable chunk'larını
+re-embed eder; stable id'ler duplicate önler ama fileHash-skip yok); chunk-sınırı kayınca eski point'ler silinmez;
+embedder yapılandırılıysa tamamlanma latency'si (sonuç hesaplandıktan SONRA, döndürülen action etkilenmez); lock'lar
+process-local (withRunLock ile aynı cross-process sınırı).
+
+**SNR-deferred (Wave 6'da bilinçli ertelendi → v2, dossier §F/§M):** LLM-anlatımlı nitel dersler; hybrid BM25+vector arama;
+architecture-decision-log çıkarımı; coding-standards yakalama; prompt-improvement pipeline. Org-RAG gerçek vektör araması
+runtime'da BYOK embedder ŞART (yapılandırılmadıkça graceful atıl) — W7 Apple hesabı gibi soft external bağımlılık.

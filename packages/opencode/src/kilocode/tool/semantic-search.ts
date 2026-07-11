@@ -94,6 +94,10 @@ export const SemanticSearchTool = Tool.define(
           ...results.flatMap((item, index) => {
             return [
               `${index + 1}. ${item.filePath}:${item.startLine}-${item.endLine} (score ${item.score.toFixed(4)})`,
+              // kilocode_change - W6.3: explicit cite: token per result so a caller (or a human
+              // reading the tool output) can lift a stable file:line citation without re-parsing
+              // the numbered summary line above.
+              `cite: ${item.filePath}:${item.startLine}`,
               item.codeChunk,
               "",
             ]

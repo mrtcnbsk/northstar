@@ -1,0 +1,107 @@
+// kilocode_change - new file
+import path from "path"
+import { Memory } from "@kilocode/kilo-memory/memory"
+
+/**
+ * Org-scoped shared memory pool (W6.1).
+ *
+ * REUSE, not reimplementation: this wraps the SAME `Memory.*` facade
+ * (`packages/kilo-memory/src/memory.ts`) that session memory uses, pointed at a different,
+ * project-local root: `<projectDir>/.kilo/org/memory` instead of the global per-machine
+ * session-memory root (`MemoryPaths.root` under the host data dir). Storage (markdown record
+ * files + `state.json`/`index.kmem`), the lexical recall scorer, secret redaction, and the
+ * `key :: text` record format are all untouched — nothing from `kilo-memory/src/storage`,
+ * `kilo-memory/src/recall`, or `kilo-memory/src/capture` is reimplemented here. This module only
+ * (a) picks the org root and (b) adds a lightweight `dept` tag on top.
+ *
+ * Because it is the same `{root}`-parameterized engine, recall stays PURE LEXICAL (keyword
+ * scoring, no embeddings, no API key) exactly like session memory.
+ *
+ * Isolation: the org root lives under `.kilo/org/memory`, which session memory never resolves to
+ * (session memory roots live under a per-machine host data dir keyed by a hash of the project
+ * path, see `MemoryPaths.root`). Nothing in this module ever touches any root other than the one
+ * `root()` computes, so writing org memory cannot reach the session-memory `project.md`.
+ *
+ * Dept tagging: a `dept`, when provided, is encoded as a `[dept::<name>]` marker PREPENDED to the
+ * record's stored text before it is handed to `Memory.remember` - so it rides inside the same
+ * `key :: text` line Memory already writes, with no schema/storage change. `recall({ dept })`
+ * narrows by checking each returned hit's text for that exact marker: a deterministic post-filter
+ * over `Memory.recall`'s hits, not a change to the lexical scorer itself. The marker's own tokens
+ * ("dept", the dept name) also land in the lexical index as a side effect, so a query that
+ * mentions the dept name will tend to already rank tagged records higher even without the
+ * explicit `dept` filter - but `dept` filtering here is exact-marker-match, not score-based.
+ */
+export namespace OrgMemory {
+  export function root(projectDir: string): string {
+    return path.join(projectDir, ".kilo", "org", "memory")
+  }
+
+  function marker(dept: string) {
+    return `[dept::${dept}]`
+  }
+
+  function tag(dept: string | undefined, text: string) {
+    return dept ? `${marker(dept)} ${text}` : text
+  }
+
+  export type SaveInput = {
+    text: string
+    dept?: string
+    key?: string
+  }
+
+  export type RecallInput = {
+    query: string
+    dept?: string
+    limit?: number
+  }
+
+  /** Save a lesson/fact to the org pool. Lazily creates/owns `.kilo/org/memory` on first write -
+   * `Memory.enable` is an idempotent upsert (safe to call on every save), and it only ever touches
+   * the org `root()` computed above, never the session-memory root. */
+  export async function save(projectDir: string, input: SaveInput) {
+    const orgRoot = root(projectDir)
+    await Memory.enable({ root: orgRoot })
+    return Memory.remember({ root: orgRoot, text: tag(input.dept, input.text), key: input.key })
+  }
+
+  // The engine (MemoryRecall.search) clamps any requested recall limit to [1, 20].
+  const ENGINE_MAX_LIMIT = 20
+  // When narrowing by dept, ask the engine for the widest candidate window it allows BEFORE the
+  // dept post-filter runs, so a matching-dept record ranked beyond the caller's (or the default)
+  // limit is not truncated away by the engine before we ever get to filter by dept.
+  const DEPT_OVERFETCH = ENGINE_MAX_LIMIT
+
+  /** Lexical recall over the org pool, optionally narrowed to a `dept`. Never throws on an empty
+   * or never-written pool: `Memory.recall` against a root with no `state.json` yet returns a
+   * disabled-state shape with no `hits` field, which is normalized to `[]` here rather than
+   * accessed directly.
+   *
+   * Two bugs this guards against (W6 fix #4/#5):
+   *   #5: the caller's `limit` MUST be threaded to `Memory.recall`; otherwise the engine caps at
+   *       its own default of 5 and a caller asking for more can never receive more.
+   *   #4: the `[dept::name]` filter is a POST-filter over the engine's hits. If the engine first
+   *       truncated to its top-N, a matching-dept record ranked below N would be gone before the
+   *       filter ran (recall wrongly reports "no results"). So when `dept` is set we over-fetch the
+   *       engine's max candidate window, filter by dept, THEN slice to the caller's `limit`.
+   */
+  export async function recall(projectDir: string, input: RecallInput) {
+    const orgRoot = root(projectDir)
+    const dept = input.dept
+    const limit = input.limit
+    // Non-dept: thread the caller's limit straight through (engine clamps to [1, 20]; undefined =>
+    // its default of 5). Dept: over-fetch the widest window so the post-filter can see records
+    // ranked past `limit`, then re-slice to `limit` below.
+    const engineLimit = dept ? Math.min(ENGINE_MAX_LIMIT, Math.max(limit ?? 0, DEPT_OVERFETCH)) : limit
+    const raw = await Memory.recall({ root: orgRoot, query: input.query, limit: engineLimit })
+    const hits = "hits" in raw ? (raw.hits ?? []) : []
+    const scoped = dept ? hits.filter((hit) => hit.text.includes(marker(dept))) : hits
+    const limited = typeof limit === "number" && limit >= 0 ? scoped.slice(0, limit) : scoped
+    return {
+      root: orgRoot,
+      hits: limited,
+      files: [...new Set(limited.map((hit) => hit.source))],
+      topics: [...new Set(limited.flatMap((hit) => (hit.topics?.length ? hit.topics : [hit.kind])))],
+    }
+  }
+}

@@ -1,0 +1,14 @@
+Semantic search over the organization's run deliverables (`.kilo/org/runs/*/deliverables/*.md`), across current and prior runs. Distinct from `org_recall` (lexical keyword search over the org memory pool) and from `semantic_search` (embeddings over the codebase): this tool embeds and searches the actual deliverable documents chiefs produced (evaluation reports, engineering plans, etc.), so you can ask things like "what did the evaluation deliverable say about the edge gate?" and get back cited passages.
+
+CEO-only. Use this to find relevant passages inside a run's (or all runs') deliverables without reading every file end to end.
+
+Parameters:
+- query (required): natural-language search query.
+- run_id (optional): scope the search to a single run's deliverables.
+- dept (optional): narrow results to a specific stage/department (e.g. "eng", "evaluation") - matches the deliverable's stage name.
+- limit (optional): maximum number of matches to return.
+
+Usage notes:
+- Each result carries a `cite: <filePath>:<startLine> (run <runID>)` token so you can point the user or a follow-up Read at the exact source line.
+- This is a REAL embedding search and requires an embedder to be configured (BYOK - the same `indexing.embedderProvider`/API key configuration `semantic_search` uses). If no embedder is configured, this tool returns a clean "org search unavailable" message rather than an error - that is expected, not a bug; fall back to `org_recall` (lexical, no key required) or reading deliverables directly.
+- Deliverables must have been indexed for this to find them; an empty result set for a run that has deliverables may mean the index doesn't cover them yet, not that nothing matches.
