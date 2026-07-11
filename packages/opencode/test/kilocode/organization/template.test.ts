@@ -117,6 +117,31 @@ describe("org-template consistency", () => {
     }
   })
 
+  // kilocode_change start - W8.1: capability tagging (capabilities[]/preferredTypes[]) is pure
+  // metadata threaded from agent frontmatter -> config AgentSchema -> runtime Agent.Info. No
+  // matcher consumes it yet (deferred to a future task); this only proves the fields survive
+  // ConfigAgent.load instead of being silently dropped (or leaked into `options`, which is
+  // forwarded verbatim to the model provider as request params).
+  test("capability tagging: swiftui-dev-1 and security-validator expose capabilities/preferredTypes as string arrays", async () => {
+    const { agents } = await loadTemplate()
+
+    const dev = agents["swiftui-dev-1"] as unknown as { capabilities?: string[]; preferredTypes?: string[] }
+    expect(dev.capabilities).toEqual(["swiftui", "ui-implementation", "state-management"])
+    expect(dev.preferredTypes).toEqual(["utility", "productivity"])
+
+    const validator = agents["security-validator"] as unknown as { capabilities?: string[]; preferredTypes?: string[] }
+    expect(validator.capabilities).toEqual(["security-audit", "secret-scanning", "insecure-transport-detection"])
+    expect(validator.preferredTypes).toEqual(["fintech", "health"])
+  })
+
+  test("capability tagging does not leak capabilities/preferredTypes into options (provider params)", async () => {
+    const { agents } = await loadTemplate()
+    const dev = agents["swiftui-dev-1"] as unknown as { options?: Record<string, unknown> }
+    expect(dev.options?.["capabilities"]).toBeUndefined()
+    expect(dev.options?.["preferredTypes"]).toBeUndefined()
+  })
+  // kilocode_change end
+
   test("ceo human-gate step guards against instructions embedded in deliverable content", async () => {
     const { org, agents } = await loadTemplate()
     const ceo = agents[org.ceo]

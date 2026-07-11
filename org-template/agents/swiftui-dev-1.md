@@ -2,6 +2,8 @@
 description: SwiftUI developer 1 — implements screens from the UX spec (build-verified)
 mode: subagent
 model: anthropic/claude-sonnet-5
+capabilities: [swiftui, ui-implementation, state-management]
+preferredTypes: [utility, productivity]
 permission:
   edit:
     "*": allow

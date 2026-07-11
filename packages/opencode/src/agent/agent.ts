@@ -60,6 +60,10 @@ export const Info = Schema.Struct({
   // not on a ruleset signature that global task policies can manufacture
   subordinates: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   // kilocode_change end
+  // kilocode_change start - W8.1: capability tagging, pure metadata for a future task->agent matcher
+  capabilities: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  preferredTypes: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  // kilocode_change end
   steps: Schema.optional(Schema.Finite),
 }).annotate({ identifier: "Agent" })
 export type Info = DeepMutable<Schema.Schema.Type<typeof Info>>
@@ -347,6 +351,8 @@ export const layer = Layer.effect(
           item.source = value.source ?? item.source
           item.requirements = value.requirements ?? item.requirements
           item.subordinates = value.subordinates ?? item.subordinates // kilocode_change - W1.0b: thread declared subordinates to runtime Agent.Info
+          item.capabilities = value.capabilities ?? item.capabilities // kilocode_change - W8.1: capability tagging
+          item.preferredTypes = value.preferredTypes ?? item.preferredTypes // kilocode_change - W8.1: capability tagging
           // kilocode_change end
           item.options = mergeDeep(item.options, value.options ?? {})
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
