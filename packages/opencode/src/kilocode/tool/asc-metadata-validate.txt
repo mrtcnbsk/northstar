@@ -1,0 +1,15 @@
+Check a draft App Store Connect metadata listing against Apple's per-field length limits and locale requirements instead of eyeballing character counts by hand.
+
+Validates an array of per-locale metadata entries `{ locale, name?, subtitle?, promotionalText?, keywords?, description? }` against App Store Connect's static field limits: `name` <= 30, `subtitle` <= 30, `promotionalText` <= 170, `keywords` <= 100 (the single comma-joined keywords string, not per-keyword), `description` <= 4000. Lengths are counted in Unicode CODE POINTS (not UTF-16 units and not bytes), so emoji and other astral-plane characters are counted the way App Store Connect itself counts them rather than being over-counted.
+
+Also checks:
+- `name` and `description` are present and non-empty on the PRIMARY locale — the FIRST entry in the array. Secondary localizations may omit fields to inherit from the primary, so this required-field check applies only to that first entry.
+- every entry's `locale` is a recognized App Store Connect / BCP-47 locale code, checked against a static allowlist covering ASC's commonly-supported localizations (en-US, en-GB, en-CA, en-AU, fr-FR, fr-CA, de-DE, es-ES, es-MX, it, ja, ko, zh-Hans, zh-Hant, pt-BR, pt-PT, ru, nl-NL, sv, da, fi, no, pl, tr, ar-SA, th, id, vi, ms, hi, cs, sk, hu, el, he, ro, uk, hr, ca). An unrecognized locale is flagged rather than silently accepted.
+
+Parameters (provide exactly one source):
+- `metadataPath`: filesystem path to a metadata deliverable — either a `.json` file containing the entry array directly, or a markdown deliverable containing a fenced ```json code block with that array (the shape a marketing-chief listing deliverable naturally produces). Both raw-JSON and fenced-block forms are tried.
+- `entries`: the locale metadata entry array supplied inline instead of reading a file.
+
+Use this before declaring an App Store listing package READY, or when reviewing a teammate's/agent's metadata draft, to catch overlong fields and unsupported locale codes before they are rejected (or silently truncated) by App Store Connect.
+
+Returns `{ ok, violations, rawPath? }`. `ok: true` only when `violations` is empty. Each violation is `{ locale, field, message }`. This gate fails CLOSED: an empty entry list, a missing/unreadable metadata file, or a file that is not a valid JSON array of locale entries (in either raw or fenced-block form) returns `{ ok: false, violations: [...] }` — never a silent `ok: true` — and never throws.

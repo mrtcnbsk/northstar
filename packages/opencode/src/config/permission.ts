@@ -43,6 +43,7 @@ const InputObject = Schema.StructWithRest(
     xcode_archive: Schema.optional(Rule),
     ipa_export: Schema.optional(Rule),
     crash_symbolicate: Schema.optional(Rule),
+    asc_metadata_validate: Schema.optional(Rule),
     // kilocode_change end
   }),
   [Schema.Record(Schema.String, Rule)],

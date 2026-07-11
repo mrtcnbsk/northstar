@@ -9,6 +9,7 @@ permission:
   webfetch: allow
   secret_scan: allow
   ats_check: allow
+  asc_metadata_validate: allow
 ---
 
 # Role

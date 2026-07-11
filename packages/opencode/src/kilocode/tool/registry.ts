@@ -17,6 +17,7 @@ import { CrashSymbolicateTool } from "./crash-symbolicate"
 import { PrivacyManifestCheckTool } from "./privacy-manifest-check"
 import { AtsCheckTool } from "./ats-check"
 import { SecretScanTool } from "./secret-scan"
+import { AscMetadataValidateTool } from "./asc-metadata-validate"
 import {
   OrgStartTool,
   OrgAdvanceTool,
@@ -90,6 +91,7 @@ export namespace KiloToolRegistry {
       const privacyManifestCheck = yield* PrivacyManifestCheckTool
       const atsCheck = yield* AtsCheckTool
       const secretScan = yield* SecretScanTool
+      const ascMetadataValidate = yield* AscMetadataValidateTool
       const orgStart = yield* OrgStartTool
       const orgAdvance = yield* OrgAdvanceTool
       const orgDecision = yield* OrgDecisionTool
@@ -117,6 +119,7 @@ export namespace KiloToolRegistry {
           privacyManifestCheck,
           atsCheck,
           secretScan,
+          ascMetadataValidate,
           orgStart,
           orgAdvance,
           orgDecision,
@@ -149,6 +152,7 @@ export namespace KiloToolRegistry {
         privacyManifestCheck,
         atsCheck,
         secretScan,
+        ascMetadataValidate,
         orgStart,
         orgAdvance,
         orgDecision,
@@ -183,6 +187,7 @@ export namespace KiloToolRegistry {
       privacyManifestCheck: Tool.Info
       atsCheck: Tool.Info
       secretScan: Tool.Info
+      ascMetadataValidate: Tool.Info
       orgStart: Tool.Info
       orgAdvance: Tool.Info
       orgDecision: Tool.Info
@@ -216,6 +221,7 @@ export namespace KiloToolRegistry {
         privacyManifestCheck: Tool.init(tools.privacyManifestCheck),
         atsCheck: Tool.init(tools.atsCheck),
         secretScan: Tool.init(tools.secretScan),
+        ascMetadataValidate: Tool.init(tools.ascMetadataValidate),
         orgStart: Tool.init(tools.orgStart),
         orgAdvance: Tool.init(tools.orgAdvance),
         orgDecision: Tool.init(tools.orgDecision),
@@ -304,6 +310,7 @@ export namespace KiloToolRegistry {
       privacyManifestCheck: Tool.Def
       atsCheck: Tool.Def
       secretScan: Tool.Def
+      ascMetadataValidate: Tool.Def
       orgStart: Tool.Def
       orgAdvance: Tool.Def
       orgDecision: Tool.Def
@@ -347,6 +354,7 @@ export namespace KiloToolRegistry {
       tools.privacyManifestCheck,
       tools.atsCheck,
       tools.secretScan,
+      tools.ascMetadataValidate,
       tools.orgStart,
       tools.orgAdvance,
       tools.orgDecision,

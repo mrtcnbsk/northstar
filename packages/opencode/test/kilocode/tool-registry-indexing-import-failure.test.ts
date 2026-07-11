@@ -51,6 +51,7 @@ function infos() {
     privacyManifestCheck: info("privacy_manifest_check"),
     atsCheck: info("ats_check"),
     secretScan: info("secret_scan"),
+    ascMetadataValidate: info("asc_metadata_validate"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),
