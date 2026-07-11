@@ -45,6 +45,8 @@ function infos() {
     image: info("generate_image"),
     xcodeBuild: info("xcode_build"),
     xcodeTest: info("xcode_test"),
+    xcodeArchive: info("xcode_archive"),
+    ipaExport: info("ipa_export"),
     crashSymbolicate: info("crash_symbolicate"),
     privacyManifestCheck: info("privacy_manifest_check"),
     atsCheck: info("ats_check"),

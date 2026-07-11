@@ -11,6 +11,8 @@ import { MemoryRecallTool } from "./memory-recall"
 import { MemorySaveTool } from "./memory-save"
 import { XcodeBuildTool } from "./xcode-build"
 import { XcodeTestTool } from "./xcode-test"
+import { XcodeArchiveTool } from "./xcode-archive"
+import { IpaExportTool } from "./ipa-export"
 import { CrashSymbolicateTool } from "./crash-symbolicate"
 import { PrivacyManifestCheckTool } from "./privacy-manifest-check"
 import { AtsCheckTool } from "./ats-check"
@@ -82,6 +84,8 @@ export namespace KiloToolRegistry {
       const terminal = yield* InteractiveTerminalTool
       const xcodeBuild = yield* XcodeBuildTool
       const xcodeTest = yield* XcodeTestTool
+      const xcodeArchive = yield* XcodeArchiveTool
+      const ipaExport = yield* IpaExportTool
       const crashSymbolicate = yield* CrashSymbolicateTool
       const privacyManifestCheck = yield* PrivacyManifestCheckTool
       const atsCheck = yield* AtsCheckTool
@@ -107,6 +111,8 @@ export namespace KiloToolRegistry {
           terminal,
           xcodeBuild,
           xcodeTest,
+          xcodeArchive,
+          ipaExport,
           crashSymbolicate,
           privacyManifestCheck,
           atsCheck,
@@ -137,6 +143,8 @@ export namespace KiloToolRegistry {
         terminal,
         xcodeBuild,
         xcodeTest,
+        xcodeArchive,
+        ipaExport,
         crashSymbolicate,
         privacyManifestCheck,
         atsCheck,
@@ -169,6 +177,8 @@ export namespace KiloToolRegistry {
       terminal?: Tool.Info
       xcodeBuild: Tool.Info
       xcodeTest: Tool.Info
+      xcodeArchive: Tool.Info
+      ipaExport: Tool.Info
       crashSymbolicate: Tool.Info
       privacyManifestCheck: Tool.Info
       atsCheck: Tool.Info
@@ -200,6 +210,8 @@ export namespace KiloToolRegistry {
         image: Tool.init(tools.image),
         xcodeBuild: Tool.init(tools.xcodeBuild),
         xcodeTest: Tool.init(tools.xcodeTest),
+        xcodeArchive: Tool.init(tools.xcodeArchive),
+        ipaExport: Tool.init(tools.ipaExport),
         crashSymbolicate: Tool.init(tools.crashSymbolicate),
         privacyManifestCheck: Tool.init(tools.privacyManifestCheck),
         atsCheck: Tool.init(tools.atsCheck),
@@ -286,6 +298,8 @@ export namespace KiloToolRegistry {
       terminal?: Tool.Def
       xcodeBuild: Tool.Def
       xcodeTest: Tool.Def
+      xcodeArchive: Tool.Def
+      ipaExport: Tool.Def
       crashSymbolicate: Tool.Def
       privacyManifestCheck: Tool.Def
       atsCheck: Tool.Def
@@ -327,6 +341,8 @@ export namespace KiloToolRegistry {
       // as the primary agent.
       tools.xcodeBuild,
       tools.xcodeTest,
+      tools.xcodeArchive,
+      tools.ipaExport,
       tools.crashSymbolicate,
       tools.privacyManifestCheck,
       tools.atsCheck,

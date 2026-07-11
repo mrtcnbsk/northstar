@@ -9,6 +9,7 @@
 // path-escaping flags and any argument that is itself an absolute path or contains a `..` traversal
 // segment, which covers both "pass a dangerous flag" and "pass a dangerous path as some other flag's
 // value" without needing to model every xcodebuild flag.
+import path from "node:path"
 
 // Flag names that redirect xcodebuild's file I/O outside the project directory it was invoked in,
 // or that let the caller inject arbitrary build settings from a file (xcconfig can run scripts via
@@ -45,3 +46,40 @@ export function validateExtraArgs(args: readonly string[] | undefined): string |
   }
   return undefined
 }
+
+// kilocode_change start - W7.1: typed path params (xcode_archive/ipa_export) validated
+// within-project. Distinct from validateExtraArgs above: an intrinsic path PARAM (e.g.
+// `archivePath`, `exportPath`, `exportOptionsPlist`) is expected to legitimately be either a
+// project-relative path OR an absolute path that still resolves inside the project's cwd (Xcode
+// tooling routinely hands back/expects absolute archive & export paths) — unlike a raw extraArgs
+// string, where ANY absolute path is suspicious because it's the caller smuggling a path-shaped
+// value into a flag we don't otherwise recognize. What both validators still agree on: a `..`
+// traversal segment is never acceptable, and the resolved path may never escape cwd.
+/**
+ * Validate a tool-provided path parameter (NOT extraArgs — see validateExtraArgs for that)
+ * against the project directory it was invoked in. Returns an error message describing the
+ * violation, or `undefined` if the path is acceptable.
+ *
+ * Accepts:
+ * - A relative path with no `..` segment (resolved against `cwd`).
+ * - An absolute path that resolves inside `cwd`.
+ *
+ * Rejects:
+ * - Any path containing a `..` path-traversal segment.
+ * - An absolute path that resolves outside `cwd`.
+ */
+export function validatePath(value: string, cwd: string): string | undefined {
+  if (!value) return "path must not be empty"
+  if (value.split(/[\\/]/).includes("..")) {
+    return `disallowed path (traversal): ${value}`
+  }
+  const resolved = path.resolve(cwd, value)
+  const relative = path.relative(cwd, resolved)
+  // path.relative starting with ".." (or being a distinct absolute path on Windows drive
+  // boundaries) means `resolved` fell outside `cwd`.
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    return `disallowed path (outside project): ${value}`
+  }
+  return undefined
+}
+// kilocode_change end
