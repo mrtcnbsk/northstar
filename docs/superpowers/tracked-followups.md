@@ -530,3 +530,35 @@ push'ları da `--no-verify` (veya locale override) gerektirecek.**
 op'u yok) → "metadata ASC'ye gönderildi" EKSİK; dürüst TODO olarak wave7-exit'te işaretli. Binary upload `xcrun altool`
 (sadece --apiKey/--apiIssuer argv; .p8 ~/.appstoreconnect/private_keys'ten okunur). Gerçek ASC/xcodebuild external bağımlılık
 (fixture-test'li, canlı doğrulanmadı). GitHub Dependabot: 9 açık (6 moderate, 3 low) — upstream deps, W7-dışı.
+
+## Wave 8'de kapatıldı (feat/wave-8-registry → main `cd75c9e1e3`, push edildi) — SON PLANLANMIŞ DALGA
+
+Wave 8 = Registry & routing v2 (dossier §2/§1/§29/§9): (1) yetenek etiketleme `capabilities[]`/`preferredTypes[]`
+(config AgentSchema+KNOWN_KEYS+runtime Info+copy-loop; `skills` DEĞİL — prompt-Skill çakışması; KNOWN_KEYS'e eklenmezse
+provider options'a sızar — leak-guard test'i var); (2) `OrgMetrics` (saf aggregate stage→department.chief join org-drift-tolerant,
+health() eşik band, collect() skip-on-corrupt; chief-seviye); (3) `GET /agents` + SDK regen + kilo-console scoreboard;
+(4) `OrgVersions` snapshot/rollback (reviseBaseline sadece hash'ti → içerik `.kilo/org/runs/<runID>/deliverables.versions/`de
+saklanır; rollback NON-destructive; runner best-effort hook'lar settle+decide); (5) `OrgGraph` dependents/impactRadius →
+`Stage.invalidatedDownstream` on revise; (6) `OrgBenchmark` fixture-org harness + SLA eval. Full sweep 641/641.
+
+**Wave-close review (adversarial, 4-boyut, 16 agent) — 3 bulgu (0 critical, 1 important, 2 minor) HEPSİ FIXED (`76a94513f4`):**
+- **Important — runner snapshot hook'larının assertion kapsamı SIFIRDI → FIXED.** Tüm versions testleri `OrgVersions.snapshot/rollback`'i
+  DOĞRUDAN çağırıyordu; hiçbiri RUNNER'ın snapshot ÜRETTİĞİNİ assert etmiyordu. `.catch(()=>undefined)` best-effort olduğundan bir
+  refactor hook'u kırsa suite yeşil kalır ama üretimde rollback boş döner. Fix: wave8-exit'e gerçek-`OrgRunner` integration testi
+  (start→advance→complete→`OrgVersions.list` non-empty + revise→pre-revise snapshot). Ampirik doğrulandı: her hook tek tek kapatılınca
+  test ayrı ayrı fail etti. **DERS: best-effort/fire-and-forget üretim yolları happy-path'i ayrıca assert eden bir test gerektirir —
+  aksi halde sessiz regresyon suite'i geçer.**
+- **Minor — latency-only health `score 50` → "degraded" idi** (doc "tek ihlal → unhealthy<50" diyor; boundary `>=50` inclusive) → `LATENCY_PENALTY` 50→51 (49 → unhealthy). Boundary testi eklendi.
+- **W8-R1 (minor, TRACK — upstream) — SDK codegen `avgLatencyMs`'ten `|null`'ı düşürüyor.** Wire schema `NullOr(Number)`, endpoint gerçekten `null` gönderiyor, ama `types.gen.ts` `number|"NaN"|"Infinity"|"-Infinity"` (null YOK). ARAŞTIRILDI: `NullOr(Finite)` İZOLE codegen'de temiz ama TAM PublicApi merge'inde `|null` düşüyor (org-runs `currentStage: NullOr(String)` alanını da etkiliyor) → **upstream Effect schema-merge/codegen etkileşimi, call-site'ta düzeltilemez.** Schema geri alındı (SDK byte-identical), agents.ts'te belgelendi. Console (`agents-view.ts`) null'ı savunmacı işliyor (`—` render). Kalıcı çözüm: hey-api/openapi-ts + Effect Schema merge davranışını araştır (W8-dışı).
+
+**TRACK (Wave 8 kalan, bilinçli):** metrics chief-seviye (worker maliyeti ayrık değil — org kernel session-tree traversal'ı kasten yapmıyor);
+avgLatencyMs revize-edilmiş stage'de son-iterasyon (startedAt reset); `invalidatedDownstream` downstream stage'leri OTOMATIK RE-OPEN etmez
+(sadece kaydeder — bilinçli, auto-reopen daha büyük davranış değişikliği). SNR-deferred (Horizon): task→agent auto-selection/routing
+(capabilities'i tüketen matcher yok), hybrid BM25+vector arama, benchmark Bus-event emit CLI-boundary'de, content-cross-ref artifact graph.
+
+## Master plan durumu
+Plan iskeleti **W0-W8 = 9 dalga (0-indexli), TAMAMLANDI.** Sonrası dossier §3 "Horizon (v2+ backlog)": auto-selection/ranking, accuracy
+scoring + eval agent, latency/quality-aware routing, prompt-improvement pipeline, dynamic pipeline generation, multi-project portfolio,
+localization pipeline, design-system paketi, crash-reporter + post-launch analytics, Instruments perf testing, agent auto-replacement,
+policy tuning. **Dossier'de ayrı bir "Wave 9" YOK** — kullanıcının "wave 9" isteği bu backlog'dan seçilecek bir sonraki dalga olarak
+netleştirilmeli.
