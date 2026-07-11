@@ -401,23 +401,39 @@ describe("Wave 7 exit verification", () => {
     )
   })
 
-  // --- 5. Delivery gate (runner): the human-gated `delivery` pipeline stage. ---
-  test("5. delivery gate (runner): the delivery stage reaches awaiting_approval AFTER marketing settles; a no-go HALTS the run (delivery is never re-instructed to submit); an approve lets it proceed", async () => {
-    // Same shape as the shipped org-template (org-template/organization.jsonc's W7.6 delivery
-    // dept/stage): plan -> marketing -> delivery(requires:["marketing"], gate:"human",
-    // haltOn:"no-go"), delivery terminal.
+  // --- 5. Delivery gate (runner): the TWO-STAGE ship flow (W7.7 fix for finding #1). ---
+  // Before this fix, `delivery` was a SINGLE gate:"human" stage whose chief also called
+  // asc_submit — but the runner fires gate:"human" AFTER the chief produces its deliverable, and
+  // decide()'s approve branch just flips the stage's status to "completed"; it never re-invokes
+  // the chief. So the single-stage design could never both gate AND submit: either the chief
+  // obeyed "don't submit before the gate" and asc_submit was NEVER called on approve (nothing
+  // shipped), or it submitted during its one pre-gate run (the gate was decorative).
+  //
+  // The fix splits delivery into TWO stages so the human gate is a REAL ship gate:
+  //   - `delivery` (gate:"human", haltOn:"no-go"): PREPARES only (archive/export/validate
+  //     metadata) and writes a ship-readiness deliverable. The gate here IS the ship approval.
+  //   - `release` (requires:["delivery"], NO gate, terminal): its chief calls asc_submit — this
+  //     only ever runs AFTER delivery's gate is approved, since the runner doesn't even consider
+  //     "release" ready until "delivery" transitions to "completed".
+  test("5. delivery gate (runner): delivery PREPS behind a human gate; release (no gate) SUBMITS only after approval; a no-go at the delivery gate halts before release ever runs (nothing submitted)", async () => {
+    // Same shape as the shipped org-template (org-template/organization.jsonc's W7.7 delivery+
+    // release depts/stages): plan -> marketing -> delivery(requires:["marketing"], gate:"human",
+    // haltOn:"no-go") -> release(requires:["delivery"], no gate, terminal). "release" reuses
+    // delivery-chief + release-engineer (a chief may chief two departments).
     const DELIVERY_ORG = OrgSchema.parse({
       ceo: "ceo",
       departments: {
         plan: { chief: "plan-chief", workers: ["architect"] },
         marketing: { chief: "mkt-chief", workers: ["copywriter"] },
         delivery: { chief: "delivery-chief", workers: ["release-engineer"] },
+        release: { chief: "delivery-chief", workers: ["release-engineer"] },
       },
       shared: ["apple-docs"],
       pipeline: [
         { stage: "plan" },
         { stage: "marketing", requires: ["plan"] },
         { stage: "delivery", requires: ["marketing"], gate: "human", haltOn: "no-go" },
+        { stage: "release", requires: ["delivery"] },
       ],
     })
     const deps = { costOf: async () => 1 }
@@ -428,7 +444,8 @@ describe("Wave 7 exit verification", () => {
       await Bun.write(file, `# ${stage} deliverable\n\n` + "content ".repeat(20))
     }
 
-    // --- no-go path: the gate holds, then halts; delivery is never given another chance to run. ---
+    // --- no-go path: the gate holds, then halts; release (the stage that would call asc_submit)
+    // NEVER runs — proof the human gate genuinely precedes any submit. ---
     {
       await using tmp = await tmpdir()
       const run = await OrgRunner.start(tmp.path, DELIVERY_ORG, "wave7 exit idea - no-go path")
@@ -446,6 +463,8 @@ describe("Wave 7 exit verification", () => {
       // wave5-exit.test.ts's review gate).
       const b3 = await OrgRunner.advance(deps, tmp.path, DELIVERY_ORG, run.runID, { taskID: "ses_mkt" })
       expect(b3.instruct.map((i) => i.stage)).toEqual(["delivery"])
+      // The delivery-chief's ship-readiness deliverable (archive/export/validate report) — NOT a
+      // submission receipt: nothing has been submitted yet at this point.
       await writeDeliverable(tmp.path, run.runID, "delivery")
 
       const gated = await OrgRunner.advance(deps, tmp.path, DELIVERY_ORG, run.runID, { taskID: "ses_delivery" })
@@ -455,6 +474,7 @@ describe("Wave 7 exit verification", () => {
       const state = await OrgState.read(tmp.path, run.runID)
       expect(state.stages["marketing"].status).toBe("completed") // gate reached AFTER marketing
       expect(state.stages["delivery"].status).toBe("awaiting_approval")
+      expect(state.stages["release"].status).toBe("pending") // never instructed - nothing submitted
 
       const decided = await OrgRunner.decide(
         tmp.path,
@@ -467,16 +487,20 @@ describe("Wave 7 exit verification", () => {
       expect(decided.haltReason).toContain("no-go at delivery")
       expect(decided.haltReason).toContain("release-engineer flagged an unreviewed metadata change")
 
-      // The headline guarantee: once halted, a subsequent advance NEVER re-instructs delivery -
-      // whatever chief prompt would actually call asc_submit for real never runs again.
+      // The headline guarantee: once halted, a subsequent advance NEVER instructs "release" - the
+      // ONLY stage whose chief would ever call asc_submit for real never runs.
       const after = await advance1(deps, tmp.path, DELIVERY_ORG, run.runID, {})
       expect(after.kind).toBe("halted")
+
+      const finalState = await OrgState.read(tmp.path, run.runID)
+      expect(finalState.stages["release"].status).toBe("pending") // still never ran
 
       const finalStatus = await OrgRunner.status(tmp.path, DELIVERY_ORG, run.runID)
       expect(finalStatus.run.status).toBe("halted")
     }
 
-    // --- approve path: a clean run's gate lets delivery (the terminal stage) complete the run. ---
+    // --- approve path: the delivery gate's approval INSTRUCTS release (the stage that actually
+    // submits) - proof the gate precedes the submit rather than being decorative. ---
     {
       await using tmp = await tmpdir()
       const run = await OrgRunner.start(tmp.path, DELIVERY_ORG, "wave7 exit idea - approve path")
@@ -494,13 +518,26 @@ describe("Wave 7 exit verification", () => {
       const decided = await OrgRunner.decide(tmp.path, DELIVERY_ORG, run.runID, "approve")
       expect(decided.status).not.toBe("halted")
       expect(decided.stages["delivery"].status).toBe("completed")
+      // Approve does NOT submit anything by itself - decide()'s approve branch only flips
+      // "delivery" to completed, it never re-invokes a chief. "release" is still untouched here.
+      expect(decided.stages["release"].status).toBe("pending")
 
-      // One more advance lets the runner notice nothing is left running/awaiting/pending.
-      const b = await OrgRunner.advance(deps, tmp.path, DELIVERY_ORG, run.runID, {})
-      expect(b.done).toBe(true)
+      // release only becomes ready NOW, on the advance AFTER delivery's gate was approved -
+      // exactly the ordering finding #1 required.
+      const afterApprove = await OrgRunner.advance(deps, tmp.path, DELIVERY_ORG, run.runID, {})
+      expect(afterApprove.instruct.map((i) => i.stage)).toEqual(["release"])
+      const runningState = await OrgState.read(tmp.path, run.runID)
+      expect(runningState.stages["release"].status).toBe("running")
+
+      // release settles: this is the stage whose chief calls asc_submit for real; here it reports
+      // its submission receipt as its deliverable.
+      await writeDeliverable(tmp.path, run.runID, "release")
+      const afterRelease = await OrgRunner.advance(deps, tmp.path, DELIVERY_ORG, run.runID, { taskID: "ses_release" })
+      expect(afterRelease.done).toBe(true)
 
       const finalStatus = await OrgRunner.status(tmp.path, DELIVERY_ORG, run.runID)
       expect(finalStatus.run.status).toBe("completed")
+      expect(finalStatus.run.stages["release"].status).toBe("completed")
     }
   })
 

@@ -171,7 +171,16 @@ export const AscSubmitTool = Tool.define(
 
           // SECURITY: `credential` (and its `.p8` PEM) is NEVER included in any output/log below —
           // only `AscClient`/`runAltoolUpload` ever see it, and neither echoes it back.
-          const credential = yield* Effect.promise(() => AscAuth.loadAscCredential())
+          // kilocode_change - finding #2: `Effect.promise` assumes the promise never rejects, but
+          // a corrupt/unreadable auth.json makes `loadAscCredential` reject (JSON.parse defect ->
+          // the underlying runPromise rejects), which would otherwise DIE here as an unrecovered
+          // defect and throw a raw error (risking a leaked auth-store path) instead of degrading
+          // to the clean "unavailable" message below. `Effect.tryPromise` + `orElseSucceed`
+          // converts ANY rejection into the same `undefined` the "no credential configured" case
+          // already handles.
+          const credential = yield* Effect.tryPromise(() => AscAuth.loadAscCredential()).pipe(
+            Effect.orElseSucceed(() => undefined),
+          )
           if (!credential) {
             const metadata: AscSubmitMeta = { submitted: false, unavailable: true }
             return { title, output: UNAVAILABLE_MESSAGE, metadata }

@@ -148,6 +148,39 @@ describe("AscSubmitTool: no credential configured", () => {
   )
 })
 
+// kilocode_change start - finding #2: loadAscCredential can REJECT (e.g. a corrupt auth.json ->
+// JSON.parse defect -> the underlying Effect runPromise rejects), not just resolve to undefined.
+// Before the fix, asc-submit.ts awaited it via `Effect.promise` - which assumes the promise never
+// rejects - so a rejection became an unrecovered Effect defect and the tool threw a raw error
+// (risking a leaked auth.json path) instead of degrading to the same clean "unavailable" message a
+// missing credential produces. This must degrade identically to the "no credential" case above.
+describe("AscSubmitTool: corrupt/unreadable auth store (loadAscCredential REJECTS, not just undefined)", () => {
+  harness.instance(
+    "a rejecting loadAscCredential degrades to the clean unavailable message, metadata.unavailable:true, never throws, no auth path leaked",
+    () =>
+      Effect.gen(function* () {
+        const cred = spyOn(AscAuth, "loadAscCredential").mockImplementation(() =>
+          Promise.reject(new Error("ENOENT: no such file or directory, open '/Users/x/.local/share/opencode/auth.json'")),
+        )
+        try {
+          const result = yield* runExecute(noSpawner())
+          expect(result.output).toContain("App Store Connect delivery unavailable")
+          expect(result.output).toContain("configure")
+          expect(result.metadata.unavailable).toBe(true)
+          expect(result.metadata.submitted).toBe(false)
+
+          // SECURITY: the underlying rejection's message (which could contain a filesystem path)
+          // must never leak into the tool's output.
+          expect(result.output).not.toContain("auth.json")
+          expect(result.output).not.toContain("ENOENT")
+        } finally {
+          cred.mockRestore()
+        }
+      }),
+  )
+})
+// kilocode_change end
+
 describe("AscSubmitTool: full submit flow with an injected credential + fake fetch", () => {
   harness.instance("builds the right ASC calls (version ensured, submitted) and returns {submitted:true, versionId}", () =>
     Effect.gen(function* () {

@@ -23,7 +23,7 @@ describe("org-template consistency", () => {
   test("organization.jsonc is structurally valid", async () => {
     const { org } = await loadTemplate()
     expect(OrgSchema.validate(org)).toEqual([])
-    expect(org.pipeline.length).toBe(10)
+    expect(org.pipeline.length).toBe(11)
     expect(org.pipeline[0]).toMatchObject({ stage: "evaluation", gate: "human", haltOn: "no-go" })
     // kilocode_change - W5.4: review is the pre-ship quality gate, inserted between debugging and
     // the terminal marketing stage.
@@ -34,15 +34,23 @@ describe("org-template consistency", () => {
       haltOn: "no-go",
     })
     expect(org.pipeline[8]).toMatchObject({ stage: "marketing", requires: ["review"], gate: "human" })
-    // kilocode_change - W7.6: delivery is the final ship gate, inserted after marketing (which is
-    // no longer terminal). gate:"human" here IS the ship approval; haltOn:"no-go" mirrors every
-    // other gated stage.
+    // kilocode_change start - W7.7: the ship gate is now a REAL gate. `delivery` prepares (archive/
+    // export/validate metadata) and gates on human approval BEFORE anything is submitted;
+    // `release` (no gate) submits via asc_submit and only ever runs after the human approved
+    // `delivery`. See the runner's `decide()`: an approve just marks a stage completed, it never
+    // re-invokes the chief, so a single gated stage could never both gate AND submit.
     expect(org.pipeline[9]).toMatchObject({
       stage: "delivery",
       requires: ["marketing"],
       gate: "human",
       haltOn: "no-go",
     })
+    expect(org.pipeline[10]).toMatchObject({
+      stage: "release",
+      requires: ["delivery"],
+    })
+    expect(org.pipeline[10].gate).toBeUndefined()
+    // kilocode_change end
   })
 
   // kilocode_change - wave-close finding #2/#3: marketing must ship unconditionally. It is the
@@ -423,12 +431,15 @@ describe("org-template consistency", () => {
       // `requires`, not the default previous-stage chain).
       expect(resolved["review"]).toEqual(["debugging"])
       expect(resolved["marketing"]).toEqual(["review"])
-      // kilocode_change - W7.6: delivery sits after marketing (explicit `requires`), the new
-      // terminal stage.
+      // kilocode_change - W7.6: delivery sits after marketing (explicit `requires`).
       expect(resolved["delivery"]).toEqual(["marketing"])
+      // kilocode_change start - W7.7: release sits after delivery (explicit `requires`), the new
+      // terminal stage - the actual asc_submit call happens here, only after delivery's human
+      // gate approves.
+      expect(resolved["release"]).toEqual(["delivery"])
 
       // full pipeline order sanity - unchanged by the DAG edit except the W5.4 review insertion
-      // and the W7.6 delivery insertion
+      // and the W7.6/W7.7 delivery+release insertion
       expect(org.pipeline.map((p) => p.stage)).toEqual([
         "evaluation",
         "planning",
@@ -440,7 +451,9 @@ describe("org-template consistency", () => {
         "review",
         "marketing",
         "delivery",
+        "release",
       ])
+      // kilocode_change end
     })
 
     test("org.maxConcurrency is 2 (lets backend/frontend actually run concurrently)", async () => {
@@ -448,19 +461,25 @@ describe("org-template consistency", () => {
       expect(org.maxConcurrency).toBe(2)
     })
 
-    test("marketing is unconditional (no `when`) but NO LONGER terminal now that delivery requires it; delivery is the new terminal stage", async () => {
+    // kilocode_change - W7.7: delivery is no longer terminal either (release now requires it) -
+    // release is the new terminal stage, and it's the one that actually calls asc_submit.
+    test("marketing is unconditional (no `when`); delivery is no longer terminal (release requires it); release is the new terminal stage", async () => {
       const { org } = await loadTemplate()
       const marketing = org.pipeline.find((p) => p.stage === "marketing")
       expect(marketing?.when).toBeUndefined()
       const delivery = org.pipeline.find((p) => p.stage === "delivery")
       expect(delivery?.when).toBeUndefined()
+      const release = org.pipeline.find((p) => p.stage === "release")
+      expect(release?.when).toBeUndefined()
 
       const resolved = OrgSchema.resolveRequires(org)
-      // kilocode_change - W7.6: marketing is no longer terminal - delivery is its one dependent.
+      // kilocode_change - W7.6: marketing's one dependent is delivery.
       expect(resolved["delivery"]).toEqual(["marketing"])
-      // terminal: nothing in the pipeline requires delivery, so it can't strand a dependent.
+      // kilocode_change - W7.7: delivery's one dependent is release.
+      expect(resolved["release"]).toEqual(["delivery"])
+      // terminal: nothing in the pipeline requires release, so it can't strand a dependent.
       for (const [stage, requires] of Object.entries(resolved)) {
-        expect(requires.includes("delivery"), `stage "${stage}" must not require delivery`).toBe(false)
+        expect(requires.includes("release"), `stage "${stage}" must not require release`).toBe(false)
       }
     })
 
@@ -580,8 +599,8 @@ describe("org-template consistency", () => {
       expect(afterMarketing.gate!.stage).toBe("marketing")
       await OrgRunner.decide(tmp.path, org, run.runID, "approve")
 
-      // kilocode_change start - W7.6: marketing's approval now instructs "delivery" (the final
-      // ship gate) instead of completing the run directly.
+      // kilocode_change start - W7.6/W7.7: marketing's approval now instructs "delivery" (the
+      // gated ship-readiness prep stage) instead of completing the run directly.
       const afterMarketingApprove = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
       expect(afterMarketingApprove.instruct.map((i) => i.stage)).toEqual(["delivery"])
       const midStateDelivery = await OrgState.read(tmp.path, run.runID)
@@ -592,12 +611,24 @@ describe("org-template consistency", () => {
       expect(afterDelivery.gate).toBeDefined() // delivery has gate:"human" (the ship approval)
       expect(afterDelivery.gate!.stage).toBe("delivery")
       await OrgRunner.decide(tmp.path, org, run.runID, "approve")
-      const afterApprove = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
-      expect(afterApprove.done).toBe(true)
+
+      // W7.7: approve does NOT submit anything itself - it just marks "delivery" completed and
+      // lets "release" (the stage that actually calls asc_submit) become ready. This is the fix
+      // for finding #1: the human gate genuinely precedes the submit, since the runner never
+      // re-invokes a chief on approve (decide()'s approve branch only flips status to completed).
+      const afterDeliveryApprove = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
+      expect(afterDeliveryApprove.instruct.map((i) => i.stage)).toEqual(["release"])
+      const midStateRelease = await OrgState.read(tmp.path, run.runID)
+      expect(midStateRelease.stages["release"].status).toBe("running")
+
+      await writeDeliverable(run.runID, "release")
+      const afterRelease = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_release" })
+      expect(afterRelease.done).toBe(true)
 
       const state = await OrgState.read(tmp.path, run.runID)
       expect(state.stages["marketing"].status).toBe("completed")
       expect(state.stages["delivery"].status).toBe("completed")
+      expect(state.stages["release"].status).toBe("completed")
       expect(state.status).toBe("completed")
       // kilocode_change end
     })
@@ -645,6 +676,21 @@ describe("org-template consistency", () => {
         workers: ["release-engineer"],
       })
     })
+
+    // kilocode_change start - W7.7: the actual ship gate fix. "release" REUSES delivery-chief +
+    // release-engineer (a chief may chief two departments; validate()/crossCheck only bar a name
+    // being both a chief and a worker - reusing the same chief across two departments with the
+    // same worker set is fine, and its subordinates already cover both since the worker set is
+    // identical). Its chief only calls asc_submit here, on the stage that runs AFTER the delivery
+    // gate approves.
+    test("release department exists, reusing delivery-chief + release-engineer (a chief may chief two departments)", async () => {
+      const { org } = await loadTemplate()
+      expect(org.departments["release"]).toEqual({
+        chief: "delivery-chief",
+        workers: ["release-engineer"],
+      })
+    })
+    // kilocode_change end
 
     test("delivery-chief's subordinates cover its worker + shared + the appstore-review-validator consultant", async () => {
       const { org, agents } = await loadTemplate()
