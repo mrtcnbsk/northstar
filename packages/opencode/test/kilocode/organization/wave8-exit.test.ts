@@ -314,3 +314,83 @@ describe("Wave 8 exit: revise invalidates downstream artifacts", () => {
     expect(state.stages["c"].status).toBe("pending")
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// 4. Finding #1: the runner's OrgVersions.snapshot hooks (on-completion in settleRunningStage,
+//    pre-revise in decide()) are the ONLY production path that ever populates the version store -
+//    every other versions.test.ts case calls OrgVersions.snapshot/rollback DIRECTLY on hand-written
+//    deliverables, so none of them would notice if the runner's best-effort hooks (both wrapped in
+//    `.catch(() => undefined)`) were removed, broken, or mistimed. This drives the REAL OrgRunner
+//    end to end and asserts on OrgVersions.list - a runner-PRODUCED artifact - never calling
+//    OrgVersions.snapshot directly anywhere in this test.
+// ---------------------------------------------------------------------------------------------
+
+describe("Wave 8 exit: the runner's OrgVersions hooks actually produce snapshots (Finding #1)", () => {
+  test("on-completion hook snapshots the accepted deliverable; decide('revise')'s pre-revise hook snapshots the live content again before it can be overwritten", async () => {
+    await using tmp = await tmpdir()
+    const deps = { costOf: async () => 0.1 }
+    const run = await OrgRunner.start(tmp.path, IMPACT_ORG, "idea wave8 exit versions hook")
+    const fileA = OrgArtifacts.deliverablePath(tmp.path, run.runID, "a")
+
+    const instructed = await advance1(deps, tmp.path, IMPACT_ORG, run.runID, {})
+    expect(instructed.kind).toBe("instruct")
+    if (instructed.kind !== "instruct") throw new Error("unreachable")
+    expect(instructed.stage).toBe("a")
+
+    // Nothing has touched OrgVersions yet: the manifest must not exist before the chief even
+    // produces a deliverable.
+    expect(await OrgVersions.list(tmp.path, run.runID, "a")).toEqual([])
+
+    // The chief "runs" and writes its deliverable (>=50 chars, OrgArtifacts.MIN_LENGTH) straight to
+    // the live path - exactly how the real generic write tool would.
+    const contentV1 = "# a deliverable v1\n\n" + "original runner-driven content ".repeat(3)
+    expect(contentV1.trim().length).toBeGreaterThanOrEqual(50)
+    await mkdir(path.dirname(fileA), { recursive: true })
+    await Bun.write(fileA, contentV1)
+
+    const gated = await advance1(deps, tmp.path, IMPACT_ORG, run.runID, { taskID: "ses_a1" })
+    expect(gated.kind).toBe("gate")
+    if (gated.kind !== "gate") throw new Error("unreachable")
+    expect(gated.stage).toBe("a")
+
+    // LOAD-BEARING (on-completion hook, runner.ts settleRunningStage ~L477): the only thing that
+    // could have populated this manifest is the runner's best-effort snapshot fired right after the
+    // deliverable was durably accepted. If that hook were deleted (or mistimed to fire before the
+    // write, or targeted the wrong stage), this list would still be empty and the hash lookup below
+    // would come back undefined - this test calls OrgVersions.snapshot nowhere above this point.
+    const afterCompletion = await OrgVersions.list(tmp.path, run.runID, "a")
+    expect(afterCompletion).toHaveLength(1)
+    expect(afterCompletion[0]!.hash).toBe(hashOf(contentV1))
+    expect(await Bun.file(afterCompletion[0]!.path).text()).toBe(contentV1)
+
+    // A last-second edit lands on the live deliverable while it's awaiting_approval - content the
+    // on-completion hook (already fired, above) never saw and could never have captured. This is
+    // exactly the gap the module doc comment describes: "the chief overwrites the live .md in
+    // place... without this the content being revised away would be unrecoverable once the chief's
+    // next write lands." A future revise session's first write would clobber this content forever
+    // unless something snapshots it first.
+    const contentV2 = "# a deliverable v2 (edited pre-decision)\n\n" + "edited runner-driven content ".repeat(3)
+    expect(contentV2).not.toBe(contentV1)
+    await Bun.write(fileA, contentV2)
+
+    await OrgRunner.decide(tmp.path, IMPACT_ORG, run.runID, "revise", "needs another pass")
+
+    // LOAD-BEARING (pre-revise hook, runner.ts decide() ~L739): contentV2's hash was NEVER passed to
+    // OrgVersions.snapshot by this test and cannot have come from the on-completion hook (which fired
+    // before contentV2 existed). The only remaining path that could have recorded it is decide()'s
+    // pre-revise snapshot call. If that hook were removed, the manifest would still have exactly the
+    // one entry from `afterCompletion` and this hash lookup would be undefined.
+    const afterRevise = await OrgVersions.list(tmp.path, run.runID, "a")
+    expect(afterRevise.length).toBeGreaterThan(afterCompletion.length)
+    const byHash = Object.fromEntries(afterRevise.map((v) => [v.hash, v]))
+    expect(byHash[hashOf(contentV2)]).toBeDefined()
+    expect(await Bun.file(byHash[hashOf(contentV2)]!.path).text()).toBe(contentV2)
+    // v1 is still retrievable too - the pre-revise snapshot only ADDS, it never destroys history.
+    expect(byHash[hashOf(contentV1)]).toBeDefined()
+
+    // Sanity cross-check: decide("revise") computed reviseBaseline from the SAME live content
+    // (contentV2) the pre-revise hook just snapshotted - both read the live file at decide-time.
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["a"].reviseBaseline).toBe(hashOf(contentV2))
+  })
+})

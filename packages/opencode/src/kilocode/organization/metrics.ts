@@ -62,10 +62,13 @@ export namespace OrgMetrics {
     reasons: string[]
   }
 
-  // Sized so that BOTH thresholds being violated at once floors the score at 0 (60 + 50 = 110,
+  // Sized so that BOTH thresholds being violated at once floors the score at 0 (60 + 51 = 111,
   // clamped below), while a single violation still lands squarely in "unhealthy" (<50) on its own.
+  // LATENCY_PENALTY is 51, not 50: the band boundary (score >= 50 ? "degraded" : "unhealthy") is
+  // INCLUSIVE of 50, so a latency-only violation at exactly 100-50=50 would land "degraded" —
+  // contradicting this doc-comment's claim that a single violation is always "unhealthy".
   const ERROR_RATE_PENALTY = 60
-  const LATENCY_PENALTY = 50
+  const LATENCY_PENALTY = 51
 
   type Bucket = {
     agent: string

@@ -31,6 +31,19 @@ const AgentMetricsRow = Schema.Struct({
   failed: Schema.Number,
   blocked: Schema.Number,
   successRate: Schema.Number,
+  // kilocode_change - CODEGEN GAP (investigated, not fixed here): avgLatencyMs is always a finite
+  // computed average or null (see OrgMetrics.aggregate), never NaN/Infinity, so ideally this would
+  // be `Schema.NullOr(Schema.Finite)` and the generated SDK type would read `number | null`. In
+  // ISOLATION that combinator does codegen cleanly (verified directly against OpenApi.fromApi with
+  // just this endpoint's HttpApi) - but assembled into the FULL PublicApi (every group's endpoints
+  // merged together, all sharing the same top-level `Schema.Number`/`Schema.Finite`/`Schema.String`
+  // singletons), the `| null` branch gets silently dropped from the generated OpenAPI JSON schema
+  // for THIS field, and the same happens for an unrelated pre-existing REQUIRED `Schema.NullOr`
+  // field elsewhere (org-runs.ts's `currentStage`) - so this is an upstream schema-merging/caching
+  // interaction in Effect's OpenApi/JSON-Schema generation across a large multi-group HttpApi, not
+  // something this call site's schema choice controls. Fixing it for real needs Effect-Schema
+  // surgery out of scope here; kept as `Schema.NullOr(Schema.Number)` and the console
+  // (agents-view.ts) keeps its defensive `| null | undefined` re-widening of the SDK type.
   avgLatencyMs: Schema.NullOr(Schema.Number),
   health: AgentHealthView,
 }).annotate({ identifier: "AgentMetricsRow" })

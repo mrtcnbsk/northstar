@@ -259,6 +259,17 @@ describe("OrgMetrics.health (pure, threshold-driven)", () => {
     expect(h.score).toBeLessThan(100)
   })
 
+  test("latency-only violation alone lands 'unhealthy', not 'degraded' (score < 50) — matches the doc-comment's 'each single violation lands unhealthy'", () => {
+    const thresholds = { errorRateCeiling: 1, latencyCeilingMs: 1_000 }
+    const m = { ...base, successRate: 1, failed: 0, avgLatencyMs: 5_000 } // latency ceiling violated, error rate is not
+    const h = OrgMetrics.health(m, thresholds)
+    expect(h.reasons.length).toBe(1)
+    expect(h.reasons[0]).toContain("latency")
+    expect(h.score).toBe(49)
+    expect(h.score).toBeLessThan(50)
+    expect(h.band).toBe("unhealthy")
+  })
+
   test("both error rate and latency bad -> unhealthy band, two reasons, score floors at 0", () => {
     const thresholds = { errorRateCeiling: 0, latencyCeilingMs: 0 }
     const m = { ...base, failed: 10, stages: 10, avgLatencyMs: 999 }
