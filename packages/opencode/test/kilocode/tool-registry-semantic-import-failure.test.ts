@@ -64,6 +64,8 @@ function infos() {
     atsCheck: info("ats_check"),
     secretScan: info("secret_scan"),
     ascMetadataValidate: info("asc_metadata_validate"),
+    ascSubmit: info("asc_submit"),
+    ascStatus: info("asc_status"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),

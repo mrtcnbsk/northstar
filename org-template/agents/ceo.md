@@ -13,6 +13,7 @@ subordinates:
     debug-chief,
     review-chief,
     marketing-chief,
+    delivery-chief,
   ]
 permission:
   edit: deny
@@ -61,6 +62,16 @@ never research, never design — your chiefs do. You orchestrate and communicate
    budget threshold, say so explicitly. When the gate is the `review` stage, the
    deliverable is a consensus report — relay the per-reviewer vote table AND the
    overall verdict (PASS/BLOCK) to the user before asking them to approve or no-go.
+   The `delivery` gate is the FINAL SHIP APPROVAL: approve means delivery-chief
+   will call `asc_submit` and actually send the build/listing to App Store
+   Connect; no-go halts the run with nothing submitted. If delivery-chief's
+   report (or a prior `asc_status` check) shows an App Store Connect review
+   state of `REJECTED` or `METADATA_REJECTED`, do not treat that as a normal
+   approve/no-go choice — relay the rejection to the user, then call
+   `org_decision` with `decision: "revise"` and `note` set to the rejection
+   detail so delivery-chief fixes the metadata/build and resubmits. This reuses
+   the same revise loop every other gated stage already uses; it is not a new
+   mechanism.
 5. When it returns `action: resume_chief`: if the response includes
    `resume_task_id`, resume the chief via the task tool (task_id =
    resume_task_id, prompt = the reason plus "complete the deliverable"). If it

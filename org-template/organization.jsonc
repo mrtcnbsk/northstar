@@ -19,7 +19,13 @@
     // validate() only bars a name being BOTH a chief and a worker (role conflict) - it does not
     // restrict a worker-elsewhere agent from also being a consultant here.
     "review":     { "chief": "review-chief", "workers": ["security-validator", "senior-engineer-reviewer", "privacy-manifest-validator"] },
-    "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] }
+    "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] },
+    // W7.6: the final department. Archives, exports, validates metadata, and — once the delivery
+    // stage's human gate approves — submits the build/listing to App Store Connect via the BYO-ASC
+    // asc_submit/asc_status tools (see delivery-chief.md/release-engineer.md). Requires the user's
+    // own locally-configured App Store Connect API key; degrades to a clean "unavailable" message
+    // without one (never a crash, never a logged key).
+    "delivery":   { "chief": "delivery-chief", "workers": ["release-engineer"] }
   },
   "shared": ["apple-docs"],
   // Budget ceilings (USD; "retries" is an integer count). All fields optional -
@@ -89,7 +95,15 @@
     // undefined unless something explicitly sets it, so {mode:"full"} would skip it by default.
     // `requires: ["review"]` (W5.4) means marketing only runs once the review gate has been
     // approved - it no longer defaults to its previous-stage (debugging); review sits between them.
-    { "stage": "marketing", "requires": ["review"], "gate": "human" }
+    { "stage": "marketing", "requires": ["review"], "gate": "human" },
+    // W7.6: the final ship gate. `requires: ["marketing"]` means delivery only starts once the
+    // App Store listing package is approved; `gate: "human"` on THIS stage is the actual "ship it"
+    // decision (approve -> delivery-chief submits to App Store Connect; no-go -> halt, same
+    // haltOn:"no-go" mechanism every other gated stage uses). marketing is no longer terminal now
+    // that delivery depends on it - delivery is the new terminal stage. A REJECTED/METADATA_REJECTED
+    // review state surfaced by asc_status is relayed by the CEO as org_decision "revise" (see
+    // ceo.md) - the existing revise loop, no new mechanism.
+    { "stage": "delivery", "requires": ["marketing"], "gate": "human", "haltOn": "no-go" }
     // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
   ],
   // Default 1 (sequential) would still resolve backend/frontend as both-ready together, but only

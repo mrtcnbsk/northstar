@@ -419,6 +419,8 @@ describe("kilocode tool registry indexing", () => {
       atsCheck: def("ats_check"),
       secretScan: def("secret_scan"),
       ascMetadataValidate: def("asc_metadata_validate"),
+      ascSubmit: def("asc_submit"),
+      ascStatus: def("asc_status"),
       orgStart: def("org_start"),
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
@@ -460,6 +462,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra(tools, { experimental: { codebase_search: true } }).map((tool) => tool.id)).toEqual(
@@ -480,6 +484,8 @@ describe("kilocode tool registry indexing", () => {
           "ats_check",
           "secret_scan",
           "asc_metadata_validate",
+          "asc_submit",
+          "asc_status",
           ...orgIDs,
         ],
       )
@@ -505,6 +511,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
 
@@ -528,6 +536,8 @@ describe("kilocode tool registry indexing", () => {
           "ats_check",
           "secret_scan",
           "asc_metadata_validate",
+          "asc_submit",
+          "asc_status",
           ...orgIDs,
         ],
       )
@@ -556,6 +566,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
       expect(KiloToolRegistry.extra({ ...tools, semantic: undefined }, {}).map((tool) => tool.id)).toEqual([
@@ -574,6 +586,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
 
@@ -592,6 +606,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
 
@@ -610,6 +626,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
 
@@ -628,6 +646,8 @@ describe("kilocode tool registry indexing", () => {
         "ats_check",
         "secret_scan",
         "asc_metadata_validate",
+        "asc_submit",
+        "asc_status",
         ...orgIDs,
       ])
     } finally {
