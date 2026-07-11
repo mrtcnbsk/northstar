@@ -54,6 +54,24 @@ describe("OrgPrompts.stagePrompt", () => {
     expect(prompt).toContain("(none)")
   })
 
+  // kilocode_change - W9.3: informed delegation - tagged workers render with their capabilities
+  // so the chief can route sub-tasks to the right worker; untagged workers stay plain (back-compat).
+  test("annotates tagged workers with their capabilities; leaves untagged workers plain", () => {
+    const prompt = OrgPrompts.stagePrompt({
+      ...input,
+      workerCapabilities: { "swiftui-dev-1": ["swiftui", "ui-implementation"] },
+    })
+    expect(prompt).toContain("swiftui-dev-1 (swiftui, ui-implementation)")
+    // the untagged worker still renders as a bare name, not annotated
+    expect(prompt).toMatch(/(?<!\()swiftui-dev-2(?!\s*\()/)
+    expect(prompt).not.toContain("swiftui-dev-2 (")
+  })
+
+  test("omits capability annotations entirely when workerCapabilities is absent (back-compat)", () => {
+    const prompt = OrgPrompts.stagePrompt(input)
+    expect(prompt).toContain("swiftui-dev-1, swiftui-dev-2")
+  })
+
   test("user text cannot close its fence tag", () => {
     const prompt = OrgPrompts.stagePrompt({
       ...input,

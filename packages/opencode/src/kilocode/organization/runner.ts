@@ -167,17 +167,49 @@ export namespace OrgRunner {
   }
 
   /**
+   * Best-effort capabilities lookup for one department's workers, keyed by worker name.
+   *
+   * kilocode_change - W9.3: sources `workerCapabilities` from the roster (agent frontmatter's
+   * `capabilities[]`, W8.1) so `stagePromptFor` can annotate each worker for informed delegation.
+   * `ConfigAgent` is imported LAZILY (dynamic `import()`), not statically, mirroring
+   * `organization/tools.ts`'s `recordPostmortem` and `tool/org-search.ts`'s pattern for the same
+   * reason: a static import here would pull `@/config/agent` into `runner.ts`'s module graph,
+   * which is itself pulled in by `tool/registry.ts` (via the org tools) - exactly the shape that
+   * previously tripped a latent circular-import TDZ ("Cannot access before init") elsewhere in the
+   * registry graph (see org-search.ts's top-of-file note). Deferring to call-time keeps this
+   * function's static footprint minimal.
+   *
+   * NEVER throws: `ConfigAgent.load` failing (missing dir, malformed agent file, etc.) degrades to
+   * an empty map, so a roster hiccup can never break prompt building - the caller then renders
+   * every worker as a bare name, identical to pre-W9.3 behavior.
+   */
+  async function workerCapabilitiesFor(projectDir: string, workers: string[]): Promise<Record<string, string[]>> {
+    try {
+      const { ConfigAgent } = await import("@/config/agent")
+      const agents = await ConfigAgent.load(projectDir)
+      const result: Record<string, string[]> = {}
+      for (const worker of workers) {
+        const caps = agents[worker]?.capabilities
+        if (caps && caps.length > 0) result[worker] = caps
+      }
+      return result
+    } catch {
+      return {}
+    }
+  }
+
+  /**
    * The single stage-prompt builder: `instruct` delegates here, and the `incomplete` path uses
    * it (with the stage's persisted reviseNote) to brief a fresh chief session when the
    * resumeTaskID turns out unresumable.
    */
-  function stagePromptFor(
+  async function stagePromptFor(
     projectDir: string,
     org: OrgSchema.Organization,
     run: OrgState.Run,
     stage: string,
     reviseNote?: string,
-  ): string {
+  ): Promise<string> {
     const dept = org.departments[stage]
     return OrgPrompts.stagePrompt({
       stage,
@@ -187,21 +219,22 @@ export namespace OrgRunner {
       shared: org.shared,
       priorDeliverables: priorDeliverables(projectDir, org, run, stage),
       reviseNote,
+      workerCapabilities: await workerCapabilitiesFor(projectDir, dept.workers),
     })
   }
 
-  function instruct(
+  async function instruct(
     projectDir: string,
     org: OrgSchema.Organization,
     run: OrgState.Run,
     stage: string,
     opts: { reviseNote?: string; resumeTaskID?: string } = {},
-  ): InstructItem {
+  ): Promise<InstructItem> {
     return {
       stage,
       chief: org.departments[stage].chief,
       resumeTaskID: opts.resumeTaskID,
-      taskPrompt: stagePromptFor(projectDir, org, run, stage, opts.reviseNote),
+      taskPrompt: await stagePromptFor(projectDir, org, run, stage, opts.reviseNote),
     }
   }
 
@@ -372,7 +405,10 @@ export namespace OrgRunner {
       })
       return {
         run,
-        result: { kind: "instruct", item: instruct(projectDir, org, run, stage, { reviseNote: note, resumeTaskID: resume }) },
+        result: {
+          kind: "instruct",
+          item: await instruct(projectDir, org, run, stage, { reviseNote: note, resumeTaskID: resume }),
+        },
       }
     }
     const validation = await OrgArtifacts.validate(projectDir, runID, stage)
@@ -391,7 +427,7 @@ export namespace OrgRunner {
         reason: validation.reason,
         resumeTaskID: record.taskID,
         chief: org.departments[stage].chief,
-        taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+        taskPrompt: await stagePromptFor(projectDir, org, run, stage, record.reviseNote),
       }
       // Shares incompleteAttempts with the revise-unchanged site below, but means something
       // different: here the deliverable was never produced (first-pass chief stall) — or, when
@@ -411,7 +447,7 @@ export namespace OrgRunner {
         reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
         resumeTaskID: record.taskID,
         chief: org.departments[stage].chief,
-        taskPrompt: stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+        taskPrompt: await stagePromptFor(projectDir, org, run, stage, record.reviseNote),
       })
     }
     const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
@@ -682,7 +718,10 @@ export namespace OrgRunner {
             s.stages[stage].attempts += 1
           }
         })
-        for (const stage of toRun) batch.instruct.push(instruct(projectDir, org, run, stage))
+        // Independent roster lookups (one per newly-running stage): Promise.all, not sequential
+        // awaits, while still preserving toRun's order in batch.instruct.
+        const instructed = await Promise.all(toRun.map((stage) => instruct(projectDir, org, run, stage)))
+        batch.instruct.push(...instructed)
       }
 
       // Only a skip can change readiness (a skipped stage satisfies its dependents, same as

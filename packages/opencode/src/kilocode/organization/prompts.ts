@@ -9,6 +9,17 @@ export namespace OrgPrompts {
     shared: string[]
     priorDeliverables: Array<{ stage: string; path: string }>
     reviseNote?: string
+    // kilocode_change - W9.3: informed delegation. Parallel optional map (rather than reshaping
+    // `workers` into `Array<{name, capabilities}>`) so every existing caller/test keeps compiling
+    // unchanged; a worker absent from this map (or mapped to an empty array) renders as a bare
+    // name, exactly like before this field existed (back-compat).
+    workerCapabilities?: Record<string, string[]>
+  }
+
+  /** `name` alone, or `name (cap1, cap2)` when `workerCapabilities[name]` is a non-empty array. */
+  function annotateWorker(name: string, workerCapabilities?: Record<string, string[]>): string {
+    const caps = workerCapabilities?.[name]
+    return caps && caps.length > 0 ? `${name} (${caps.join(", ")})` : name
   }
 
   /** Prevent user-supplied text from closing its fence tag (prompt-section spoofing). */
@@ -39,7 +50,7 @@ ${revise}
 ## Your team
 Delegate concrete work to your workers via the task tool (you may run independent
 tasks in parallel with background=true; if the background option is unavailable,
-run them sequentially): ${input.workers.join(", ")}.
+run them sequentially): ${input.workers.map((w) => annotateWorker(w, input.workerCapabilities)).join(", ")}.
 For Apple platform/API/HIG questions consult: ${input.shared.join(", ") || "(none)"}.
 Do not do the workers' work yourself; decompose, delegate, verify, integrate.
 
