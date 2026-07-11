@@ -41,5 +41,5 @@ abstract class StageRepoCliTask : DefaultTask() {
         }
     }
 
-    private fun exe() = if (System.getProperty("os.name").lowercase().contains("windows")) "kilo.exe" else "kilo"
+    private fun exe() = if (System.getProperty("os.name").lowercase().contains("windows")) "northstar.exe" else "northstar"
 }

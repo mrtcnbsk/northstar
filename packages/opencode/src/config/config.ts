@@ -940,7 +940,9 @@ export const layer = Layer.effect(
           // kilocode_change - untrusted config dirs confine {file:} reads to projectRoot
           const dirFileScope = dirTrusted ? undefined : { root: projectRoot, source: dir }
           if (KilocodeConfig.isConfigDir(dir, Flag.KILO_CONFIG_DIR)) {
-            for (const file of KilocodeConfig.ALL_CONFIG_FILES) {
+            // kilocode_change - merge() below is later-wins; iterate in merge order so
+            // northstar.jsonc/.json merge last and win over an existing kilo.jsonc/.json.
+            for (const file of KilocodeConfig.ALL_CONFIG_FILES_MERGE_ORDER) {
               const source = path.join(dir, file)
               log.debug(`loading config from ${source}`)
               // kilocode_change - untrusted config dirs confine {file:} reads to projectRoot
@@ -1080,7 +1082,9 @@ export const layer = Layer.effect(
         const managedDir = ConfigManaged.managedConfigDir()
         // kilocode_change start - include kilo.json/kilo.jsonc in managed dir loading
         if (existsSync(managedDir)) {
-          for (const file of KilocodeConfig.ALL_CONFIG_FILES) {
+          // kilocode_change - see the merge-order note above: keeps northstar.jsonc/.json highest
+          // precedence while leaving the existing kilo/opencode relative order untouched.
+          for (const file of KilocodeConfig.ALL_CONFIG_FILES_MERGE_ORDER) {
             const source = path.join(managedDir, file)
             // kilocode_change - MDM/enterprise-managed config is a trusted source
             yield* merge(source, yield* loadFile(source, undefined, true), "global")

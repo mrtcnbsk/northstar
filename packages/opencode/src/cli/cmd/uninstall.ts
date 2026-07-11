@@ -8,7 +8,7 @@ import path from "path"
 import os from "os"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
-import { Brew as KiloBrew } from "@/kilocode/installation" // kilocode_change
+import { Brew as KiloBrew, Choco as KiloChoco, Scoop as KiloScoop } from "@/kilocode/installation" // kilocode_change
 
 interface UninstallArgs {
   keepConfig: boolean
@@ -135,8 +135,8 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
       bun: "bun remove -g @ilura/northstar", // kilocode_change
       yarn: "yarn global remove @ilura/northstar", // kilocode_change
       brew: `brew uninstall ${KiloBrew.name}`, // kilocode_change
-      choco: "choco uninstall kilo", // kilocode_change
-      scoop: "scoop uninstall kilo", // kilocode_change
+      choco: `choco uninstall ${KiloChoco.name}`, // kilocode_change
+      scoop: `scoop uninstall ${KiloScoop.name}`, // kilocode_change
     }
     prompts.log.info(`  ✓ Package: ${cmds[method] || method}`)
   }
@@ -186,8 +186,8 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
       bun: ["bun", "remove", "-g", "@ilura/northstar"], // kilocode_change
       yarn: ["yarn", "global", "remove", "@ilura/northstar"], // kilocode_change
       brew: ["brew", "uninstall", KiloBrew.name], // kilocode_change
-      choco: ["choco", "uninstall", "kilo"], // kilocode_change
-      scoop: ["scoop", "uninstall", "kilo"], // kilocode_change
+      choco: ["choco", "uninstall", KiloChoco.name], // kilocode_change
+      scoop: ["scoop", "uninstall", KiloScoop.name], // kilocode_change
     }
 
     const cmd = cmds[method]

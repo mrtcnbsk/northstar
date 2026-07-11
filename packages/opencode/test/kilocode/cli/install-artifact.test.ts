@@ -17,6 +17,21 @@ describe("npm install artifact behavior", () => {
     expect(text).toContain("function findBinary(startDir)")
   })
 
+  // kilocode_change - regression test for the postinstall rebrand miss: postinstall.mjs kept
+  // resolving the old `@kilocode/cli-<platform>-<arch>` package + `kilo` binary after bin/northstar
+  // and the published optionalDependencies moved to `@ilura/northstar-<platform>-<arch>` + `northstar`,
+  // so `npm install -g @ilura/northstar` failed on mac/Linux. This pins the resolved names directly by
+  // asserting the source text (packageNames()/resolveBinary() aren't exported from the script).
+  test("resolves the @ilura/northstar package base and northstar binary source", async () => {
+    const text = await fs.readFile(postinstall, "utf8")
+    expect(text).toContain("const base = `@ilura/northstar-${platform}-${arch}`")
+    expect(text).toContain('const sourceBinary = platform === "windows" ? "northstar.exe" : "northstar"')
+    // the cached target-binary filename is intentionally unchanged and must still agree with bin/northstar
+    expect(text).toContain('const targetBinary = path.join(__dirname, "bin", ".kilo")')
+    expect(text).not.toContain("@kilocode/cli-")
+    expect(text).not.toContain('"kilo.exe" : "kilo"')
+  })
+
   test("copies cached binary runtime resources during postinstall", async () => {
     if (process.platform === "win32") return
     const node = Bun.which("node")
@@ -27,8 +42,8 @@ describe("npm install artifact behavior", () => {
 
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kilo-postinstall-artifact-"))
     try {
-      const pkg = path.join(tmp, "node_modules", "@kilocode", "cli")
-      const native = path.join(tmp, "node_modules", "@kilocode", `cli-${process.platform}-${process.arch}`)
+      const pkg = path.join(tmp, "node_modules", "@ilura", "northstar")
+      const native = path.join(tmp, "node_modules", "@ilura", `northstar-${process.platform}-${process.arch}`)
       const bin = path.join(native, "bin")
       await fs.mkdir(path.join(pkg, "bin"), { recursive: true })
       await fs.mkdir(path.join(bin, "tree-sitter"), { recursive: true })
@@ -38,16 +53,16 @@ describe("npm install artifact behavior", () => {
         path.join(pkg, "package.json"),
         JSON.stringify({
           optionalDependencies: {
-            [`@kilocode/cli-${process.platform}-${process.arch}`]: "1.0.0",
+            [`@ilura/northstar-${process.platform}-${process.arch}`]: "1.0.0",
           },
         }),
       )
       await Bun.write(
         path.join(native, "package.json"),
-        JSON.stringify({ name: `@kilocode/cli-${process.platform}-${process.arch}` }),
+        JSON.stringify({ name: `@ilura/northstar-${process.platform}-${process.arch}` }),
       )
       const binary = "#!/bin/sh\n# binary\nexit 0\n"
-      await Bun.write(path.join(bin, "kilo"), binary)
+      await Bun.write(path.join(bin, "northstar"), binary)
       await Bun.write(path.join(bin, "kilo-sandbox-mutation-worker.js"), "worker")
       await Bun.write(path.join(bin, "tree-sitter", "tree-sitter.wasm"), "wasm")
       await Bun.write(path.join(bin, "console", "index.html"), "console")

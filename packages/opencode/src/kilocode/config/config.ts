@@ -50,6 +50,17 @@ export namespace KilocodeConfig {
     "opencode.json",
   ] as const
 
+  // kilocode_change start - merge order for later-wins folds (Config.get's config-dir and managed-dir
+  // loops). ALL_CONFIG_FILES is ordered highest-to-lowest precedence for first-match consumers, but a
+  // later-wins mergeConfig() fold needs the inverse. Only the northstar pair moves to the end (still
+  // jsonc-over-json within the pair) so northstar.jsonc/.json stay unconditionally highest precedence;
+  // the existing kilo/opencode relative order is left exactly as it iterates today.
+  export const ALL_CONFIG_FILES_MERGE_ORDER = [
+    ...ALL_CONFIG_FILES.filter((file) => !file.startsWith("northstar")),
+    ...[...ALL_CONFIG_FILES.filter((file) => file.startsWith("northstar"))].reverse(),
+  ] as const
+  // kilocode_change end
+
   /** Config directory suffixes in update-target preference order. */
   export const KILO_DIR_SUFFIXES = [".kilo", ".kilocode"] as const
 

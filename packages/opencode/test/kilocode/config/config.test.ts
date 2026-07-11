@@ -566,6 +566,25 @@ describe("project config directory precedence", () => {
       },
     })
   })
+
+  // kilocode_change - regression test: ALL_CONFIG_FILES lists northstar.jsonc/.json first as
+  // highest-to-lowest precedence, but the config-dir load loop merged them in that same forward
+  // order into a later-wins mergeConfig(), so kilo.jsonc actually won. Assert northstar wins.
+  test("prefers northstar.jsonc over kilo.jsonc within the same project config dir", async () => {
+    await using tmp = await tmpdir()
+    const dir = path.join(tmp.path, ".kilo")
+    await writeConfig(dir, { username: "kilo", model: "test/kilo" }, "kilo.jsonc")
+    await writeConfig(dir, { username: "northstar" }, "northstar.jsonc")
+
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        const config = await load()
+        expect(config.username).toBe("northstar")
+        expect(config.model).toBe("test/kilo")
+      },
+    })
+  })
 })
 
 describe("linked worktree config", () => {
