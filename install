@@ -21,8 +21,8 @@ Options:
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
-    curl -fsSL https://kilo.ai/cli/install | bash
-    curl -fsSL https://kilo.ai/cli/install | bash -s -- --version 1.0.180
+    curl -fsSL https://raw.githubusercontent.com/mrtcnbsk/northstar/main/install | bash
+    curl -fsSL https://raw.githubusercontent.com/mrtcnbsk/northstar/main/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/northstar
 EOF
 }
@@ -568,7 +568,7 @@ echo -e ""
 echo -e "cd <project>  ${MUTED}# Open directory${NC}"
 echo -e "northstar     ${MUTED}# Run northstar${NC}"
 echo -e ""
-echo -e "${MUTED}For more information visit ${NC}https://kilo.ai/docs"
+echo -e "${MUTED}For more information visit ${NC}https://github.com/mrtcnbsk/northstar"
 echo -e ""
 echo -e ""
 # kilocode_change end
