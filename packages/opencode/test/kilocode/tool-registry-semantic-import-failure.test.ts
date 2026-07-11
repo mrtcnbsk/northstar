@@ -58,6 +58,8 @@ function infos() {
     xcodeBuild: info("xcode_build"),
     xcodeTest: info("xcode_test"),
     crashSymbolicate: info("crash_symbolicate"),
+    privacyManifestCheck: info("privacy_manifest_check"),
+    atsCheck: info("ats_check"),
     orgStart: info("org_start"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),

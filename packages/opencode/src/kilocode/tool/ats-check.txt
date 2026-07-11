@@ -1,0 +1,10 @@
+Check an `Info.plist`'s App Transport Security (ATS) configuration for insecure-networking exceptions instead of hand-reading raw XML plist.
+
+Reads the XML plist at `plistPath` and inspects its `NSAppTransportSecurity` dict, flagging: `NSAllowsArbitraryLoads`, `NSAllowsArbitraryLoadsInWebContent`, or `NSAllowsArbitraryLoadsForMedia` set to `true` (global opt-outs of ATS), and any `NSExceptionDomains.<domain>` entry with `NSExceptionAllowsInsecureHTTPLoads` set to `true` (a per-domain opt-out, reported with the offending domain name).
+
+Use this before submitting an app or reviewing a teammate's/agent's `Info.plist` changes, to catch App Store Connect ATS-compliance rejections and unintentional plaintext-HTTP exceptions before they ship.
+
+Parameters:
+- `plistPath`: filesystem path to the `Info.plist` file.
+
+Returns `{ ok, violations, rawPath }`. `ok: true` when no insecure ATS setting is present — including when the `NSAppTransportSecurity` key is absent entirely, since ATS defaults to secure. `violations` is a list of `{ domain?, key, message }`. A missing file returns `{ ok: false, violations: [{ key: "file", message }] }` rather than throwing.
