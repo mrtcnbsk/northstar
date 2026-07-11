@@ -19,7 +19,19 @@
     // validate() only bars a name being BOTH a chief and a worker (role conflict) - it does not
     // restrict a worker-elsewhere agent from also being a consultant here.
     "review":     { "chief": "review-chief", "workers": ["security-validator", "senior-engineer-reviewer", "privacy-manifest-validator"] },
-    "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] }
+    "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] },
+    // W7.6/W7.7: the final department, split across TWO pipeline stages so the human ship gate is
+    // a REAL gate (see the `pipeline` comment below for why one gated stage could never both gate
+    // AND submit). "delivery" prepares (archive/export/validate metadata) behind the human gate;
+    // "release" reuses the SAME chief + worker and actually calls asc_submit, but only ever runs
+    // after the gate approves. A chief may chief two departments — validate()/crossCheck only bar
+    // a name being both a chief and a worker, and require a chief's subordinates to be a superset
+    // of ITS department's workers+shared; delivery-chief's subordinates already cover both
+    // departments since they share the same worker (release-engineer). Requires the user's own
+    // locally-configured App Store Connect API key; degrades to a clean "unavailable" message
+    // without one (never a crash, never a logged key).
+    "delivery":   { "chief": "delivery-chief", "workers": ["release-engineer"] },
+    "release":    { "chief": "delivery-chief", "workers": ["release-engineer"] }
   },
   "shared": ["apple-docs"],
   // Budget ceilings (USD; "retries" is an integer count). All fields optional -
@@ -89,7 +101,28 @@
     // undefined unless something explicitly sets it, so {mode:"full"} would skip it by default.
     // `requires: ["review"]` (W5.4) means marketing only runs once the review gate has been
     // approved - it no longer defaults to its previous-stage (debugging); review sits between them.
-    { "stage": "marketing", "requires": ["review"], "gate": "human" }
+    { "stage": "marketing", "requires": ["review"], "gate": "human" },
+    // W7.6/W7.7: the ship gate, split into TWO stages so it's a REAL gate rather than a decorative
+    // one. Why split: the runner fires a stage's `gate:"human"` AFTER its chief already produced
+    // the deliverable, and `decide()`'s approve branch just flips the stage's status to
+    // "completed" - it NEVER re-invokes the chief. So a SINGLE gated stage that both prepares AND
+    // submits could never actually gate the submit: either the chief obeys "don't submit before
+    // the gate" and asc_submit is never called on approve (nothing ships), or it has to submit
+    // during its one pre-gate run (the gate is decorative).
+    //
+    // `delivery` (`requires: ["marketing"]`, `gate: "human"`, `haltOn: "no-go"`): PREPARES only -
+    // archive, export the .ipa, validate the marketing metadata - and writes a ship-readiness
+    // deliverable. THIS gate is the actual "ship it" decision: no-go halts (nothing built has been
+    // submitted); approve just marks this stage completed and lets `release` become ready.
+    { "stage": "delivery", "requires": ["marketing"], "gate": "human", "haltOn": "no-go" },
+    // `release` (`requires: ["delivery"]`, no gate): the new terminal stage. Its chief (the same
+    // delivery-chief) calls `asc_submit` - this only ever runs once "delivery" has transitioned to
+    // "completed", i.e. strictly after the human approved the ship gate above. A
+    // REJECTED/METADATA_REJECTED review state surfaced by asc_status is relayed by the CEO to the
+    // user, who directs a fresh release-chief session to fix the metadata/build and resubmit (see
+    // ceo.md) - `org_decision "revise"` cannot target this stage since it has no gate of its own
+    // to reopen (decide() only ever acts on a stage currently "awaiting_approval").
+    { "stage": "release", "requires": ["delivery"] }
     // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
   ],
   // Default 1 (sequential) would still resolve backend/frontend as both-ready together, but only

@@ -1,12 +1,11 @@
 // kilocode_change - new file
-import { Effect, Schema, Stream } from "effect"
-import { createWriteStream } from "node:fs"
+import { Effect, Schema } from "effect"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import { ChildProcess } from "effect/unstable/process"
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
 import * as Truncate from "@/tool/truncate"
 import { validateExtraArgs } from "./xcode-argv"
+import { runXcodebuild } from "./xcodebuild-exec"
 import DESCRIPTION from "./xcode-test.txt"
 
 // Test runs can legitimately run long (large suites, UI tests, simulator boot time). 10 minutes
@@ -339,6 +338,12 @@ export class StreamingXcodeTestParser {
     return this.sawTestCase || this.buildErrors.length > 0 || this.buildWarnings.length > 0
   }
 
+  /** Alias satisfying `XcodebuildStreamParser.hasContent` (xcodebuild-exec.ts's shared
+   * `runXcodebuild` primitive) — same signal as `hasResults()`. */
+  hasContent(): boolean {
+    return this.hasResults()
+  }
+
   result(exitCode: number): ParsedTest {
     const buildFailed = this.sawBuildFailed && !this.sawTestCase
     if (buildFailed) {
@@ -410,109 +415,26 @@ export const XcodeTestTool = Tool.define(
           })
 
           const start = Date.now()
-          const command = ChildProcess.make("xcodebuild", args, { cwd, stdin: "ignore" })
 
           // Same architecture as xcode_build: run the process, drain output through the bounded
           // streaming parser, and lazily spill the full log to disk only once it's worth keeping
           // (a result or a build failure appeared) — a clean, fully-passing run leaves no raw log.
-          type Ran = {
-            kind: "ran"
-            parser: StreamingXcodeTestParser
-            exitCode: number
-            rawLogPath?: string
-            rawLogNote?: string
-          }
-          type SpawnFailed = { kind: "spawn_failed"; error: string }
-
-          const run = Effect.scoped(
-            Effect.gen(function* () {
-              // Spawn is caught SEPARATELY below so a toolchain/spawn failure (xcodebuild missing,
-              // bad cwd, PlatformError) is not masked as a test run that "failed" with zero results.
-              const handle = yield* spawner.spawn(command)
-              const parser = new StreamingXcodeTestParser()
-
-              let sink: ReturnType<typeof createWriteStream> | undefined
-              let rawLogPath: string | undefined
-              let rawLogNote: string | undefined
-
-              const openSink = Effect.fnUntraced(function* () {
-                if (sink || rawLogNote) return
-                const path = yield* trunc.write("")
-                rawLogPath = path
-                sink = createWriteStream(path, { flags: "a" })
-                sink.on("error", () => {
-                  rawLogNote = "raw log write failed (disk full or permission denied); results above are complete"
-                  sink = undefined
-                })
-                try {
-                  sink.write(parser.retainedTail())
-                } catch {
-                  /* covered by the sink error handler above */
-                }
-              })
-
-              const drain = Stream.runForEach(Stream.decodeText(handle.all), (chunk) =>
-                Effect.gen(function* () {
-                  parser.push(chunk)
-                  if (!sink && !rawLogNote && parser.hasResults()) {
-                    yield* openSink()
-                  }
-                  if (sink) {
-                    try {
-                      sink.write(chunk)
-                    } catch {
-                      /* covered by the sink error handler */
-                    }
-                  }
-                }),
-              )
-
-              const timeout = Effect.sleep(`${TEST_TIMEOUT_MS} millis`)
-              const race = yield* Effect.raceAll([
-                Effect.all([handle.exitCode, drain], { concurrency: 2 }).pipe(
-                  Effect.map(([code]) => ({ kind: "exit" as const, code: Number(code) })),
-                ),
-                timeout.pipe(Effect.as({ kind: "timeout" as const, code: 1 })),
-              ])
-              parser.finish()
-              if (race.kind === "timeout") {
-                // Best-effort kill: the outer Effect.catch (beta.66) does not catch defects, so an
-                // orDie here would let a failed kill escape and crash execute() on the real-timeout
-                // path. Swallow the entire cause (failure AND defect) so the structured timeout
-                // result below is produced independent of whether the kill actually succeeded.
-                yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.catchCause(() => Effect.void))
-                const note = `\n\n[xcode_test] terminated after exceeding timeout ${TEST_TIMEOUT_MS} ms`
-                parser.push(note)
-                parser.finish()
-                if (!sink && !rawLogNote) yield* openSink()
-                if (sink) {
-                  try {
-                    sink.write(note)
-                  } catch {
-                    /* covered by the sink error handler */
-                  }
-                }
-              }
-              if (sink) {
-                sink.end()
-              }
-              return { kind: "ran", parser, exitCode: race.code, rawLogPath, rawLogNote } satisfies Ran
-            }),
-          ).pipe(
-            Effect.catch((e) =>
-              Effect.succeed({
-                kind: "spawn_failed",
-                error: e instanceof Error ? e.message : String(e),
-              } satisfies SpawnFailed),
-            ),
-          )
-
-          const outcome: Ran | SpawnFailed = yield* run
+          // See xcodebuild-exec.ts (W2-R2) for the shared spawn/stream/timeout/sink orchestration
+          // this delegates to; xcode_test injects its own StreamingXcodeTestParser (its
+          // build-vs-test-failure disambiguation isn't the simple marker match build/archive/
+          // export share, so it isn't built from the shared successMarker/failMarker path).
+          const outcome = yield* runXcodebuild(spawner, trunc, new StreamingXcodeTestParser(), {
+            args,
+            cwd,
+            timeoutMs: TEST_TIMEOUT_MS,
+            toolLabel: "xcode_test",
+            sinkErrorNote: "raw log write failed (disk full or permission denied); results above are complete",
+          })
           const durationMs = Date.now() - start
 
           const title = params.scheme ? `xcodebuild test: ${params.scheme}` : "xcodebuild test"
 
-          if (outcome.kind === "spawn_failed") {
+          if (outcome.spawnFailed) {
             const summary = {
               ok: false,
               status: "spawn_failed" as const,

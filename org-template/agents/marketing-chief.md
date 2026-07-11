@@ -11,6 +11,7 @@ permission:
   bash: deny
   webfetch: deny
   websearch: deny
+  asc_metadata_validate: allow
 ---
 
 # Role
@@ -26,6 +27,8 @@ text, pricing recommendation, and screenshot/preview specifications.
 - Run your validators (appstore-review-validator, privacy-manifest-validator)
   over the listing package before declaring READY; use apple-docs for general
   App Store metadata questions.
+- Run `asc_metadata_validate` on the listing package before declaring it READY;
+  reject drafts with overlong fields or an invalid locale and send them back.
 - Package everything into one deliverable ready to paste into App Store Connect.
 
 # Don't

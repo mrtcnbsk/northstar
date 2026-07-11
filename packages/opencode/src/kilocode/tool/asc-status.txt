@@ -1,0 +1,13 @@
+Check the App Store Connect review state of a submitted version, instead of opening App Store Connect by hand.
+
+Requires the same locally-configured App Store Connect API key as `asc_submit` (issuer id + key id + `.p8` private key) — see that tool's description for how to configure one. Without a configured key, this tool returns a clean "App Store Connect delivery unavailable" message and metadata `{unavailable: true}`; it never throws and never logs the key.
+
+Parameters (provide `version_id`, OR both `bundle_id` and `version`):
+- `version_id`: the App Store Connect `appStoreVersions` id directly (e.g. the `versionId` `asc_submit` returned). Takes precedence when given — a direct read, no extra lookups.
+- `bundle_id` + `version`: resolves the app by bundle id, then finds (or, if somehow missing, creates) the matching App Store version — the same resolution `asc_submit` performs, so in the normal flow this only ever finds an existing version.
+
+Returns `{state, versionId}` — `state` is the raw App Store Connect `appStoreVersions` `appStoreState` string (e.g. `WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_DEVELOPER_RELEASE`, `READY_FOR_SALE`, `REJECTED`, `METADATA_REJECTED`, ...). A `REJECTED`/`METADATA_REJECTED` state means App Review or App Store Connect rejected the submission — check developer.apple.com / App Store Connect directly for Apple's specific rejection notes, then fix the build/metadata and resubmit via `asc_submit`.
+
+Every failure (an unresolvable bundle id/version, a 4xx/5xx from App Store Connect) is returned as a structured `{error}` result — this tool never throws and never crashes its caller.
+
+For a long-running poll instead of a one-off check, see the `startReviewMonitor` background job, which publishes `asc.review.state` bus events on every state change.

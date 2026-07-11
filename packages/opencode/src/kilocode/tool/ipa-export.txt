@@ -1,0 +1,19 @@
+Export an `.ipa` from an Xcode archive (`xcodebuild -exportArchive`) and return structured results instead of raw xcodebuild output.
+
+Runs `xcodebuild -exportArchive -archivePath <archivePath> -exportOptionsPlist <exportOptionsPlist> -exportPath <exportPath>`, then parses the output into `{ ok, status, errorCount, warningCount, errors[], warnings[], ipaPaths[] }`. Each error/warning includes file, line, column, severity, and message when xcodebuild reports them in the standard `file:line:col: severity: message` format.
+
+`status` is one of:
+- `"invalid_args"`: `archivePath`, `exportOptionsPlist`, or `exportPath` escapes the project directory, or `extraArgs` contains a disallowed flag/path. xcodebuild is never invoked.
+- `"spawn_failed"`: xcodebuild could not be launched at all (missing toolchain, bad cwd).
+- `"export_failed"`: xcodebuild ran but did not produce `** EXPORT SUCCEEDED **` (or exited nonzero).
+- `"export_succeeded"`: the export completed; `ipaPaths` lists every `.ipa` file found directly under `exportPath` afterward (absolute paths, resolved against the project directory), sorted by name. An export that produces no `.ipa` (misconfigured export options) yields `ipaPaths: []` even though `status` is `"export_succeeded"` — check for that.
+
+Use this instead of the shell tool for exporting: xcodebuild output can run to thousands of lines, and this tool distills it down to the actionable diagnostics plus a path to the full raw log for cases where more detail is needed. This is typically the step after `xcode_archive`.
+
+Parameters:
+- `archivePath`: path to the `.xcarchive` produced by `xcode_archive`. Must be a project-relative path, or an absolute path that resolves inside the project directory.
+- `exportOptionsPlist`: path to an `ExportOptions.plist` describing how to export (method, signing, etc.). Same within-project constraint as `archivePath`.
+- `exportPath`: directory to write the exported `.ipa` (and manifest) into. Same within-project constraint.
+- `extraArgs`: additional raw arguments appended to the xcodebuild invocation. Flags that redirect output outside the project (`-derivedDataPath`, `-resultBundlePath`, `-xcconfig`) or any argument that is an absolute path or contains `..` are rejected before xcodebuild is invoked, returning `{ ok: false, status: "invalid_args", error }`.
+
+`rawLogPath` is a best-effort partial log, written ONLY when diagnostics or an export failure/timeout occur (omitted on a clean, warning-free success). It may be truncated (see `rawLogTruncated`), so treat it as supplementary detail — the structured `errors[]` and `warnings[]` are always complete regardless of how large the export output was.

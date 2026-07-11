@@ -1,0 +1,16 @@
+Ship a build and/or App Store listing to App Store Connect using YOUR OWN Apple Developer credentials, instead of walking App Store Connect by hand.
+
+Requires a locally-configured App Store Connect API key (issuer id + key id + `.p8` private key) — this is a BYO-credential tool for a public repo: no key ever ships with or is read from this project. Configure one via the auth store, or the `ASC_ISSUER_ID` / `ASC_KEY_ID` / `ASC_PRIVATE_KEY` (inline PEM) or `ASC_KEY_PATH` (PEM file path) environment variables. Without a configured key, this tool returns a clean "App Store Connect delivery unavailable" message and metadata `{unavailable: true}` — it never throws and never logs the key.
+
+Parameters:
+- `bundle_id`: the app's bundle identifier, e.g. `com.example.app`. Used to resolve the App Store Connect app record.
+- `version`: the App Store version string to submit, e.g. `1.2.0`.
+- `ipa_path`: path to the `.ipa` produced by `ipa_export`. When given, the build is uploaded to App Store Connect FIRST via `xcrun altool --upload-app -f <ipa_path> -t ios --apiKey <keyId> --apiIssuer <issuerId>` (a child-process spawn — App Store Connect's JSON API has no HTTP endpoint for the binary itself). `--apiKey`/`--apiIssuer` pass identifiers only; altool reads the actual private key from disk itself, at Apple's documented discovery path `~/.appstoreconnect/private_keys/AuthKey_<keyId>.p8` — place your `.p8` file there (create the `private_keys` directory if it doesn't exist) so altool can find it. Must be a project-relative path, or an absolute path that resolves inside the project directory.
+- `testflight_only`: when true, stop after the build upload — do not create an App Store version or submit for review. Use this to ship a build to TestFlight without triggering App Review.
+- `metadata`: an optional array of locale metadata entries (same shape as `asc_metadata_validate`'s `entries`: `{locale, name?, subtitle?, promotionalText?, keywords?, description?}`). When given, it is validated against Apple's length/locale limits BEFORE anything is submitted — a violation blocks submission entirely (`{submitted: false, blocked: true, violations}`), no App Store Connect call is made.
+
+Flow (when a credential is configured and `testflight_only` is not set): resolve the app by `bundle_id` -> ensure an App Store version exists for `version` (created if missing) -> create a review submission -> attach the version and submit it for review. Returns `{submitted, testflight, appId, versionId?, reviewState?}`.
+
+Every ASC/altool failure (a rejected upload, a 4xx/5xx from App Store Connect, an unresolvable bundle id) is returned as a structured `{submitted: false, error}` result — this tool never throws and never crashes its caller. The error message is built only from App Store Connect's own response fields (status/code/title/detail) or the altool process output — never from the credential.
+
+Use this as the final step of the delivery flow: `xcode_archive` -> `ipa_export` -> `asc_metadata_validate` -> (human ship-gate approval) -> `asc_submit`, then poll `asc_status` for the review outcome.
