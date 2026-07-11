@@ -1,0 +1,13 @@
+Search the organization's shared memory pool (`.kilo/org/memory`) for lessons saved by `org_memory_save`, across current and prior runs.
+
+CEO-only. Use this at the start of a run, or before instructing a chief, to check whether a similar situation was already handled: "how did we solve X last run?", "what did the eng department learn about the ship gate?".
+
+Parameters:
+- query (required): a natural-language or keyword topic to search for.
+- dept (optional): narrow results to entries tagged with this department at save time.
+- limit (optional): maximum number of matches to return.
+
+Usage notes:
+- Recall is pure lexical keyword search (no embeddings, no API key required) — phrase the query with the same words the lesson likely used.
+- An empty or never-written pool returns a clean empty result, not an error.
+- This tool searches only the organization's shared memory pool. It does not search personal/session memory (`kilo_memory_recall`) or code (`semantic_search`).

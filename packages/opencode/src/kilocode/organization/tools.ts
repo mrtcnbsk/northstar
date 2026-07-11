@@ -72,14 +72,16 @@ export function withRunLock<A>(runID: string, fn: () => Promise<A>): Promise<A> 
 }
 // kilocode_change end
 
-const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
+// kilocode_change - exported (was module-private) so org-memory-save.ts/org-recall.ts (W6.1) can
+// reuse the SAME dir-loading/CEO-guard/result-shaping logic instead of duplicating it a third time.
+export const load = (projectDir: string) => tryOrg(() => OrgSchema.loadOrganization(projectDir))
 
-const guardCeo = (org: OrgSchema.Organization, agent: string) =>
+export const guardCeo = (org: OrgSchema.Organization, agent: string) =>
   agent === org.ceo
     ? Effect.void
     : Effect.fail(new Error(`org tools are reserved for the CEO agent "${org.ceo}" (called by "${agent}")`))
 
-function result(title: string, body: unknown) {
+export function result(title: string, body: unknown) {
   return { title, metadata: {}, output: typeof body === "string" ? body : JSON.stringify(body, null, 2) }
 }
 

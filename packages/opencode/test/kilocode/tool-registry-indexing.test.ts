@@ -421,11 +421,21 @@ describe("kilocode tool registry indexing", () => {
       orgDecision: def("org_decision"),
       orgStatus: def("org_status"),
       orgStop: def("org_stop"),
+      orgMemorySave: def("org_memory_save"),
+      orgRecall: def("org_recall"),
       notebookRead: def("notebook_read"),
       notebookEdit: def("notebook_edit"),
       notebookExecute: def("notebook_execute"),
     }
-    const orgIDs = ["org_start", "org_advance", "org_decision", "org_status", "org_stop"]
+    const orgIDs = [
+      "org_start",
+      "org_advance",
+      "org_decision",
+      "org_status",
+      "org_stop",
+      "org_memory_save",
+      "org_recall",
+    ]
 
     try {
       process.env["KILO_CLIENT"] = "cli"

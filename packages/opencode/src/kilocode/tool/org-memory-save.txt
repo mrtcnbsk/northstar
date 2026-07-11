@@ -1,0 +1,13 @@
+Save a lesson or fact to the organization's shared memory pool, a project-local, committable, cross-run memory rooted at `.kilo/org/memory`. Distinct from personal/session memory: this pool is meant to persist knowledge across separate `org_start` runs so later runs benefit from what earlier ones learned.
+
+CEO-only. Use this after a run teaches you something worth reusing next time: a gotcha a chief hit, a gate decision and why, a workaround for a flaky dependency, a naming or scope convention the user corrected.
+
+Parameters:
+- text (required): the lesson, kept concise and durable so it still makes sense in a future run.
+- dept (optional): a department tag (e.g. "eng", "design", "marketing") to scope this entry for later dept-filtered recall via `org_recall`.
+- key (optional): a stable key for this entry; a key is derived from the text when omitted.
+
+Usage notes:
+- Recall is pure lexical keyword search over this pool (no embeddings, no API key required).
+- Do not save secrets, credentials, tokens, or one-off run-specific details (a run id, a task id) that will be meaningless later.
+- This tool writes only the organization's shared memory pool. It does not touch personal/session memory (`kilo_memory_save`).
