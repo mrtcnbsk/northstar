@@ -1,13 +1,13 @@
-> ## Ilura Technology OÜ — Private Repository
+> ## Ilura Technology OÜ
 >
-> This repository is a **proprietary derivative work owned by Ilura Technology OÜ**, extending the
-> open-source [Kilo Code](https://github.com/Kilo-Org/kilocode) and [opencode](https://github.com/sst/opencode)
-> projects (both MIT-licensed) with an autonomous multi-agent organization that ships iOS apps
-> end-to-end. Upstream MIT terms are retained in full — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+> This is an **open-source (MIT)** project by **Ilura Technology OÜ**, extending the open-source
+> [Kilo Code](https://github.com/Kilo-Org/kilocode) and [opencode](https://github.com/sst/opencode)
+> projects (both MIT-licensed) with an autonomous multi-agent organization that ships apps end-to-end.
+> Ilura holds the copyright in its own additions and releases them under the MIT License, the same
+> terms as upstream — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 >
-> © 2026 Ilura Technology OÜ. Ilura's own contributions are proprietary; upstream components remain
-> under their original MIT license. The upstream Kilo Code project README is preserved below for
-> attribution and context.
+> © 2026 Ilura Technology OÜ. The upstream Kilo Code project README is preserved below for attribution
+> and context.
 
 ---
 
