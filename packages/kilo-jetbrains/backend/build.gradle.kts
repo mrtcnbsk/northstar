@@ -82,7 +82,7 @@ fun platform(): String {
 
 val stageRepoCli by tasks.registering(StageRepoCliTask::class) {
     description = "Stage the local repo CLI into backend resources"
-    val bin = repoRootDir.dir("dist/@kilocode/cli-${platform()}/bin")
+    val bin = repoRootDir.dir("dist/@ilura/northstar-${platform()}/bin")
     this.bin.set(bin)
     archive.set(generatedCli.map { it.file("kilo-cli.zip") })
     outputs.upToDateWhen { false }

@@ -1,13 +1,24 @@
 import { Config } from "effect"
 import { InstallationChannel } from "../installation/version"
 
-function truthy(key: string) {
-  const value = process.env[key]?.toLowerCase()
+// kilocode_change start - config dir decouple (EPIC 1 Task 1.2): dual-read env helper. `key` is the
+// new NORTHSTAR_* var (checked first), `oldKey` is the legacy KILO_* var (fallback, back-compat).
+export function resolveEnv(key: string, oldKey?: string): string | undefined {
+  const value = process.env[key]
+  if (value !== undefined) return value
+  return oldKey ? process.env[oldKey] : undefined
+}
+// kilocode_change end
+
+function truthy(key: string, oldKey?: string) {
+  // kilocode_change - dual-read via resolveEnv, see above
+  const value = resolveEnv(key, oldKey)?.toLowerCase()
   return value === "true" || value === "1"
 }
 
-function falsy(key: string) {
-  const value = process.env[key]?.toLowerCase()
+function falsy(key: string, oldKey?: string) {
+  // kilocode_change - dual-read via resolveEnv, see above
+  const value = resolveEnv(key, oldKey)?.toLowerCase()
   return value === "false" || value === "0"
 }
 
@@ -16,8 +27,9 @@ function unstableDefault(key: string) {
   return truthy(key) || (!falsy(key) && UNSTABLE_CHANNELS.has(InstallationChannel))
 }
 
-function number(key: string) {
-  const value = process.env[key]
+function number(key: string, oldKey?: string) {
+  // kilocode_change - dual-read via resolveEnv, see above
+  const value = resolveEnv(key, oldKey)
   if (!value) return undefined
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
@@ -39,8 +51,10 @@ export const Flag = {
   KILO_AUTO_SHARE: truthy("KILO_AUTO_SHARE"),
   KILO_AUTO_HEAP_SNAPSHOT: truthy("KILO_AUTO_HEAP_SNAPSHOT"),
   KILO_GIT_BASH_PATH: process.env["KILO_GIT_BASH_PATH"],
-  KILO_CONFIG: process.env["KILO_CONFIG"],
-  KILO_CONFIG_CONTENT: process.env["KILO_CONFIG_CONTENT"],
+  // kilocode_change start - config dir decouple: NORTHSTAR_* primary, KILO_* fallback (back-compat)
+  KILO_CONFIG: resolveEnv("NORTHSTAR_CONFIG", "KILO_CONFIG"),
+  KILO_CONFIG_CONTENT: resolveEnv("NORTHSTAR_CONFIG_CONTENT", "KILO_CONFIG_CONTENT"),
+  // kilocode_change end
   KILO_DISABLE_AUTOUPDATE: truthy("KILO_DISABLE_AUTOUPDATE"),
   KILO_ALWAYS_NOTIFY_UPDATE: truthy("KILO_ALWAYS_NOTIFY_UPDATE"),
   KILO_DISABLE_PRUNE: truthy("KILO_DISABLE_PRUNE"),
@@ -93,15 +107,17 @@ export const Flag = {
   KILO_EXPERIMENTAL_EVENT_SYSTEM: KILO_EXPERIMENTAL || truthy("KILO_EXPERIMENTAL_EVENT_SYSTEM"),
   KILO_EXPERIMENTAL_SESSION_SWITCHING: KILO_EXPERIMENTAL || truthy("KILO_EXPERIMENTAL_SESSION_SWITCHING"),
   KILO_EXPERIMENTAL_SESSION_SWITCHER: enabledByExperimental("KILO_EXPERIMENTAL_SESSION_SWITCHER"),
+  // kilocode_change start - config dir decouple: NORTHSTAR_* primary, KILO_* fallback (back-compat)
   get KILO_DISABLE_PROJECT_CONFIG() {
-    return truthy("KILO_DISABLE_PROJECT_CONFIG")
+    return truthy("NORTHSTAR_DISABLE_PROJECT_CONFIG", "KILO_DISABLE_PROJECT_CONFIG")
   },
   get KILO_TUI_CONFIG() {
-    return process.env["KILO_TUI_CONFIG"]
+    return resolveEnv("NORTHSTAR_TUI_CONFIG", "KILO_TUI_CONFIG")
   },
   get KILO_CONFIG_DIR() {
-    return process.env["KILO_CONFIG_DIR"]
+    return resolveEnv("NORTHSTAR_CONFIG_DIR", "KILO_CONFIG_DIR")
   },
+  // kilocode_change end
   get KILO_PURE() {
     return truthy("KILO_PURE")
   },

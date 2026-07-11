@@ -10,11 +10,11 @@
       "dependsOn": [],
       "outputs": ["dist/**"]
     },
-    "@kilocode/cli#build": {
+    "@ilura/northstar#build": {
       "dependsOn": ["@kilocode/sdk#build"],
       "outputs": ["dist/**"]
     },
-    "@kilocode/cli#test": {
+    "@ilura/northstar#test": {
       "dependsOn": ["^build"],
       "outputs": [],
       "passThroughEnv": ["*"]
@@ -23,7 +23,7 @@
       "outputs": [".artifacts/unit/junit.xml"],
       "passThroughEnv": ["*"]
     },
-    "@kilocode/cli#test:ci": {
+    "@ilura/northstar#test:ci": {
       "dependsOn": ["^build"],
       "env": ["KILO_TEST_PROFILE"],
       "outputs": [".artifacts/unit/junit.xml"],
@@ -38,7 +38,7 @@
       "env": ["POSTHOG_API_KEY", "FREE_TIER_AMOUNT", "NEXT_PUBLIC_POSTHOG_KEY", "NEXT_PUBLIC_POSTHOG_HOST"]
     },
     "@kilocode/kilo-jetbrains#build": {
-      "dependsOn": ["@kilocode/cli#build"],
+      "dependsOn": ["@ilura/northstar#build"],
       "outputs": ["build/distributions/**"]
     },
     "@kilocode/kilo-jetbrains#typecheck": {

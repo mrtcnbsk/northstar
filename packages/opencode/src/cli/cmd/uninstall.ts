@@ -8,7 +8,7 @@ import path from "path"
 import os from "os"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
-import { Brew as KiloBrew } from "@/kilocode/installation" // kilocode_change
+import { Brew as KiloBrew, Choco as KiloChoco, Scoop as KiloScoop } from "@/kilocode/installation" // kilocode_change
 
 interface UninstallArgs {
   keepConfig: boolean
@@ -25,7 +25,7 @@ interface RemovalTargets {
 
 export const UninstallCommand = {
   command: "uninstall",
-  describe: "uninstall kilo and remove all related files", // kilocode_change
+  describe: "uninstall northstar and remove all related files", // kilocode_change
   builder: (yargs: Argv) =>
     yargs
       .option("keep-config", {
@@ -56,7 +56,7 @@ export const UninstallCommand = {
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()
-    prompts.intro("Uninstall Kilo") // kilocode_change
+    prompts.intro("Uninstall northstar") // kilocode_change
 
     const method = await Installation.method()
     prompts.log.info(`Installation method: ${method}`)
@@ -130,13 +130,13 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string> = {
-      npm: "npm uninstall -g @kilocode/cli", // kilocode_change
-      pnpm: "pnpm uninstall -g @kilocode/cli", // kilocode_change
-      bun: "bun remove -g @kilocode/cli", // kilocode_change
-      yarn: "yarn global remove @kilocode/cli", // kilocode_change
+      npm: "npm uninstall -g @ilura/northstar", // kilocode_change
+      pnpm: "pnpm uninstall -g @ilura/northstar", // kilocode_change
+      bun: "bun remove -g @ilura/northstar", // kilocode_change
+      yarn: "yarn global remove @ilura/northstar", // kilocode_change
       brew: `brew uninstall ${KiloBrew.name}`, // kilocode_change
-      choco: "choco uninstall kilo", // kilocode_change
-      scoop: "scoop uninstall kilo", // kilocode_change
+      choco: `choco uninstall ${KiloChoco.name}`, // kilocode_change
+      scoop: `scoop uninstall ${KiloScoop.name}`, // kilocode_change
     }
     prompts.log.info(`  ✓ Package: ${cmds[method] || method}`)
   }
@@ -181,13 +181,13 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "@kilocode/cli"], // kilocode_change
-      pnpm: ["pnpm", "uninstall", "-g", "@kilocode/cli"], // kilocode_change
-      bun: ["bun", "remove", "-g", "@kilocode/cli"], // kilocode_change
-      yarn: ["yarn", "global", "remove", "@kilocode/cli"], // kilocode_change
+      npm: ["npm", "uninstall", "-g", "@ilura/northstar"], // kilocode_change
+      pnpm: ["pnpm", "uninstall", "-g", "@ilura/northstar"], // kilocode_change
+      bun: ["bun", "remove", "-g", "@ilura/northstar"], // kilocode_change
+      yarn: ["yarn", "global", "remove", "@ilura/northstar"], // kilocode_change
       brew: ["brew", "uninstall", KiloBrew.name], // kilocode_change
-      choco: ["choco", "uninstall", "kilo"], // kilocode_change
-      scoop: ["scoop", "uninstall", "kilo"], // kilocode_change
+      choco: ["choco", "uninstall", KiloChoco.name], // kilocode_change
+      scoop: ["scoop", "uninstall", KiloScoop.name], // kilocode_change
     }
 
     const cmd = cmds[method]
@@ -209,10 +209,11 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     prompts.log.info(`  rm "${targets.binary}"`)
 
     const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".opencode") || binDir.includes(".kilo")) {
-      // kilocode_change
+    // kilocode_change start - detect opencode, northstar, and legacy kilo install dirs
+    if (binDir.includes(".opencode") || binDir.includes(".northstar") || binDir.includes(".kilo")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
     }
+    // kilocode_change end
   }
 
   if (errors.length > 0) {
@@ -224,7 +225,7 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
   }
 
   UI.empty()
-  prompts.log.success("Thank you for using Kilo!") // kilocode_change
+  prompts.log.success("Thank you for using northstar!") // kilocode_change
 }
 
 async function getShellConfigFile(): Promise<string | null> {
@@ -261,10 +262,12 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    // kilocode_change start - detect both opencode and kilo markers
+    // kilocode_change start - detect opencode, northstar, and legacy kilo markers
     if (
       content.includes("# opencode") ||
       content.includes(".opencode/bin") ||
+      content.includes("# northstar") ||
+      content.includes(".northstar/bin") ||
       content.includes("# kilo") ||
       content.includes(".kilo/bin")
     ) {
@@ -286,22 +289,29 @@ async function cleanShellConfig(file: string) {
   for (const line of lines) {
     const trimmed = line.trim()
 
-    // kilocode_change start - clean both opencode and kilo markers
-    if (trimmed === "# opencode" || trimmed === "# kilo") {
+    // kilocode_change start - clean opencode, northstar, and legacy kilo markers
+    if (trimmed === "# opencode" || trimmed === "# northstar" || trimmed === "# kilo") {
       skip = true
       continue
     }
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".opencode/bin") || trimmed.includes(".kilo/bin") || trimmed.includes("fish_add_path")) {
+      if (
+        trimmed.includes(".opencode/bin") ||
+        trimmed.includes(".northstar/bin") ||
+        trimmed.includes(".kilo/bin") ||
+        trimmed.includes("fish_add_path")
+      ) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && (trimmed.includes(".opencode/bin") || trimmed.includes(".kilo/bin"))) ||
-      (trimmed.startsWith("fish_add_path") && (trimmed.includes(".opencode") || trimmed.includes(".kilo")))
+      (trimmed.startsWith("export PATH=") &&
+        (trimmed.includes(".opencode/bin") || trimmed.includes(".northstar/bin") || trimmed.includes(".kilo/bin"))) ||
+      (trimmed.startsWith("fish_add_path") &&
+        (trimmed.includes(".opencode") || trimmed.includes(".northstar") || trimmed.includes(".kilo")))
     ) {
       continue
     }

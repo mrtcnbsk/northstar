@@ -203,7 +203,7 @@ Options:
 exports[`Kilo CLI help-text snapshots every documented command emits stable help text: kilo uninstall --help 1`] = `
 "kilo uninstall
 
-uninstall kilo and remove all related files
+uninstall northstar and remove all related files
 
 Options:
   -h, --help         show help                                                             [boolean]

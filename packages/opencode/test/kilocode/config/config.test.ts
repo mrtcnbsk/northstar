@@ -566,6 +566,25 @@ describe("project config directory precedence", () => {
       },
     })
   })
+
+  // kilocode_change - regression test: ALL_CONFIG_FILES lists northstar.jsonc/.json first as
+  // highest-to-lowest precedence, but the config-dir load loop merged them in that same forward
+  // order into a later-wins mergeConfig(), so kilo.jsonc actually won. Assert northstar wins.
+  test("prefers northstar.jsonc over kilo.jsonc within the same project config dir", async () => {
+    await using tmp = await tmpdir()
+    const dir = path.join(tmp.path, ".kilo")
+    await writeConfig(dir, { username: "kilo", model: "test/kilo" }, "kilo.jsonc")
+    await writeConfig(dir, { username: "northstar" }, "northstar.jsonc")
+
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        const config = await load()
+        expect(config.username).toBe("northstar")
+        expect(config.model).toBe("test/kilo")
+      },
+    })
+  })
 })
 
 describe("linked worktree config", () => {
@@ -783,6 +802,47 @@ describe("bash permission migration", () => {
       }
     })
   }
+
+  // kilocode_change start - config dir decouple (EPIC 1 Task 1.2): after the global config dir
+  // renamed to ~/.config/northstar, existing users' config still lives in the legacy ~/.config/kilo
+  // dir. Without also scanning that dir, this migration would wrongly treat them as brand-new users
+  // and silently flip their bash permission default from "allow" to "ask".
+  test("migrates bash permission for an existing user whose config lives only in the legacy kilo config dir", async () => {
+    await using newDir = await tmpdir()
+    await using legacyDir = await tmpdir({
+      init: async (dir) => {
+        await Filesystem.write(
+          path.join(dir, "kilo.jsonc"),
+          `{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "legacy/model"
+}`,
+        )
+      },
+    })
+
+    const prevConfig = Global.Path.config
+    const prevLegacy = Global.Path.legacyConfig
+    ;(Global.Path as { config: string }).config = newDir.path
+    ;(Global.Path as { legacyConfig: string }).legacyConfig = legacyDir.path
+    await clear()
+    await disposeAllInstances()
+
+    try {
+      await KilocodeConfig.migrateBashPermission()
+
+      const file = path.join(legacyDir.path, "kilo.jsonc")
+      const text = await Filesystem.readText(file)
+      const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(text, file), file)
+      expect(parsed.permission?.bash).toBe("allow")
+    } finally {
+      ;(Global.Path as { config: string }).config = prevConfig
+      ;(Global.Path as { legacyConfig: string }).legacyConfig = prevLegacy
+      await clear()
+      await disposeAllInstances()
+    }
+  })
+  // kilocode_change end
 
   test("migrates object-form global permission in jsonc", async () => {
     await using tmp = await tmpdir({

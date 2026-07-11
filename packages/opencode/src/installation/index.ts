@@ -61,7 +61,7 @@ export const Info = Schema.Struct({
 export type Info = Schema.Schema.Type<typeof Info>
 
 export function userAgent(client = "cli") {
-  return `kilo/${InstallationChannel}/${InstallationVersion}/${client}` // kilocode_change
+  return `northstar/${InstallationChannel}/${InstallationVersion}/${client}` // kilocode_change
 }
 
 export const USER_AGENT = userAgent()
@@ -191,7 +191,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         }
       }),
       method: Effect.fn("Installation.method")(function* () {
-        if (process.execPath.includes(path.join(".kilo", "bin"))) return "curl" as Method // kilocode_change
+        if (process.execPath.includes(path.join(".northstar", "bin"))) return "curl" as Method // kilocode_change
         if (process.execPath.includes(path.join(".opencode", "bin"))) return "curl" as Method
         if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
         const exec = process.execPath.toLowerCase()

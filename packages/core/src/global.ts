@@ -9,6 +9,12 @@ import { ensureRealDir } from "./kilocode/global" // kilocode_change
 import { Flag } from "./flag/flag"
 
 const app = "kilo" // kilocode_change
+// kilocode_change start - config dir decouple (EPIC 1 Task 1.2): the global CONFIG dir renames to
+// "northstar", but data/cache/state/tmp/log/bin/repos stay on the "kilo" app name so an existing
+// user's sqlite DB + sessions are never relocated/orphaned by the rebrand. `legacyConfig` keeps
+// pointing at the pre-rebrand `~/.config/kilo` so config loaders can still read it (back-compat).
+const configApp = "northstar" // kilocode_change
+// kilocode_change end
 // kilocode_change start
 // Defensively strip newline characters from the resolved XDG paths.
 // If `$HOME` (or any `$XDG_*_HOME` override) has a trailing newline in
@@ -20,7 +26,8 @@ const app = "kilo" // kilocode_change
 const clean = (p: string | undefined) => p?.replace(/[\r\n]+/g, "")
 const data = path.join(clean(xdgData)!, app)
 const cache = path.join(clean(xdgCache)!, app)
-const config = path.join(clean(xdgConfig)!, app)
+const config = path.join(clean(xdgConfig)!, configApp) // kilocode_change - decoupled from `app`, see configApp above
+const legacyConfig = path.join(clean(xdgConfig)!, app) // kilocode_change - pre-rebrand config dir, read-only back-compat
 const state = path.join(clean(xdgState)!, app)
 // kilocode_change end
 const tmp = path.join(os.tmpdir(), app)
@@ -35,6 +42,7 @@ const paths = {
   repos: path.join(data, "repos"),
   cache,
   config,
+  legacyConfig, // kilocode_change - back-compat read path for the pre-rebrand `~/.config/kilo` dir
   state,
   tmp,
 }
@@ -51,6 +59,7 @@ await Promise.all([
   ensureRealDir(Path.log), // kilocode_change
   ensureRealDir(Path.bin), // kilocode_change
   ensureRealDir(Path.repos), // kilocode_change
+  // kilocode_change - legacyConfig is intentionally NOT created here (read-only back-compat path; a fresh install should never spawn `~/.config/kilo`)
 ])
 
 // kilocode_change start - keep generated Kilo data out of macOS Spotlight
@@ -64,6 +73,7 @@ export interface Interface {
   readonly data: string
   readonly cache: string
   readonly config: string
+  readonly legacyConfig: string // kilocode_change - back-compat read path for the pre-rebrand `~/.config/kilo` dir
   readonly state: string
   readonly tmp: string
   readonly bin: string
@@ -77,6 +87,7 @@ export function make(input: Partial<Interface> = {}): Interface {
     data: Path.data,
     cache: Path.cache,
     config: Flag.KILO_CONFIG_DIR ?? Path.config,
+    legacyConfig: Path.legacyConfig, // kilocode_change
     state: Path.state,
     tmp: Path.tmp,
     bin: Path.bin,
