@@ -347,21 +347,25 @@ download_and_install() {
     fi
 
     # kilocode_change start
-    mv "$tmp_dir/northstar" "$INSTALL_DIR"
+    bin_ext=""
+    if [ "$os" = "windows" ]; then bin_ext=".exe"; fi
+    mv "$tmp_dir/northstar${bin_ext}" "${INSTALL_DIR}/northstar${bin_ext}"
     rm -rf "${INSTALL_DIR}/tree-sitter"
     if [ -d "$tmp_dir/tree-sitter" ]; then
         mv "$tmp_dir/tree-sitter" "$INSTALL_DIR"
     fi
-    chmod 755 "${INSTALL_DIR}/northstar"
+    chmod 755 "${INSTALL_DIR}/northstar${bin_ext}"
     # kilocode_change end
     rm -rf "$tmp_dir"
 }
 
 install_from_binary() {
     # kilocode_change start
+    bin_ext=""
+    if [ "$os" = "windows" ]; then bin_ext=".exe"; fi
     print_message info "\n${MUTED}Installing ${NC}northstar ${MUTED}from: ${NC}$binary_path"
-    cp "$binary_path" "${INSTALL_DIR}/northstar"
-    chmod 755 "${INSTALL_DIR}/northstar"
+    cp "$binary_path" "${INSTALL_DIR}/northstar${bin_ext}"
+    chmod 755 "${INSTALL_DIR}/northstar${bin_ext}"
     # kilocode_change end
 }
 
