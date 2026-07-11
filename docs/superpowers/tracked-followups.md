@@ -556,9 +556,33 @@ avgLatencyMs revize-edilmiş stage'de son-iterasyon (startedAt reset); `invalida
 (sadece kaydeder — bilinçli, auto-reopen daha büyük davranış değişikliği). SNR-deferred (Horizon): task→agent auto-selection/routing
 (capabilities'i tüketen matcher yok), hybrid BM25+vector arama, benchmark Bus-event emit CLI-boundary'de, content-cross-ref artifact graph.
 
-## Master plan durumu
-Plan iskeleti **W0-W8 = 9 dalga (0-indexli), TAMAMLANDI.** Sonrası dossier §3 "Horizon (v2+ backlog)": auto-selection/ranking, accuracy
-scoring + eval agent, latency/quality-aware routing, prompt-improvement pipeline, dynamic pipeline generation, multi-project portfolio,
-localization pipeline, design-system paketi, crash-reporter + post-launch analytics, Instruments perf testing, agent auto-replacement,
-policy tuning. **Dossier'de ayrı bir "Wave 9" YOK** — kullanıcının "wave 9" isteği bu backlog'dan seçilecek bir sonraki dalga olarak
-netleştirilmeli.
+## Wave 9'da kapatıldı (feat/wave-9-routing → main `9bd842c607`) — Horizon'dan seçilen dalga (auto-selection/routing)
+
+Wave 9 = task→agent auto-selection & quality-aware routing (kullanıcı Horizon backlog'undan seçti): (1) saf `OrgRouting`
+(`capabilityScore` = need-coverage overlap `|need∩cand|/|need|` + type-bonus, undefined→0 asla NaN; `rank` = match + OrgMetrics.Health,
+**eksik health NEUTRAL/healthy prior** — koşmamış-ama-eşleşen ajan gömülmez; deterministik isim tie-break, localeCompare DEĞİL); (2)
+`org_route` tool (CEO-scoped `org_` prefix + guardCeo; stage→workers veya chief'leri capability+health'e göre sıralar; best-effort
+health via tryPromise); (3) stage-prompt worker capability annotation (`StageInput.workerCapabilities`; runner LAZY dynamic
+`import("@/config/agent")` — W6 TDZ dersini uyguladı; instruct/stagePromptFor async + Promise.all fan-out, davranış-koruyarak).
+Exit: rank matched+healthy'yi mismatched/unhealthy'nin üstüne koyar (+ matched-unrun > matched-unhealthy, neutral prior kanıtı);
+org_route uçtan-uca + guardCeo; worker annotation. **Wave-close review: 0 BULGU** (4 finder, 350K token, gerçek clean — master planın ilk 0-bulgulu dalgası).
+
+**DOĞRULAMA NOTU (önemli):** feat/wave-9-routing tam sweep'i bu oturumun YÜKLÜ makinesinde ÇEVRESEL kırmızı (21 fail/15 flaky) —
+server/HTTP/SDK/config-overlay/TUI-config testleri port/file-handle/timing çakışması. **Kanıt kod DEĞİL çevresel:** (a) tüm 74 etkilenen
+test İZOLE geçti (25/25 artifacts+fanout+wave7 + 49/49 config/HTTP/SDK); (b) W9'un kendi routing/org/runner suite'leri tam yeşil;
+(c) **pre-W9 main baseline'ı DA aynı yükte kırmızı** (4 dosya/17 case, 15'i W9 sweep'iyle ORTAK) → W9-öncesi koddan bağımsız; (d) TDZ canary 0.
+Merge bu kanıta dayandı (izolasyon + baseline karşılaştırması), post-merge confirming sweep atlandı (baseline zaten aynı çevresel gürültüyü gösteriyor).
+**DERS: kırmızı sweep ≠ kod regresyonu; alakasız-alan saçılması + flaky-sayısı-artışı + imkânsız-timing (60s) + baseline-de-kırmızı = çevresel;
+ağır çok-agent workflow ile eşzamanlı tam sweep KOŞMA (birbirini aç bırakır).**
+
+**TRACK (Wave 9 kalan, bilinçli):** **W9-R1** — chief-callable routing (chief'in worker'ını org_route ile seçmesi) guardCeo + available()
+görünürlük cerrahisi gerektirir → CEO-scoped ile ship edildi. **W9-R2** — per-worker health YOK (metrics chief-seviye; worker maliyeti chief
+session'a katlanır) → worker sıralaması capability-only, health sadece chief'leri ayırt eder. Auto-acting (runner'ın otomatik worker seçmesi /
+sağlıksız chief'i değiştirmesi) YOK — W9 advisory (sıralar/önerir; insan + CEO ajanı eyler).
+
+## Master plan durumu — TAMAMLANDI (W0-W9)
+Plan iskeleti **W0-W8 (9 dalga) + Horizon'dan W9 (auto-selection/routing) = TAMAMLANDI, hepsi main'de + push'lu.** Repo Ilura Technology OÜ
+mülkiyetinde (private). Sıradaki iş: kullanıcının **2026-07-11 EPIC görev listesi** (`docs/superpowers/plans/2026-07-11-epic-roadmap.md`):
+EPIC 0 (ön-koşul kararları) → 1 (derin rebrand Kilo→@ilura/northstar) → 2 (terminal-only release) → 3∥4 (open-core split ∥ genelleştirme:
+toolpack+template) → 5 (provider authoring) → 6/7/8 (TUI builder/chat/cockpit). EPIC 0.1 (open-core scope) + 0.2 (npm isim rezervasyonu =
+KULLANICI publish aksiyonu) kullanıcı kararı bekliyor.
