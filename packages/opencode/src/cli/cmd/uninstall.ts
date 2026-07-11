@@ -209,10 +209,11 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     prompts.log.info(`  rm "${targets.binary}"`)
 
     const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".opencode") || binDir.includes(".kilo")) {
-      // kilocode_change
+    // kilocode_change start - detect opencode, northstar, and legacy kilo install dirs
+    if (binDir.includes(".opencode") || binDir.includes(".northstar") || binDir.includes(".kilo")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
     }
+    // kilocode_change end
   }
 
   if (errors.length > 0) {
@@ -261,10 +262,12 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    // kilocode_change start - detect both opencode and kilo markers
+    // kilocode_change start - detect opencode, northstar, and legacy kilo markers
     if (
       content.includes("# opencode") ||
       content.includes(".opencode/bin") ||
+      content.includes("# northstar") ||
+      content.includes(".northstar/bin") ||
       content.includes("# kilo") ||
       content.includes(".kilo/bin")
     ) {
@@ -286,22 +289,29 @@ async function cleanShellConfig(file: string) {
   for (const line of lines) {
     const trimmed = line.trim()
 
-    // kilocode_change start - clean both opencode and kilo markers
-    if (trimmed === "# opencode" || trimmed === "# kilo") {
+    // kilocode_change start - clean opencode, northstar, and legacy kilo markers
+    if (trimmed === "# opencode" || trimmed === "# northstar" || trimmed === "# kilo") {
       skip = true
       continue
     }
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".opencode/bin") || trimmed.includes(".kilo/bin") || trimmed.includes("fish_add_path")) {
+      if (
+        trimmed.includes(".opencode/bin") ||
+        trimmed.includes(".northstar/bin") ||
+        trimmed.includes(".kilo/bin") ||
+        trimmed.includes("fish_add_path")
+      ) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && (trimmed.includes(".opencode/bin") || trimmed.includes(".kilo/bin"))) ||
-      (trimmed.startsWith("fish_add_path") && (trimmed.includes(".opencode") || trimmed.includes(".kilo")))
+      (trimmed.startsWith("export PATH=") &&
+        (trimmed.includes(".opencode/bin") || trimmed.includes(".northstar/bin") || trimmed.includes(".kilo/bin"))) ||
+      (trimmed.startsWith("fish_add_path") &&
+        (trimmed.includes(".opencode") || trimmed.includes(".northstar") || trimmed.includes(".kilo")))
     ) {
       continue
     }
