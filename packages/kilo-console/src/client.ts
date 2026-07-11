@@ -2,6 +2,8 @@ import { createKiloClient, type Config as EffectiveConfig } from "@kilocode/sdk/
 import type {
   AgentBuilderPreviewResponse,
   AgentBuilderSaveResponse,
+  AgentMetricsResponse,
+  AgentMetricsRow,
   Auth,
   AppAgentsResponse,
   ConfigOverlayResponse,
@@ -98,6 +100,7 @@ export type Snapshot = {
 }
 
 export type { OrgAuditEntry, OrgRunDetailResponse, OrgRunFull, OrgRunStageView, OrgRunsListResponse, OrgRunSummary }
+export type { AgentMetricsResponse, AgentMetricsRow }
 
 export type ConfigPatch = Partial<EffectiveConfig>
 
@@ -433,6 +436,11 @@ export async function loadOrgRuns(input: ProjectQuery): Promise<OrgRunsListRespo
   const sdk = client(input)
   const result = await sdk.orgRuns.list(directory(input))
   return demand("Org runs", result)
+}
+
+export async function loadAgentMetrics(input: ProjectQuery): Promise<AgentMetricsResponse> {
+  const sdk = client(input)
+  return demand("Agent metrics", await sdk.agents.list(directory(input)))
 }
 
 export async function loadOrgRunDetail(input: ProjectQuery, runID: string): Promise<OrgRunDetailResponse> {
