@@ -39,7 +39,9 @@ const forbidden: { pattern: string; reason: string; allow?: string[] }[] = [
   {
     pattern: "sst/opencode",
     reason: "old upstream org path -- should be Kilo-Org/kilocode",
-    allow: [".kilo/agent/upstream-merge.md", "script/upstream/"],
+    // kilocode_change - NOTICE/README legitimately credit the opencode upstream (sst/opencode) per
+    // the LICENSE lineage (© opencode); this is accurate attribution, not a leaked upstream ref.
+    allow: [".kilo/agent/upstream-merge.md", "script/upstream/", "NOTICE", "README.md"],
   },
   { pattern: `"HTTP-Referer": "https://opencode.ai/"`, reason: "attributes outbound LLM traffic to upstream" },
   { pattern: `"http-referer": "https://opencode.ai/"`, reason: "attributes outbound LLM traffic to upstream" },
