@@ -2,6 +2,8 @@
 description: Security validator — scans for hardcoded secrets, insecure transport, insecure storage, and injection risks
 mode: subagent
 model: anthropic/claude-sonnet-5
+capabilities: [security-audit, secret-scanning, insecure-transport-detection]
+preferredTypes: [fintech, health]
 permission:
   edit: deny
   bash: deny

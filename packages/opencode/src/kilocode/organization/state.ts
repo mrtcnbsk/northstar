@@ -36,6 +36,11 @@ export namespace OrgState {
     reviseBaseline: z.string().optional(),
     /** The user's revise note, persisted past the re-instruct (which clears decisionNote) so an unresumable fresh session can still be briefed; lives and dies with reviseBaseline. */
     reviseNote: z.string().optional(),
+    /** Set on a revise decision to OrgGraph.impactRadius(org, stage): the downstream stages this
+     * revise invalidates. Pure metadata for observability - the runner does NOT auto-reopen or
+     * mutate those stages' own status. Optional/back-compat: absent on state.json written before
+     * this field existed, and on stages that have never been revised. */
+    invalidatedDownstream: z.array(z.string()).optional(),
     /** Set together with the once-per-run cost-escalation gate (see OrgRunner.settleRunningStage);
      * the persisted home for the note transient GateItems used to carry directly. Needed because
      * under maxConcurrency>1 an earlier-in-pipeline stage's plain gate can be the serialized blocker

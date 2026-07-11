@@ -5,6 +5,8 @@ import { OrgState } from "./state"
 import { OrgArtifacts } from "./artifacts"
 import { OrgPrompts } from "./prompts"
 import { OrgAudit } from "./audit"
+import { OrgVersions } from "./versions" // kilocode_change - W8.5: best-effort deliverable version snapshots
+import { OrgGraph } from "./graph" // kilocode_change - W8.6: impact radius surfaced on revise
 
 export namespace OrgRunner {
   export interface Deps {
@@ -466,6 +468,15 @@ export namespace OrgRunner {
       }
     })
 
+    // kilocode_change start - W8.5: best-effort content snapshot of the just-accepted deliverable.
+    // `rec.reviseBaseline = undefined` above only clears the sha256 STRING baseline; no prior
+    // content was ever retained anywhere before this. Snapshotting here (right after the content
+    // that just passed validation/staleness checks is durably "accepted") is what makes rollback
+    // possible later. Must NEVER break the run: any failure (disk full, permissions, ...) is
+    // swallowed, mirroring the postmortem hook's fire-and-forget discipline (tools.ts recordPostmortem).
+    await OrgVersions.snapshot(projectDir, runID, stage).catch(() => undefined)
+    // kilocode_change end
+
     if (budgetOutcome?.kind === "halted") {
       await OrgAudit.append(projectDir, runID, {
         ts: new Date().toISOString(),
@@ -721,6 +732,12 @@ export namespace OrgRunner {
     if (!gated) throw new Error(`Cannot record decision "${decision}": no stage awaiting approval in run ${runID}`)
     // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
     const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
+    // kilocode_change start - W8.5: best-effort content snapshot of the PRE-revise deliverable.
+    // The chief overwrites the live .md in place, so without this the content being revised away
+    // would be unrecoverable once the chief's next write lands. Must NEVER break the decision;
+    // swallowed like the postmortem hook (tools.ts recordPostmortem) - fire-and-forget.
+    if (decision === "revise") await OrgVersions.snapshot(projectDir, runID, gated.stage).catch(() => undefined)
+    // kilocode_change end
     // Same on-disk deliverable, hashed once at decision time for the audit trail.
     const deliverableHashForAudit = await deliverableHashOrUndefined(projectDir, runID, gated.stage)
     const updated = await OrgState.update(projectDir, runID, (s) => {
@@ -739,6 +756,9 @@ export namespace OrgRunner {
       } else {
         record.status = "running"
         record.reviseBaseline = reviseBaseline
+        // kilocode_change - W8.6: record which downstream stages this revise invalidates (pure
+        // metadata; those stages' own status is NOT touched - out of scope for this task).
+        record.invalidatedDownstream = OrgGraph.impactRadius(org, gated.stage)
         record.completedAt = undefined // the pre-revise completion timestamp is stale now
         record.incompleteAttempts = 0 // fresh revise iteration: revise churn gets its own retry budget, not the pre-completion count
         // W4-Finding#4: the revise run is a FRESH run of this stage — restart its clock, so its

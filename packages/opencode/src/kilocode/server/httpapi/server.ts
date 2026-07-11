@@ -8,6 +8,7 @@ import { fenceLayer } from "@/server/routes/instance/httpapi/middleware/fence"
 import * as AnacondaDesktop from "@/kilocode/anaconda-desktop/service"
 
 import { agentBuilderHandlers } from "./handlers/agent-builder"
+import { agentsHandlers } from "./handlers/agents"
 import { anacondaDesktopHandlers } from "./handlers/anaconda-desktop"
 import { backgroundProcessHandlers } from "./handlers/background-process"
 import { branchNameHandlers } from "./handlers/branch-name"
@@ -30,6 +31,7 @@ import { telemetryHandlers } from "./handlers/telemetry"
 
 export const provide = Layer.provide([
   agentBuilderHandlers,
+  agentsHandlers,
   anacondaDesktopHandlers.pipe(Layer.provide(AnacondaDesktop.liveLayer)),
   backgroundProcessHandlers,
   branchNameHandlers,

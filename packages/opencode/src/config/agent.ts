@@ -76,6 +76,14 @@ const AgentSchema = Schema.StructWithRest(
       description: "Agent names this agent may spawn via the task tool (expands to ordered task permission rules)",
     }),
     // kilocode_change end
+    // kilocode_change start - W8.1: capability tagging, pure metadata for a future task->agent matcher
+    capabilities: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+      description: "Free-form capability tags describing what this agent is good at (e.g. domains, skills)",
+    }),
+    preferredTypes: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+      description: "Free-form app/task type tags this agent is best suited for",
+    }),
+    // kilocode_change end
   }),
   [Schema.Record(Schema.String, Schema.Any)],
 )
@@ -101,6 +109,8 @@ const KNOWN_KEYS = new Set([
   "tools",
   "requirements", // kilocode_change
   "subordinates", // kilocode_change
+  "capabilities", // kilocode_change
+  "preferredTypes", // kilocode_change
 ])
 
 // Post-parse normalisation:

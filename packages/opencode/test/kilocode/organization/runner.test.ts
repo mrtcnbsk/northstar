@@ -6,6 +6,7 @@ import { createHash } from "node:crypto"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
+import { OrgGraph } from "../../../src/kilocode/organization/graph"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgState } from "../../../src/kilocode/organization/state"
 import { OrgAudit } from "../../../src/kilocode/organization/audit"
@@ -166,6 +167,34 @@ describe("OrgRunner full flows", () => {
     expect(redo.stage).toBe("evaluation")
     expect(redo.resumeTaskID).toBe("ses_eval")
     expect(redo.taskPrompt).toContain("check EU market too")
+  })
+
+  test("revise records the impact radius as invalidatedDownstream on the gated stage", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea impact radius")
+    await advance1(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await advance1(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "revise", "check EU market too")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    // planning requires evaluation (defaulted), so revising evaluation invalidates it downstream.
+    expect(state.stages["evaluation"].invalidatedDownstream).toEqual(["planning"])
+    expect(state.stages["evaluation"].invalidatedDownstream).toEqual(OrgGraph.impactRadius(ORG, "evaluation"))
+    // planning's own status is untouched - invalidatedDownstream is pure metadata, not an auto-reopen.
+    expect(state.stages["planning"].status).toBe("pending")
+  })
+
+  test("approve does not set invalidatedDownstream (only revise surfaces the impact radius)", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, ORG, "idea impact radius approve")
+    await advance1(deps, tmp.path, ORG, run.runID, {})
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await advance1(deps, tmp.path, ORG, run.runID, { taskID: "ses_eval" })
+    await OrgRunner.decide(tmp.path, ORG, run.runID, "approve")
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["evaluation"].invalidatedDownstream).toBeUndefined()
   })
 
   test("decide outside a gate fails", async () => {
