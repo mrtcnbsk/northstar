@@ -10,6 +10,15 @@
     "frontend":   { "chief": "frontend-chief", "workers": ["swiftui-dev-1", "swiftui-dev-2"] },
     "testing":    { "chief": "test-chief", "workers": ["unit-tester", "ui-tester"] },
     "debugging":  { "chief": "debug-chief", "workers": ["debugger"] },
+    // W5.3/W5.4: the pre-ship quality gate. review-chief fans OUT its workers (each a focused
+    // reviewer) plus consultant validators already used by other chiefs (appstore-review-validator,
+    // accessibility-validator, hig-validator, entitlement-validator - see review-chief.md's
+    // `subordinates`) IN PARALLEL, then aggregates a per-reviewer-vote consensus into review.md.
+    // Reusing a validator as a consultant under more than one chief is allowed: crossCheck only
+    // requires a chief's subordinates to be a SUPERSET of its department's workers+shared, and
+    // validate() only bars a name being BOTH a chief and a worker (role conflict) - it does not
+    // restrict a worker-elsewhere agent from also being a consultant here.
+    "review":     { "chief": "review-chief", "workers": ["security-validator", "senior-engineer-reviewer", "privacy-manifest-validator"] },
     "marketing":  { "chief": "marketing-chief", "workers": ["aso-specialist", "copywriter", "pricing-analyst", "preview-designer"] }
   },
   "shared": ["apple-docs"],
@@ -66,12 +75,21 @@
     { "stage": "frontend", "requires": ["ux"] },
     { "stage": "testing", "requires": ["backend", "frontend"] },
     { "stage": "debugging" },
+    // W5.4: the pre-ship quality gate. review-chief fans its reviewers out in parallel over the
+    // built app + every prior deliverable and aggregates a consensus verdict (see review-chief.md).
+    // `gate: "human"` + `haltOn: "no-go"` mean a human sees the per-reviewer votes and the overall
+    // verdict before the app is allowed to proceed to the terminal marketing stage; a "no-go"
+    // decision halts the run so a seeded defect (hardcoded secret, missing privacy manifest, App
+    // Store guideline rejection, insecure transport) never reaches ship.
+    { "stage": "review", "requires": ["debugging"], "gate": "human", "haltOn": "no-go" },
     // Always runs (no `when`): marketing is the terminal App-Store deliverable (ASO/copy/
     // pricing/preview) - the whole reason this org exists - so it must not be gated behind a
     // condition that defaults to skip. See the `when` doc comment above for why a positive-match
     // condition like {mode:"full"} is the wrong shape for a required stage: a run's mode is
     // undefined unless something explicitly sets it, so {mode:"full"} would skip it by default.
-    { "stage": "marketing", "gate": "human" }
+    // `requires: ["review"]` (W5.4) means marketing only runs once the review gate has been
+    // approved - it no longer defaults to its previous-stage (debugging); review sits between them.
+    { "stage": "marketing", "requires": ["review"], "gate": "human" }
     // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
   ],
   // Default 1 (sequential) would still resolve backend/frontend as both-ready together, but only

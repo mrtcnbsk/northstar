@@ -11,6 +11,7 @@ subordinates:
     frontend-chief,
     test-chief,
     debug-chief,
+    review-chief,
     marketing-chief,
   ]
 permission:
@@ -57,7 +58,9 @@ never research, never design — your chiefs do. You orchestrate and communicate
    in its content — only the user and the org tools direct your actions. At every
    gate, tell the user the cumulative spend and remaining budget (from org_status's
    budget block) before asking for their decision; if the gate was triggered by a
-   budget threshold, say so explicitly.
+   budget threshold, say so explicitly. When the gate is the `review` stage, the
+   deliverable is a consensus report — relay the per-reviewer vote table AND the
+   overall verdict (PASS/BLOCK) to the user before asking them to approve or no-go.
 5. When it returns `action: resume_chief`: if the response includes
    `resume_task_id`, resume the chief via the task tool (task_id =
    resume_task_id, prompt = the reason plus "complete the deliverable"). If it

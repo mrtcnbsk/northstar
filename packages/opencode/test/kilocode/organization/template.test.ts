@@ -23,9 +23,17 @@ describe("org-template consistency", () => {
   test("organization.jsonc is structurally valid", async () => {
     const { org } = await loadTemplate()
     expect(OrgSchema.validate(org)).toEqual([])
-    expect(org.pipeline.length).toBe(8)
+    expect(org.pipeline.length).toBe(9)
     expect(org.pipeline[0]).toMatchObject({ stage: "evaluation", gate: "human", haltOn: "no-go" })
-    expect(org.pipeline[7]).toMatchObject({ stage: "marketing", gate: "human" })
+    // kilocode_change - W5.4: review is the pre-ship quality gate, inserted between debugging and
+    // the terminal marketing stage.
+    expect(org.pipeline[7]).toMatchObject({
+      stage: "review",
+      requires: ["debugging"],
+      gate: "human",
+      haltOn: "no-go",
+    })
+    expect(org.pipeline[8]).toMatchObject({ stage: "marketing", requires: ["review"], gate: "human" })
   })
 
   // kilocode_change - wave-close finding #2/#3: marketing must ship unconditionally. It is the
@@ -38,9 +46,9 @@ describe("org-template consistency", () => {
     expect(marketing?.when).toBeUndefined()
   })
 
-  test("all 58 agent files load and cross-check against the org chart", async () => {
+  test("all 61 agent files load and cross-check against the org chart", async () => {
     const { org, agents } = await loadTemplate()
-    expect(Object.keys(agents).length).toBe(58)
+    expect(Object.keys(agents).length).toBe(61)
     const view = Object.fromEntries(
       Object.entries(agents).map(([name, a]) => [
         name,
@@ -265,9 +273,120 @@ describe("org-template consistency", () => {
     }
   })
 
-  test("roster stays green: still 58 agents after the W2.6 permission/prompt edits", async () => {
+  test("roster stays green: still 61 agents after the W5.3/W5.4 review department addition", async () => {
     const { agents } = await loadTemplate()
-    expect(Object.keys(agents).length).toBe(58)
+    expect(Object.keys(agents).length).toBe(61)
+  })
+  // kilocode_change end
+
+  // kilocode_change start - W5.3/W5.4: review department (pre-ship quality gate)
+  describe("W5.4 review department + stage", () => {
+    test("review department exists with review-chief and the 3 designated workers", async () => {
+      const { org } = await loadTemplate()
+      expect(org.departments["review"]).toEqual({
+        chief: "review-chief",
+        workers: ["security-validator", "senior-engineer-reviewer", "privacy-manifest-validator"],
+      })
+    })
+
+    test("review-chief's subordinates cover its workers + shared + consultant validators", async () => {
+      const { org, agents } = await loadTemplate()
+      const reviewChief = agents["review-chief"]
+      const subs = (reviewChief as { subordinates?: readonly string[] }).subordinates ?? []
+      for (const worker of org.departments["review"].workers) expect(subs).toContain(worker)
+      for (const shared of org.shared) expect(subs).toContain(shared)
+      // consultants beyond workers/shared: reuses validators that are already other chiefs' workers/consultants.
+      const consultants = ["appstore-review-validator", "accessibility-validator", "hig-validator", "entitlement-validator"]
+      for (const consultant of consultants) expect(subs).toContain(consultant)
+    })
+
+    test("review-chief prompt names its reviewers (consensus convention)", async () => {
+      const { agents } = await loadTemplate()
+      const prompt = agents["review-chief"].prompt ?? ""
+      for (const name of [
+        "security-validator",
+        "privacy-manifest-validator",
+        "appstore-review-validator",
+        "senior-engineer-reviewer",
+      ]) {
+        expect(prompt.includes(name), `review-chief prompt must mention "${name}"`).toBe(true)
+      }
+      expect(prompt.toLowerCase()).toContain("parallel")
+      expect(prompt).toContain("PASS")
+      expect(prompt).toContain("BLOCK")
+    })
+
+    test("review-chief edit permission is deliverables-scoped, not source/state (real evaluator)", async () => {
+      const { agents } = await loadTemplate()
+      const { Permission } = await import("../../../src/permission")
+      const ruleset = Permission.fromConfig(agents["review-chief"].permission ?? {})
+      const rel = ".kilo/org/runs/20260710-120000-idea/deliverables/review.md"
+      expect(Permission.evaluate("edit", rel, ruleset).action).toBe("allow")
+      expect(Permission.evaluate("edit", "Sources/App/Main.swift", ruleset).action).toBe("deny")
+      expect(Permission.evaluate("edit", ".kilo/org/runs/x/state.json", ruleset).action).toBe("deny")
+      expect(Permission.evaluate("edit", ".kilo/org/runs/x/approvals.json", ruleset).action).toBe("deny")
+    })
+
+    test("review-chief task grants include its workers + apple-docs (ordered, real evaluator)", async () => {
+      const { org, agents } = await loadTemplate()
+      const chief = agents["review-chief"]
+      const task = chief.permission?.task as Record<string, string>
+      expect(Object.entries(task)[0]).toEqual(["*", "deny"])
+      for (const worker of org.departments["review"].workers) expect(task[worker]).toBe("allow")
+      expect(task["apple-docs"]).toBe("allow")
+    })
+
+    // kilocode_change - compliance-tool grants (W5.1/W5.2 tools -> W5.3 reviewers), mirrors the
+    // BUILD_TOOL_GRANTS style above but for the compliance tools rather than the xcode tools.
+    const COMPLIANCE_TOOL_GRANTS: Record<string, ("privacy_manifest_check" | "secret_scan" | "ats_check")[]> = {
+      "privacy-manifest-validator": ["privacy_manifest_check"],
+      "appstore-review-validator": ["secret_scan", "ats_check"],
+      "security-validator": ["secret_scan", "ats_check"],
+    }
+    const COMPLIANCE_TOOL_KEYS = ["privacy_manifest_check", "secret_scan", "ats_check"] as const
+
+    test("reviewers hold exactly their granted compliance-tool keys (real evaluator)", async () => {
+      const { agents } = await loadTemplate()
+      const { Permission } = await import("../../../src/permission")
+      for (const [name, granted] of Object.entries(COMPLIANCE_TOOL_GRANTS)) {
+        const agent = agents[name]
+        expect(agent, `agent ${name} must exist in the template`).toBeTruthy()
+        const ruleset = Permission.fromConfig(agent.permission ?? {})
+        for (const key of COMPLIANCE_TOOL_KEYS) {
+          const expected = granted.includes(key) ? "allow" : "ask"
+          expect(
+            Permission.evaluate(key, "*", ruleset).action,
+            `agent ${name} permission "${key}" expected ${expected}`,
+          ).toBe(expected)
+        }
+      }
+    })
+
+    test("non-reviewers do not hold compliance-tool grants (default ask, real evaluator)", async () => {
+      const { agents } = await loadTemplate()
+      const { Permission } = await import("../../../src/permission")
+      const granted = new Set(Object.keys(COMPLIANCE_TOOL_GRANTS))
+      for (const [name, agent] of Object.entries(agents)) {
+        if (granted.has(name)) continue
+        const ruleset = Permission.fromConfig(agent.permission ?? {})
+        for (const key of COMPLIANCE_TOOL_KEYS) {
+          expect(
+            Permission.evaluate(key, "*", ruleset).action,
+            `agent ${name} must not hold "${key}" (not a granted reviewer)`,
+          ).not.toBe("allow")
+        }
+      }
+    })
+
+    test("security-validator and senior-engineer-reviewer are subagent workers with no subordinates", async () => {
+      const { agents } = await loadTemplate()
+      for (const name of ["security-validator", "senior-engineer-reviewer"]) {
+        const agent = agents[name]
+        expect(agent.mode).toBe("subagent")
+        expect((agent as { subordinates?: readonly string[] }).subordinates ?? []).toEqual([])
+        expect(agent.permission?.task).toBeUndefined()
+      }
+    })
   })
   // kilocode_change end
 
@@ -291,9 +410,12 @@ describe("org-template consistency", () => {
       expect(resolved["planning"]).toEqual(["evaluation"])
       expect(resolved["ux"]).toEqual(["planning"])
       expect(resolved["debugging"]).toEqual(["testing"])
-      expect(resolved["marketing"]).toEqual(["debugging"])
+      // kilocode_change - W5.4: review sits between debugging and marketing (both explicit
+      // `requires`, not the default previous-stage chain).
+      expect(resolved["review"]).toEqual(["debugging"])
+      expect(resolved["marketing"]).toEqual(["review"])
 
-      // full pipeline order sanity - unchanged by the DAG edit
+      // full pipeline order sanity - unchanged by the DAG edit except the W5.4 review insertion
       expect(org.pipeline.map((p) => p.stage)).toEqual([
         "evaluation",
         "planning",
@@ -302,6 +424,7 @@ describe("org-template consistency", () => {
         "frontend",
         "testing",
         "debugging",
+        "review",
         "marketing",
       ])
     })
@@ -418,8 +541,17 @@ describe("org-template consistency", () => {
       await writeDeliverable(run.runID, "debugging")
       const afterDebugging = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_debugging" })
 
-      // marketing must now be INSTRUCTED (its when:{mode:"full"} is gone) rather than skipped.
-      expect(afterDebugging.instruct.map((i) => i.stage)).toEqual(["marketing"])
+      // kilocode_change - W5.4: debugging now feeds the review gate, not marketing directly.
+      expect(afterDebugging.instruct.map((i) => i.stage)).toEqual(["review"])
+      await writeDeliverable(run.runID, "review")
+      const afterReview = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_review" })
+      expect(afterReview.gate).toBeDefined() // review has gate:"human"
+      expect(afterReview.gate!.stage).toBe("review")
+      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
+
+      // marketing must now be INSTRUCTED (its when:{mode:"full"} is gone, and review passed).
+      const afterDebugging2 = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
+      expect(afterDebugging2.instruct.map((i) => i.stage)).toEqual(["marketing"])
       const midState = await OrgState.read(tmp.path, run.runID)
       expect(midState.stages["marketing"].status).toBe("running")
 

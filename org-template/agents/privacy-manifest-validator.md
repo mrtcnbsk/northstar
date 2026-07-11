@@ -7,6 +7,7 @@ permission:
   bash: deny
   websearch: allow
   webfetch: allow
+  privacy_manifest_check: allow
 ---
 
 # Role

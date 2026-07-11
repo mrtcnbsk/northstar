@@ -7,6 +7,8 @@ permission:
   bash: deny
   websearch: allow
   webfetch: allow
+  secret_scan: allow
+  ats_check: allow
 ---
 
 # Role
