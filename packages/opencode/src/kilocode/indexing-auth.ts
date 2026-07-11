@@ -3,6 +3,8 @@ import type { IndexingConfig } from "@kilocode/kilo-indexing/config"
 type Auth = unknown
 
 type Env = {
+  NORTHSTAR_API_KEY?: string
+  NORTHSTAR_ORG_ID?: string
   KILO_API_KEY?: string
   KILO_ORG_ID?: string
 }
@@ -87,6 +89,7 @@ export function resolveKiloIndexingAuth(input: {
       token(input.auth) ??
       text(provider.key) ??
       text(providerOptions.kilocodeToken) ??
+      text(env.NORTHSTAR_API_KEY) ??
       text(env.KILO_API_KEY),
     baseUrl: text(kilo.baseUrl) ?? text(providerConfig.baseURL) ?? text(providerConfig.baseUrl),
     organizationId:
@@ -94,6 +97,7 @@ export function resolveKiloIndexingAuth(input: {
       text(providerConfig.kilocodeOrganizationId) ??
       org(input.auth) ??
       text(providerOptions.kilocodeOrganizationId) ??
+      text(env.NORTHSTAR_ORG_ID) ??
       text(env.KILO_ORG_ID),
   }
 }

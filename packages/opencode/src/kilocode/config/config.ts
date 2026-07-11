@@ -38,10 +38,17 @@ export namespace KilocodeConfig {
   // ── Config file constants ────────────────────────────────────────────
 
   /** Kilo-specific config file names (highest-to-lowest precedence within kilo). */
-  export const KILO_CONFIG_FILES = ["kilo.jsonc", "kilo.json"] as const
+  export const KILO_CONFIG_FILES = ["northstar.jsonc", "northstar.json", "kilo.jsonc", "kilo.json"] as const
 
-  /** All config file names in precedence order (kilo + opencode). */
-  export const ALL_CONFIG_FILES = ["kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json"] as const
+  /** All config file names in precedence order (northstar + kilo + opencode). */
+  export const ALL_CONFIG_FILES = [
+    "northstar.jsonc",
+    "northstar.json",
+    "kilo.jsonc",
+    "kilo.json",
+    "opencode.jsonc",
+    "opencode.json",
+  ] as const
 
   /** Config directory suffixes in update-target preference order. */
   export const KILO_DIR_SUFFIXES = [".kilo", ".kilocode"] as const
@@ -323,7 +330,15 @@ export namespace KilocodeConfig {
 
   // ── Bash permission migration ────────────────────────────────────────
 
-  const GLOBAL_CONFIG_FILES = ["config.json", "kilo.json", "kilo.jsonc", "opencode.json", "opencode.jsonc"]
+  const GLOBAL_CONFIG_FILES = [
+    "northstar.jsonc",
+    "northstar.json",
+    "config.json",
+    "kilo.json",
+    "kilo.jsonc",
+    "opencode.json",
+    "opencode.jsonc",
+  ]
 
   /**
    * Migrate bash permission for existing users before config is consumed.
@@ -334,10 +349,14 @@ export namespace KilocodeConfig {
    * behavior now that the new default is `bash: "ask"`.
    */
   export async function migrateBashPermission() {
-    const files = GLOBAL_CONFIG_FILES.map((f) => path.join(Global.Path.config, f))
-    const legacy = path.join(Global.Path.config, "config")
+    // Scan the legacy `~/.config/kilo` dir too (config dir decoupled to `~/.config/northstar`,
+    // EPIC 1 Task 1.2). Without this, an existing kilo user whose config only lives in the legacy
+    // dir would look like a brand-new user and silently lose their `bash: allow` default.
+    const dirs = [Global.Path.legacyConfig, Global.Path.config]
+    const files = dirs.flatMap((dir) => GLOBAL_CONFIG_FILES.map((f) => path.join(dir, f)))
+    const legacyTomlCandidates = dirs.map((dir) => path.join(dir, "config"))
     const existing = files.filter((f) => existsSync(f))
-    const hasLegacy = existsSync(legacy)
+    const hasLegacy = legacyTomlCandidates.some((f) => existsSync(f))
 
     // no global config → new user, they'll get the new bash:ask default
     if (existing.length === 0 && !hasLegacy) return
@@ -359,8 +378,11 @@ export namespace KilocodeConfig {
 
     // also check legacy TOML config for bash permission
     if (hasLegacy) {
-      const toml = await import(pathToFileURL(legacy).href, { with: { type: "toml" } }).catch(() => undefined)
-      if (toml?.default?.permission?.bash) return
+      for (const legacy of legacyTomlCandidates) {
+        if (!existsSync(legacy)) continue
+        const toml = await import(pathToFileURL(legacy).href, { with: { type: "toml" } }).catch(() => undefined)
+        if (toml?.default?.permission?.bash) return
+      }
     }
 
     // existing user without bash permission → write bash:allow to highest-precedence file

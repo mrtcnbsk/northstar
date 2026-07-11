@@ -34,6 +34,37 @@ describe("Kilo indexing auth resolution", () => {
     })
   })
 
+  test("honors NORTHSTAR_API_KEY/NORTHSTAR_ORG_ID, with KILO_API_KEY/KILO_ORG_ID as fallback", () => {
+    // NORTHSTAR_* absent -> falls back to the legacy KILO_* env vars.
+    expect(resolveKiloIndexingAuth({ env: { KILO_API_KEY: "legacy-token", KILO_ORG_ID: "legacy-org" } })).toEqual({
+      apiKey: "legacy-token",
+      organizationId: "legacy-org",
+    })
+
+    // NORTHSTAR_* present alone -> honored.
+    expect(resolveKiloIndexingAuth({ env: { NORTHSTAR_API_KEY: "new-token", NORTHSTAR_ORG_ID: "new-org" } })).toEqual(
+      {
+        apiKey: "new-token",
+        organizationId: "new-org",
+      },
+    )
+
+    // Both present -> NORTHSTAR_* wins.
+    expect(
+      resolveKiloIndexingAuth({
+        env: {
+          NORTHSTAR_API_KEY: "new-token",
+          NORTHSTAR_ORG_ID: "new-org",
+          KILO_API_KEY: "legacy-token",
+          KILO_ORG_ID: "legacy-org",
+        },
+      }),
+    ).toEqual({
+      apiKey: "new-token",
+      organizationId: "new-org",
+    })
+  })
+
   test("defaults to Kilo only when no provider or other embedder config is present", () => {
     const auth = { apiKey: "kilo-token" }
 

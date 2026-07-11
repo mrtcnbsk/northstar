@@ -24,6 +24,7 @@ export const directories = Effect.fn("ConfigPaths.directories")(function* (direc
   const afs = yield* AppFileSystem.Service
   return unique([
     Global.Path.config,
+    Global.Path.legacyConfig, // kilocode_change - back-compat read of the pre-rebrand ~/.config/kilo dir
     ...(!Flag.KILO_DISABLE_PROJECT_CONFIG
       ? yield* afs.up({
           targets: [".kilocode", ".kilo"], // kilocode_change

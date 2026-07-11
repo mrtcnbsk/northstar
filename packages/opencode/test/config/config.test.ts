@@ -320,7 +320,8 @@ it.effect("creates global jsonc config with schema when no global configs exist"
     Effect.gen(function* () {
       yield* Config.use.get().pipe(provideInstanceEffect(dir))
 
-      const content = yield* AppFileSystem.use.readFileString(path.join(dir, "kilo.jsonc")) // kilocode_change
+      // kilocode_change - the seed file is now northstar.jsonc (highest precedence), not kilo.jsonc
+      const content = yield* AppFileSystem.use.readFileString(path.join(dir, "northstar.jsonc"))
       expect(content).toContain('"$schema": "https://app.kilo.ai/config.json"') // kilocode_change
     }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
   ),
@@ -2224,3 +2225,137 @@ test("parseManagedPlist handles empty config", async () => {
   )
   expect(config.$schema).toBe("https://opencode.ai/config.json")
 })
+
+// kilocode_change start - config dir decouple back-compat (EPIC 1 Task 1.2): the global config dir
+// renamed to ~/.config/northstar, but an existing ~/.config/kilo must keep loading, and a new
+// northstar.jsonc must win when both exist.
+const withLegacyConfigDir = <A, E, R>(dir: string, effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.gen(function* () {
+      const previous = Global.Path.legacyConfig
+      ;(Global.Path as { legacyConfig: string }).legacyConfig = dir
+      yield* clearEffect(true)
+      return previous
+    }),
+    () => effect,
+    (previous) =>
+      Effect.gen(function* () {
+        ;(Global.Path as { legacyConfig: string }).legacyConfig = previous
+        yield* clearEffect(true)
+      }),
+  )
+
+describe("config dir decouple back-compat (northstar)", () => {
+  it.instance("an existing kilo.jsonc in the legacy ~/.config/kilo dir still loads", () =>
+    Effect.gen(function* () {
+      const newDir = yield* tmpdirScoped()
+      const legacyDir = yield* tmpdirScoped()
+      yield* writeConfigEffect(legacyDir, schemaConfig({ username: "legacy-user" }), "kilo.jsonc")
+      yield* withGlobalConfigDir(
+        newDir,
+        withLegacyConfigDir(
+          legacyDir,
+          Effect.gen(function* () {
+            const config = yield* Config.use.get()
+            expect(config.username).toBe("legacy-user")
+          }),
+        ),
+      )
+    }),
+  )
+
+  it.instance("northstar.jsonc in the new config dir takes precedence over a legacy kilo.jsonc", () =>
+    Effect.gen(function* () {
+      const newDir = yield* tmpdirScoped()
+      const legacyDir = yield* tmpdirScoped()
+      yield* writeConfigEffect(legacyDir, schemaConfig({ username: "legacy-user" }), "kilo.jsonc")
+      yield* writeConfigEffect(newDir, schemaConfig({ username: "northstar-user" }), "northstar.jsonc")
+      yield* withGlobalConfigDir(
+        newDir,
+        withLegacyConfigDir(
+          legacyDir,
+          Effect.gen(function* () {
+            const config = yield* Config.use.get()
+            expect(config.username).toBe("northstar-user")
+          }),
+        ),
+      )
+    }),
+  )
+
+  it.instance("a kilo.jsonc in the new config dir still merges with legacy-only keys", () =>
+    Effect.gen(function* () {
+      const newDir = yield* tmpdirScoped()
+      const legacyDir = yield* tmpdirScoped()
+      yield* writeConfigEffect(
+        legacyDir,
+        schemaConfig({ username: "legacy-user", model: "legacy/model" }),
+        "kilo.jsonc",
+      )
+      yield* writeConfigEffect(newDir, schemaConfig({ username: "new-dir-user" }), "kilo.jsonc")
+      yield* withGlobalConfigDir(
+        newDir,
+        withLegacyConfigDir(
+          legacyDir,
+          Effect.gen(function* () {
+            const config = yield* Config.use.get()
+            // The new-dir kilo.jsonc overrides the username, but legacy-only keys still merge in.
+            expect(config.username).toBe("new-dir-user")
+            expect(config.model).toBe("legacy/model")
+          }),
+        ),
+      )
+    }),
+  )
+})
+
+describe("NORTHSTAR_CONFIG_DIR env var (dual-read, KILO_CONFIG_DIR fallback)", () => {
+  it.effect("does not create a global config file when NORTHSTAR_CONFIG_DIR is set", () =>
+    Effect.gen(function* () {
+      const custom = yield* tmpdirScoped()
+      yield* withGlobalConfig({}, ({ dir }) =>
+        withProcessEnv(
+          "NORTHSTAR_CONFIG_DIR",
+          custom,
+          Effect.gen(function* () {
+            yield* Config.use.get().pipe(provideInstanceEffect(dir))
+
+            // Neither the legacy nor the new global-config seed filename should be created —
+            // this only holds if Flag.KILO_CONFIG_DIR actually resolves NORTHSTAR_CONFIG_DIR.
+            expect(yield* AppFileSystem.use.existsSafe(path.join(dir, "kilo.jsonc"))).toBe(false)
+            expect(yield* AppFileSystem.use.existsSafe(path.join(dir, "northstar.jsonc"))).toBe(false)
+          }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
+        ),
+      )
+    }),
+  )
+})
+
+describe("NORTHSTAR_CONFIG_CONTENT / KILO_CONFIG_CONTENT back-compat", () => {
+  it.instance(
+    "KILO_CONFIG_CONTENT (old env var) is still honored even though the writer now emits NORTHSTAR_CONFIG_CONTENT",
+    () =>
+      withProcessEnv(
+        "KILO_CONFIG_CONTENT",
+        JSON.stringify(schemaConfig({ username: "kilo-content-user" })),
+        Effect.gen(function* () {
+          const config = yield* Config.use.get()
+          expect(config.username).toBe("kilo-content-user")
+        }),
+      ),
+  )
+
+  it.instance("NORTHSTAR_CONFIG_CONTENT takes precedence over KILO_CONFIG_CONTENT when both are set", () =>
+    withProcessEnvs(
+      {
+        NORTHSTAR_CONFIG_CONTENT: JSON.stringify(schemaConfig({ username: "northstar-content-user" })),
+        KILO_CONFIG_CONTENT: JSON.stringify(schemaConfig({ username: "kilo-content-user" })),
+      },
+      Effect.gen(function* () {
+        const config = yield* Config.use.get()
+        expect(config.username).toBe("northstar-content-user")
+      }),
+    ),
+  )
+})
+// kilocode_change end

@@ -110,6 +110,9 @@ export namespace KilocodeConfigInjector {
       return {}
     }
     return {
+      // Emit both: NORTHSTAR_CONFIG_CONTENT is the new primary var, KILO_CONFIG_CONTENT is kept so
+      // older readers (and this same process, until fully migrated) still pick it up.
+      NORTHSTAR_CONFIG_CONTENT: configJson,
       KILO_CONFIG_CONTENT: configJson,
     }
   }

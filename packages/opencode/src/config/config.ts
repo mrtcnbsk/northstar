@@ -476,8 +476,16 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Co
 export const use = serviceUse(Service)
 
 function globalConfigFile() {
-  // kilocode_change start
-  const candidates = ["kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json", "config.json"].map((file) =>
+  // kilocode_change start - northstar.jsonc/.json are the new highest-precedence global config files
+  const candidates = [
+    "northstar.jsonc",
+    "northstar.json",
+    "kilo.jsonc",
+    "kilo.json",
+    "opencode.jsonc",
+    "opencode.json",
+    "config.json",
+  ].map((file) =>
     // kilocode_change end
     path.join(Global.Path.config, file),
   )
@@ -632,6 +640,15 @@ export const layer = Layer.effect(
             .pipe(Effect.catch(() => Effect.void))
         }
       }
+      // kilocode_change start - config dir decouple (EPIC 1 Task 1.2): read the legacy
+      // `~/.config/kilo` dir first (lowest precedence) so an existing user's config keeps loading
+      // after the global config dir moved to `~/.config/northstar`.
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.legacyConfig, "config.json"), env, true))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.legacyConfig, "kilo.json"), env, true))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.legacyConfig, "kilo.jsonc"), env, true))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.legacyConfig, "opencode.json"), env, true))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.legacyConfig, "opencode.jsonc"), env, true))
+      // kilocode_change end
       // kilocode_change - global config is user-owned and trusted to resolve {file:}/{env:} tokens
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "config.json"), env, true))
       // kilocode_change start
@@ -640,9 +657,17 @@ export const layer = Layer.effect(
       // kilocode_change end
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.json"), env, true)) // kilocode_change
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.jsonc"), env, true)) // kilocode_change
+      // kilocode_change start - northstar.json/.jsonc are the new highest-precedence global config files
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "northstar.json"), env, true))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "northstar.jsonc"), env, true))
+      // kilocode_change end
 
-      const legacy = path.join(Global.Path.config, "config")
-      if (existsSync(legacy)) {
+      // kilocode_change start - also check the legacy dir for the (very old) pre-JSON TOML config, so
+      // it still gets migrated for a user who predates both the JSON config format and the rebrand.
+      for (const legacyDir of [Global.Path.legacyConfig, Global.Path.config]) {
+        const legacy = path.join(legacyDir, "config")
+        if (!existsSync(legacy)) continue
+        // kilocode_change end
         yield* Effect.promise(() =>
           import(pathToFileURL(legacy).href, { with: { type: "toml" } })
             .then(async (mod) => {
@@ -655,7 +680,7 @@ export const layer = Layer.effect(
             })
             .catch(() => {}),
         )
-      }
+      } // kilocode_change
 
       globalStamp = yield* KilocodeGlobalConfigStamp.read(fs, Global.Path.config) // kilocode_change
       return result
@@ -980,13 +1005,16 @@ export const layer = Layer.effect(
           yield* mergePluginOrigins(dir, list, dirScope) // kilocode_change
         }
 
-        if (process.env.KILO_CONFIG_CONTENT) {
-          // kilocode_change start - capture KILO_CONFIG_CONTENT parse failures as warnings
+        // kilocode_change start - NORTHSTAR_CONFIG_CONTENT is the new primary var; KILO_CONFIG_CONTENT
+        // is read as a fallback so processes/launchers that still set only the old var keep working.
+        const configContent = process.env.NORTHSTAR_CONFIG_CONTENT ?? process.env.KILO_CONFIG_CONTENT
+        if (configContent) {
+          // capture KILO_CONFIG_CONTENT parse failures as warnings
           const source = "KILO_CONFIG_CONTENT"
           yield* merge(
             source,
             yield* loadConfig(
-              process.env.KILO_CONFIG_CONTENT,
+              configContent,
               {
                 dir: ctx.directory,
                 source,

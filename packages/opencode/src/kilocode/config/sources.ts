@@ -57,7 +57,15 @@ export namespace KilocodeConfigSources {
   type Pending = Omit<Source, "order">
 
   const roots = [".kilocode", ".kilo"] as const
-  const global = ["config.json", "kilo.json", "kilo.jsonc", "opencode.json", "opencode.jsonc"] as const
+  const global = [
+    "northstar.jsonc",
+    "northstar.json",
+    "config.json",
+    "kilo.json",
+    "kilo.jsonc",
+    "opencode.json",
+    "opencode.jsonc",
+  ] as const
 
   export async function list(input: Input): Promise<Result> {
     const project = Flag.KILO_DISABLE_PROJECT_CONFIG ? [] : await projectSources(input)
@@ -97,23 +105,33 @@ export namespace KilocodeConfigSources {
   }
 
   async function globalSources(): Promise<Pending[]> {
-    return Promise.all(
+    // Legacy dir first (lowest precedence), then the current northstar config dir — matches the
+    // load order in Config.loadGlobal.
+    const legacy = await Promise.all(
+      global.map(async (name) => {
+        const file = path.join(Global.Path.legacyConfig, name)
+        return fileSource({ kind: "global-file", scope: "global", label: `Legacy global ${name}`, file })
+      }),
+    )
+    const current = await Promise.all(
       global.map(async (name) => {
         const file = path.join(Global.Path.config, name)
         return fileSource({ kind: "global-file", scope: "global", label: `Global ${name}`, file })
       }),
     )
+    return [...legacy, ...current]
   }
 
   async function envFileSources(): Promise<Pending[]> {
     if (!Flag.KILO_CONFIG) return []
+    const label = process.env.NORTHSTAR_CONFIG ? "NORTHSTAR_CONFIG" : "KILO_CONFIG"
     return [
       await fileSource({
         kind: "env-file",
         scope: "env",
-        label: "KILO_CONFIG",
+        label,
         file: Flag.KILO_CONFIG,
-        reason: "Explicit config file from KILO_CONFIG.",
+        reason: `Explicit config file from ${label}.`,
       }),
     ]
   }
@@ -170,23 +188,25 @@ export namespace KilocodeConfigSources {
 
   function envContentSources(): Pending[] {
     const sources: Pending[] = []
-    if (process.env.KILO_CONFIG_CONTENT) {
+    if (process.env.NORTHSTAR_CONFIG_CONTENT || process.env.KILO_CONFIG_CONTENT) {
+      const label = process.env.NORTHSTAR_CONFIG_CONTENT ? "NORTHSTAR_CONFIG_CONTENT" : "KILO_CONFIG_CONTENT"
       sources.push({
         kind: "env-content",
         scope: "env",
-        label: "KILO_CONFIG_CONTENT",
-        source: "KILO_CONFIG_CONTENT",
+        label,
+        source: label,
         exists: true,
         editable: false,
         reason: "Inline config content from the process environment; value is not exposed.",
       })
     }
     if (Flag.KILO_CONFIG_DIR) {
+      const label = process.env.NORTHSTAR_CONFIG_DIR ? "NORTHSTAR_CONFIG_DIR" : "KILO_CONFIG_DIR"
       sources.push({
         kind: "runtime-env",
         scope: "env",
-        label: "KILO_CONFIG_DIR",
-        source: "KILO_CONFIG_DIR",
+        label,
+        source: label,
         path: Flag.KILO_CONFIG_DIR,
         exists: true,
         editable: false,
@@ -194,11 +214,12 @@ export namespace KilocodeConfigSources {
       })
     }
     if (Flag.KILO_DISABLE_PROJECT_CONFIG) {
+      const label = process.env.NORTHSTAR_DISABLE_PROJECT_CONFIG ? "NORTHSTAR_DISABLE_PROJECT_CONFIG" : "KILO_DISABLE_PROJECT_CONFIG"
       sources.push({
         kind: "runtime-env",
         scope: "env",
-        label: "KILO_DISABLE_PROJECT_CONFIG",
-        source: "KILO_DISABLE_PROJECT_CONFIG",
+        label,
+        source: label,
         exists: true,
         editable: false,
         reason: "Project-level config files and directories are disabled for this process.",
