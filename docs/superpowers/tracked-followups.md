@@ -373,3 +373,59 @@ eklenebilir.
 
 **SNR-deferred (Wave 4'te bilinçli ertelendi → v2, dossier §D):** stage priority queue; dynamic pipeline
 generation (CEO çalışma zamanında pipeline'ı besteliyor). Doğruluk sorunu değil.
+
+## Wave 5'te kapatıldı (feat/wave-5-quality, W5.1-W5.5)
+
+Wave 5 = kalite kapısı: terminal marketing aşamasından ÖNCE bir `review` aşaması. Tasarım: mevcut her şeyi
+yeniden kullan — `gate:"human"` + `org_decision("no-go")` halt ZATEN "block" mekanizması; W4 paralelliği +
+chief→worker delegasyonu ZATEN "paralel reviewer" mekanizması. Yeni kod yalnızca yapılandırılmış compliance
+TOOL'ları; gerisi config (agent + template) + consensus deliverable konvansiyonu (chief prompt'u). Runner/schema
+değişikliği YOK.
+
+- **W5.1 — `privacy_manifest_check` + `ats_check`.** Kendi-yeterli XML-plist parser'ları (npm dep yok; dengeli-tag
+  walker — iç-içe container regex kesintisi bug'ı fixture'la yakalandı). privacy: NSPrivacyAccessedAPITypes'ta
+  boş-reason veya eksik required-reason API → violation. ats: NSAllowsArbitraryLoads(/InWebContent/ForMedia) +
+  insecure exception-domain → violation. Never-crash (ENOENT/malformed → yapısal sonuç). Registry infos/build/extra
+  + 3 indexing-literal testi güncellendi.
+- **W5.2 — `secret_scan`.** Bounded (2MB cap) + binary-skip (uzantı + null-byte sniff) + SKIP_DIRS. Pattern seti:
+  AWS AKIA, PEM private-key header, atanmış-secret literali; placeholder guard (YOUR_/example/`\(…)`/`${…}` hariç,
+  LOAD-BEARING testli). Redaksiyon (raw secret snippet'e sızmaz). Yüksek-entropi taraması bilinçli YOK (gürültü).
+- **W5.3 — review dept + stage wiring (birleşik).** 3 yeni agent (review-chief, security-validator,
+  senior-engineer-reviewer) + mevcut 8 validator'ün review-chief consultant'ı olarak yeniden kullanımı. Roster split:
+  workers=[security-validator, senior-engineer-reviewer, privacy-manifest-validator], consultants=[appstore-review-,
+  accessibility-, hig-, entitlement-validator]+apple-docs (bir validator'ün birden çok chief'e consultant olması
+  crossCheck/validate'te serbest — doğrulandı). Pipeline: `review` (requires debugging, gate human, haltOn no-go),
+  marketing requires review. 8→9 aşama, 58→61 agent. Consensus prompt: chief paralel reviewer'ları spawn eder,
+  per-reviewer-vote review.md üretir. Compliance tool grant'ları reviewer'lara. template.test 33 assertion.
+- **W5.5 — exit testi.** `wave5-exit.test.ts`: (1-3) compliance tool'ların saf fn'leri seeded defect'leri yakalıyor
+  (hardcoded secret redaksiyonlu, boş-reason manifest, ats arbitrary-loads), (4) runner: review awaiting_approval →
+  no-go → HALTED + marketing HİÇ koşmadı (pending, startedAt yok, cost yok, deliverable yok), (5) approve → marketing
+  ilerliyor → done. LOAD-BEARING (block path gerçek). NOT: implementer'ın bağlantısı commit'ten önce koptu; test'i
+  ben doğrulayıp (7/7 yeşil) commit'ledim.
+
+**Wave-close review (adversarial, 4-boyut, 25 agent, 3-şüpheci, false-negative-ağırlıklı) — 5 bulgu (0 critical,
+3 important, 2 minor), HEPSİ compliance false-negative (kapı defect'i GEÇİRİYOR), HEPSİ FIXED (`bfa9c864c8`):**
+- **Important — ats_check malformed plist'te ok:true (fail-OPEN) → FIXED fail-CLOSED.** isWellFormedPlist tüm
+  dosyada (yorumlar dahil) tag sayıyordu; yorumda stray `<key>` → "malformed" → ATS "secure" raporluyordu (privacy
+  tool'un aksine — tehlikeli asimetri). Fix: yorum/CDATA strip + malformed → ok:false (invalid), fail-closed.
+- **Important — secret_scan tırnaksız değerler kaçıyor (.env/.xcconfig/shell) → FIXED.** `API_KEY=sk-live-…`
+  (dotenv, #1 secret vektörü) tırnak zorunluluğu yüzünden kaçıyordu. Fix: config-uzantısına-scope'lu tırnaksız
+  bare-token pattern (kod dosyalarında false-positive yok — `.swift`'te `computeKey()` işaretlenmiyor).
+- **Important — secret_scan tırnaklı-key formatları kaçıyor (JSON/plist) → FIXED.** `"api_key": "…"` — `:` öncesi
+  tırnak `key\s*[:=]`'yi bozuyordu. Fix: key etrafında opsiyonel tırnak + ayrı plist `<key>/<string>` pass'i.
+- **Minor — privacy boş-reason string'i compliant sayıyordu → FIXED** (uzunluk değil trim'lenmiş-içerik kontrolü).
+- **Minor — ats NSThirdPartyExceptionAllowsInsecureHTTPLoads'ı kaçırıyordu → FIXED** (üçüncü-taraf insecure-HTTP
+  varyantı da flag'leniyor).
+
+**TRACK (Wave 5 kalan, bilinçli):** secret_scan tırnaksız secret'i NON-config uzantıda yakalamaz (kod false-positive'inden
+kaçınmak için scope'lu); yüksek-entropi taraması yok; plist `<key>/<string>` pass'i secret-kelime substring'ine keyed
+(ör. iOS `PasswordRules` gibi meşru bir anahtar plist içinde over-report edilebilir — kabul edilen konservatif over-report).
+
+**SNR-deferred (Wave 5'te bilinçli ertelendi):** multi-model consensus/ensemble (tek reviewer/lens + insan kapısı
+yeterli — dossier out-of-scope); Dynamic-Type/Dark-Mode/RTL simctl doğrulaması (simulator tool'u gerektirir, W7+);
+GDPR checklist derinliği. Doğruluk sorunu değil.
+
+**Ortam notu (Wave 5 sweep):** kanonik sweep'te 2 test (`session-processor-network-offline`,
+`session-processor-retry-limit`) fail etti AMA izole koşuda 4/4 GEÇTİ ve hiçbir Wave 5 sembolüne dokunmuyorlar —
+bu oturumdaki gerçek ağ kararsızlığına (ConnectionRefused/MCP kopmaları) duyarlı, önceden-var-olan çevresel flaky'ler,
+Wave 5 regresyonu DEĞİL.
