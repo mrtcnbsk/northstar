@@ -1,0 +1,14 @@
+Rank candidate agents — a stage's workers, or the org chart's department chiefs — by how well they match a task's needed capabilities/type, weighted together with each candidate's recent health (success rate, latency) from the same source `org_status` and metrics reporting draw from.
+
+CEO-only. Use this before instructing a chief, or before picking which worker within a department should own a task: "which chief should own this ambiguous idea?", "which eng worker has done UI polish before and isn't currently failing runs?".
+
+Parameters:
+- stage (optional): a department/stage name. When given, ranks that department's workers. When omitted, ranks the org chart's department chiefs (deduplicated).
+- capabilities (optional): capability tags the task needs, matched against each candidate's configured `capabilities`.
+- type (optional): an app/task type, matched against each candidate's configured `preferredTypes` for a small bonus.
+
+Usage notes:
+- Ranking combines a 0..1 capability match score (need-coverage of `capabilities`, plus a bonus for a `type` match) with each candidate's health band (healthy/degraded/unhealthy) derived from past run outcomes, weighted match-first (0.7 match / 0.3 health).
+- A candidate with no capability tags configured, or no run history yet, is not penalized to zero — an untagged or never-run candidate is scored with a neutral prior rather than sorted last by default.
+- This tool only advises; it does not spawn or assign anything. Follow up by handing the chosen agent's name to `org_advance`/`task` as usual.
+- Health is chief-level only (see `org_status`/metrics): a worker candidate ranked within a `stage` will typically show an unrated, neutral health prior, since run cost/outcome is attributed to the department's chief, not individual workers.

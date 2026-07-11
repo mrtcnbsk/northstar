@@ -30,6 +30,7 @@ import {
 import { OrgMemorySaveTool } from "./org-memory-save"
 import { OrgRecallTool } from "./org-recall"
 import { OrgSearchTool } from "./org-search"
+import { RouteTaskTool } from "./org-route"
 import * as Tool from "../../tool/tool"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect } from "effect"
@@ -104,6 +105,7 @@ export namespace KiloToolRegistry {
       const orgMemorySave = yield* OrgMemorySaveTool
       const orgRecall = yield* OrgRecallTool
       const orgSearch = yield* OrgSearchTool
+      const routeTask = yield* RouteTaskTool
       if (!notebook)
         return {
           codebase,
@@ -134,6 +136,7 @@ export namespace KiloToolRegistry {
           orgMemorySave,
           orgRecall,
           orgSearch,
+          routeTask,
         }
       const tools = yield* Effect.all({
         notebookRead: NotebookReadTool,
@@ -169,6 +172,7 @@ export namespace KiloToolRegistry {
         orgMemorySave,
         orgRecall,
         orgSearch,
+        routeTask,
         ...tools,
       }
     })
@@ -206,6 +210,7 @@ export namespace KiloToolRegistry {
       orgMemorySave: Tool.Info
       orgRecall: Tool.Info
       orgSearch: Tool.Info
+      routeTask: Tool.Info
       notebookRead?: Tool.Info
       notebookEdit?: Tool.Info
       notebookExecute?: Tool.Info
@@ -242,6 +247,7 @@ export namespace KiloToolRegistry {
         orgMemorySave: Tool.init(tools.orgMemorySave),
         orgRecall: Tool.init(tools.orgRecall),
         orgSearch: Tool.init(tools.orgSearch),
+        routeTask: Tool.init(tools.routeTask),
       })
       const terminal = tools.terminal ? yield* Tool.init(tools.terminal) : undefined
       const notebooks =
@@ -333,6 +339,7 @@ export namespace KiloToolRegistry {
       orgMemorySave: Tool.Def
       orgRecall: Tool.Def
       orgSearch: Tool.Def
+      routeTask: Tool.Def
       notebookRead?: Tool.Def
       notebookEdit?: Tool.Def
       notebookExecute?: Tool.Def
@@ -379,6 +386,7 @@ export namespace KiloToolRegistry {
       tools.orgMemorySave,
       tools.orgRecall,
       tools.orgSearch,
+      tools.routeTask,
     ]
   }
 
