@@ -307,3 +307,69 @@ Operatör-onaylı şekil: **API-first + ince panel**. DB migration YOK (dosyalar
 session-close refresh yeterli); org-runs DB tablosu (dosyalar hızlı, migration yok); per-stage
 latency/success histogramları; desktop/webhook bildirimleri (UI rozeti "kapı bir bildirim ateşler"i
 karşılıyor). Hiçbiri doğruluk sorunu değil.
+
+## Wave 4'te kapatıldı (feat/wave-4-dag, W4.1-W4.8)
+
+Wave 4 = workflow DAG motoru: doğrusal pipeline'ı bağımlılık DAG'ına genelleştirip bağımsız
+aşamaları (frontend ∥ backend) eşzamanlı çalıştırma. **Tasarım kararı:** runner SAF ve tek-CEO-güdümlü
+kalır (W0-R2 değişmezliği) — runner HAZIR aşama KÜMESİNİ hesaplar (fan-out batch), CEO onları paralel
+`task` çağrısı olarak spawn eder. `requires` VARSAYILANI = bir önceki pipeline girdisi + `maxConcurrency`
+varsayılanı 1, yani mevcut doğrusal org'lar BYTE-AYNI sürer (paralellik opt-in). Doğrusal-regresyon pin'i
+tüm dalga boyunca yeşil kaldı.
+
+- **W4.1 — schema DAG alanları.** `Stage.requires[]/when/timeoutMs` + org `maxConcurrency`; `resolveRequires`
+  (absent→prev, explicit-[]→root); `validate`'e döngü tespiti (DFS renklendirme, döngü yolunu raporlar) +
+  dangling requires/when.stage kontrolleri.
+- **W4.2 — `skipped` status + saf seçiciler.** `readyStages/runningStages/awaitingStages/blockedStages`
+  (I/O yok; `resolveRequires` üzerinden; `skipped` bağımlıları tatmin eder).
+- **W4.3 — batch `advance` (fan-out).** Hazır aşamaları fan-out eder, birden çok running aşamayı settle
+  eder (`settleRunningStage` — maliyet/tavan/escalation/revize mantığı BYTE-AYNI çıkarıldı, yalnız
+  `running.gate`→`pipelineStage.gate`); DAG-farkında `priorDeliverables` (transitif requires closure ==
+  doğrusalda prefix). **Ara review (adversarial, 4-boyut, 3-şüpheci): 1 bulgu — bütçe-escalation notu
+  eşzamanlı kapılarda düşüyordu → FIXED (`8623dbf286`):** `escalationNote` artık stage'e persist ediliyor,
+  her gate onu okuyor (`gateItemFor`), `decide` temizliyor.
+- **W4.4 — koşullu `when` + run mode.** `whenSatisfied` ({mode}==run.mode / {stage,decision}); false ise
+  aşama `skipped` (instruct yok, maliyet yok, slot yok); fan-out skip-döngüsü readiness'i yeniden türetir,
+  sonlanması garanti. Konsol `skipped` rozeti (ghost) + SDK gen type'larına `skipped` senkronu.
+- **W4.5 — per-stage `timeoutMs`.** `Deps.now` (varsayılan Date.now) ile deterministik; yalnız
+  validation-başarısız dalında `now-startedAt > timeoutMs` → `retryOrFail` "timeout" cause'u; geçerli
+  deliverable üreten aşama ASLA timeout olmaz.
+- **W4.6 — tools + CEO paralel protokolü.** `org_advance` action sözlüğü: halted→done→run_tasks→
+  human_gate→resume_chief→waiting. `run_tasks` (tek/çoklu instruct dizisi), `task_results` (aşama başına
+  taskID threading), `waiting` (uçuşta dal). Eş-zamanlı gate `pending_gate` olarak instruct'larla birlikte
+  taşınır (karar #6: instruct öncelikli, gate danışma). ceo.md paralel-spawn protokolü.
+- **W4.7 — şablon elması.** Shipped org-template: backend∥frontend (ikisi ux'e requires), testing ikisine
+  join, `maxConcurrency:2`. Canlı runner testi eşzamanlılığı kanıtlıyor.
+- **W4.8 — exit testi + wave-close review + merge.** `wave4-exit.test.ts`: diamond fan-out + koşullu skip +
+  timeout + doğrusal-regresyon pin'i çalıştırılabilir. Canonical sweep yeşil (bilinen cross-file flaky'ler
+  2/2 retry ile geçti).
+
+**Wave-close review (adversarial, 4-boyut, 28 agent, 3-şüpheci) — 6 bulgu (1 CRITICAL, 2 important, 3 minor), HEPSİ FIXED:**
+- **CRITICAL (fan-out passive re-settle) — FIXED (`e5fe95a65b`).** `advance` HER running aşamayı her çağrıda
+  settle ediyordu; bir kez stall'layan (taskID'sini koruyan) dal, kardeş işin tetiklediği her advance'te
+  `retryOrFail` ile yeniden settle edilip `incompleteAttempts`'i GERÇEK chief koşusu olmadan artırıyor →
+  `budget.retries` sahte tükeniyor → sahte halt. Fix: bir running aşama YALNIZCA (a) bu çağrıda rapor
+  edildiyse (taskResults/tek taskID), (b) `decision==="revise"` beklemedeyse, ya da (c) TEK running aşamaysa
+  settle edilir. Kloz (c) maxConcurrency:1'i byte-aynı yapar; patoloji yalnız 2+ running-stage-kardeş
+  durumunda olur ve (c) onu dışlar. Repro RED→GREEN.
+- **Important (marketing skip-by-default footgun) — FIXED (`14c1c89373`).** Shipped template'in terminal
+  `marketing` aşaması `when:{mode:"full"}` taşıyordu; `org_start` mode'u varsayılan undefined + ceo.md hiç
+  mode geçmiyor → her normal koşuda marketing "skipped" → App-Store paketi SESSİZCE hiç üretilmiyor. Fix:
+  shipped template'te marketing KOŞULSUZ (when kaldırıldı); `when` özelliği sentetik org'da demo edilir;
+  README dürüstçe düzeltildi (`when:{mode:X}` = "yalnız mode===X iken çalış", terminal deliverable'ı böyle
+  gate'leme uyarısı).
+- **Minor — FIXED:** (#4) timeout revize sonrası orijinal `startedAt`'i kullanıyordu → `decide` revize dalı
+  artık `startedAt`'i sıfırlıyor. (#5) `pending_incomplete` CEO'ya re-run yolu vermiyordu → artık resumable
+  task entry taşıyor + ceo.md CEO'ya aynı paralel turda yeniden spawn'la diyor (CRITICAL fix'in gerekli
+  tamamlayıcısı). (#6) `when.stage` ata (ancestor) doğrulanmıyordu → `validate` artık when.stage'in transitif
+  requires-ata'sı olmasını zorluyor (kardeş referansı reddedilir, decision undefined olurdu).
+
+**TRACK (Wave 4 kalan kenar durumu):** Kloz (c) — CEO `pending_incomplete`'i re-spawn etme protokolünü
+İHLAL ederse ve stall'layan dalın kardeş kolu tamamen boşalıp o dal TEK running aşama haline gelirse, boş
+poll advance'leri onu yine passive re-settle edip bütçe yakabilir. Bilinçli kabul: tek-aşama sözleşmesiyle
+aynı davranış + W4.6/#5 protokolü CEO'yu buna karşı yönlendiriyor (aynı turda re-spawn zorunlu). Ayrıca:
+`When` şeması yalnız pozitif-eşitlik (negasyon yok) — temiz opt-out koşulları için ileride `unless`/negasyon
+eklenebilir.
+
+**SNR-deferred (Wave 4'te bilinçli ertelendi → v2, dossier §D):** stage priority queue; dynamic pipeline
+generation (CEO çalışma zamanında pipeline'ı besteliyor). Doğruluk sorunu değil.
