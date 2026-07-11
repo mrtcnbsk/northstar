@@ -157,6 +157,50 @@ describe("tool.semantic_search", () => {
           expect(result.output).toContain('Found 1 result for "verify token".')
           expect(result.output).toContain("1. src/auth/index.ts:10-18 (score 0.8123)")
           expect(result.output).toContain("export const verify = () => true")
+          // W6.3: each result line carries an explicit cite: token so downstream consumers can
+          // extract a stable file:line citation without re-parsing the numbered summary line.
+          expect(result.output).toContain("cite: src/auth/index.ts:10")
+        } finally {
+          search.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("includes a cite: token per result, using the normalized path and startLine", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        const search = spyOn(KiloIndexing, "search").mockResolvedValue([
+          {
+            id: "1",
+            score: 0.9,
+            payload: {
+              filePath: "src\\a.ts",
+              codeChunk: "a",
+              startLine: 5,
+              endLine: 9,
+            },
+          },
+          {
+            id: "2",
+            score: 0.8,
+            payload: {
+              filePath: "src/b.ts",
+              codeChunk: "b",
+              startLine: 1,
+              endLine: 3,
+            },
+          },
+        ] as never)
+
+        try {
+          const tool = await initTool()
+          const result = await rt.runPromise(tool.execute({ query: "two results" }, baseCtx))
+
+          expect(result.output).toContain("cite: src/a.ts:5")
+          expect(result.output).toContain("cite: src/b.ts:1")
         } finally {
           search.mockRestore()
         }

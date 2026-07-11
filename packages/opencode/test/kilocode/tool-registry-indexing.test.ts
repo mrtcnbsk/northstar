@@ -423,6 +423,7 @@ describe("kilocode tool registry indexing", () => {
       orgStop: def("org_stop"),
       orgMemorySave: def("org_memory_save"),
       orgRecall: def("org_recall"),
+      orgSearch: def("org_search"),
       notebookRead: def("notebook_read"),
       notebookEdit: def("notebook_edit"),
       notebookExecute: def("notebook_execute"),
@@ -435,6 +436,7 @@ describe("kilocode tool registry indexing", () => {
       "org_stop",
       "org_memory_save",
       "org_recall",
+      "org_search",
     ]
 
     try {

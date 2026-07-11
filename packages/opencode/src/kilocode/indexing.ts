@@ -1,7 +1,15 @@
 import z from "zod"
 import path from "path"
 import { Effect } from "effect"
-import { type IndexingTelemetryEvent, type VectorStoreSearchResult } from "@kilocode/kilo-indexing/engine"
+import {
+  type IndexingTelemetryEvent,
+  type VectorStoreSearchResult,
+  type IEmbedder,
+  type IVectorStore,
+  CodeIndexConfigManager,
+  CodeIndexServiceFactory,
+  CacheManager,
+} from "@kilocode/kilo-indexing/engine" // kilocode_change - W6.3: org-RAG production embedder/store resolution
 import { toIndexingConfigInput, type IndexingConfig } from "@kilocode/kilo-indexing/config"
 import { hasIndexingPlugin } from "@kilocode/kilo-indexing/detect"
 import { IndexingStatus, disabledIndexingStatus } from "@kilocode/kilo-indexing/status"
@@ -516,4 +524,49 @@ export namespace KiloIndexing {
     if (!entry.initialized || entry.current().state === "Disabled" || !entry.engine) return []
     return entry.engine.search(query, directoryPrefix)
   }
+
+  // kilocode_change start - W6.3: org-scoped RAG (OrgRag, organization/rag.ts) needs a real
+  // IEmbedder/IVectorStore pair, but has nothing to do with the codebase file-watching worker
+  // `hit()`/`boot()` manage above (that worker only ever indexes/searches the workspace's OWN
+  // source tree). Rather than spin up a second worker+file-watcher pipeline for a handful of
+  // markdown deliverables, this resolves the SAME embedder classes and the SAME
+  // CodeIndexServiceFactory/CodeIndexConfigManager the worker uses directly, in-process - reusing
+  // the engine's config resolution (kiloAuth/enrichKilo/model/input, identical to `boot()` above)
+  // without reusing the worker's directory-scanning/tree-sitter/file-watch machinery, none of
+  // which OrgRag needs.
+  //
+  // The returned vector store is namespaced away from the codebase collection by overriding
+  // LanceDBVectorStore's `workspacePath` (it hashes that string into the on-disk collection
+  // path) to `<dir>/.kilo/org/rag` instead of `<dir>` - same cache root, disjoint collection.
+  //
+  // GRACEFUL DEGRADATION: every failure mode - indexing not enabled/configured, a missing
+  // provider API key (CodeIndexServiceFactory.createEmbedder throws), LanceDB unavailable
+  // (Intel Mac, npm install failure) - is caught here and converted to `undefined`. Callers (see
+  // `org-search.ts`) MUST treat `undefined` as "no embedder configured", never as an error to
+  // surface as a tool failure.
+  export async function orgRagServices(dir: string): Promise<{ embedder: IEmbedder; store: IVectorStore } | undefined> {
+    try {
+      const cfg = await AppRuntime.runPromise(Config.Service.use((svc) => svc.get()))
+      const resolvedAuth = await kiloAuth(cfg)
+      const globalConfig = await AppRuntime.runPromise(Config.Service.use((svc) => svc.getGlobal()))
+      const global = globalConfig.indexing
+      const merged = indexingWithKiloDefault({ ...global, ...cfg.indexing }, resolvedAuth)
+      const cfgInput = await model(enrichKilo(input(merged, global), resolvedAuth), resolvedAuth)
+      if (!cfgInput.enabled) return undefined
+
+      await LanceDBRuntime.ensure(cfgInput.vectorStoreProvider)
+
+      const configManager = new CodeIndexConfigManager(cfgInput)
+      const cacheDirectory = path.join(Global.Path.state, "indexing")
+      const cacheManager = new CacheManager(cacheDirectory, dir)
+      const factory = new CodeIndexServiceFactory(configManager, dir, cacheManager, cacheDirectory)
+      const embedder = factory.createEmbedder()
+      const store = factory.createVectorStore(path.join(dir, ".kilo", "org", "rag"))
+      return { embedder, store }
+    } catch (err) {
+      log.warn("org RAG services unavailable", { err })
+      return undefined
+    }
+  }
+  // kilocode_change end
 }
