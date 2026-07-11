@@ -28,6 +28,16 @@ describe("org-template consistency", () => {
     expect(org.pipeline[7]).toMatchObject({ stage: "marketing", gate: "human" })
   })
 
+  // kilocode_change - wave-close finding #2/#3: marketing must ship unconditionally. It is the
+  // terminal App-Store deliverable (ASO/copy/pricing/preview) - gating it behind when:{mode:"full"}
+  // silently dropped it on every default (no-mode) run, since org_start's mode defaults to
+  // undefined and ceo.md never sets it.
+  test("marketing carries no `when` condition (ships unconditionally, not gated behind mode)", async () => {
+    const { org } = await loadTemplate()
+    const marketing = org.pipeline.find((p) => p.stage === "marketing")
+    expect(marketing?.when).toBeUndefined()
+  })
+
   test("all 58 agent files load and cross-check against the org chart", async () => {
     const { org, agents } = await loadTemplate()
     expect(Object.keys(agents).length).toBe(58)
@@ -301,11 +311,11 @@ describe("org-template consistency", () => {
       expect(org.maxConcurrency).toBe(2)
     })
 
-    test("marketing carries when:{mode:\"full\"}", async () => {
+    test("marketing is terminal (nothing in the pipeline requires it) and unconditional (no `when`)", async () => {
       const { org } = await loadTemplate()
       const marketing = org.pipeline.find((p) => p.stage === "marketing")
-      expect(marketing?.when).toEqual({ mode: "full" })
-      // terminal: nothing in the pipeline requires marketing, so skipping it can't strand a dependent.
+      expect(marketing?.when).toBeUndefined()
+      // terminal: nothing in the pipeline requires marketing, so it can't strand a dependent.
       const resolved = OrgSchema.resolveRequires(org)
       for (const [stage, requires] of Object.entries(resolved)) {
         expect(requires.includes("marketing"), `stage "${stage}" must not require marketing`).toBe(false)
@@ -358,7 +368,14 @@ describe("org-template consistency", () => {
       expect(OrgState.readyStages(org, joined)).toEqual(["testing"])
     })
 
-    test("live run via OrgRunner: mode:\"mvp\" skips marketing after debugging completes; mode:\"full\" runs it", async () => {
+    // kilocode_change - wave-close finding #2/#3 regression test: a PLAIN run with no mode set
+    // (org_start's mode defaults to undefined; ceo.md never sets it - this is what every default
+    // run looks like) must still drive marketing to completion. Before the fix, marketing carried
+    // when:{mode:"full"}, so this exact scenario silently skipped it and the org's whole reason
+    // for existing (the App-Store package) was never produced. This test is RED against the
+    // pre-fix template (marketing would resolve to "skipped", not "completed") and GREEN once the
+    // `when` is removed from the shipped marketing stage.
+    test("live run via OrgRunner: a run with NO mode set drives marketing to completion (not skipped)", async () => {
       await using tmp = await tmpdir()
       const { org } = await loadTemplate()
       const deps = { costOf: async () => 0.1 }
@@ -369,11 +386,11 @@ describe("org-template consistency", () => {
         await Bun.write(file, `# ${stage} deliverable\n\n` + "content ".repeat(20))
       }
 
-      const run = await OrgRunner.start(tmp.path, org, "mvp mode idea", "mvp")
-      expect(run.mode).toBe("mvp")
+      const run = await OrgRunner.start(tmp.path, org, "no mode idea")
+      expect(run.mode).toBeUndefined()
 
       // Drive: evaluation (gate:human) -> approve -> planning -> ux -> backend+frontend (parallel,
-      // maxConcurrency 2) -> testing -> debugging -> marketing should be skipped (mvp != full).
+      // maxConcurrency 2) -> testing -> debugging -> marketing (gate:human) -> approve -> done.
       await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
       await writeDeliverable(run.runID, "evaluation")
       await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_eval" })
@@ -401,13 +418,54 @@ describe("org-template consistency", () => {
       await writeDeliverable(run.runID, "debugging")
       const afterDebugging = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_debugging" })
 
-      // marketing's when:{mode:"full"} is false for this mvp run -> skipped, not instructed/gated.
-      expect(afterDebugging.instruct.some((i) => i.stage === "marketing")).toBe(false)
-      expect(afterDebugging.done).toBe(true)
+      // marketing must now be INSTRUCTED (its when:{mode:"full"} is gone) rather than skipped.
+      expect(afterDebugging.instruct.map((i) => i.stage)).toEqual(["marketing"])
+      const midState = await OrgState.read(tmp.path, run.runID)
+      expect(midState.stages["marketing"].status).toBe("running")
+
+      await writeDeliverable(run.runID, "marketing")
+      const afterMarketing = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_marketing" })
+      expect(afterMarketing.gate).toBeDefined() // marketing has gate:"human"
+      expect(afterMarketing.gate!.stage).toBe("marketing")
+      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
+      const afterApprove = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
+      expect(afterApprove.done).toBe(true)
+
       const state = await OrgState.read(tmp.path, run.runID)
-      expect(state.stages["marketing"].status).toBe("skipped")
-      expect(state.stages["marketing"].startedAt).toBeUndefined()
-      expect(state.stages["marketing"].costs).toBeUndefined()
+      expect(state.stages["marketing"].status).toBe("completed")
+      expect(state.status).toBe("completed")
+    })
+
+    // kilocode_change - a `when`-skip demonstration lives on a SYNTHETIC org, not the shipped
+    // template: the shipped template no longer gates any stage on mode, so this exercises the
+    // `when` feature itself (still fully implemented) without resurrecting the marketing footgun.
+    test("live run via OrgRunner (synthetic org): an OPTIONAL stage gated on when:{mode:\"deep\"} is skipped by a normal run", async () => {
+      await using tmp = await tmpdir()
+      const org = OrgSchema.parse({
+        ceo: "ceo",
+        departments: {
+          a: { chief: "a-chief", workers: ["a-worker"] },
+          extra: { chief: "extra-chief", workers: ["extra-worker"] },
+        },
+        pipeline: [{ stage: "a" }, { stage: "extra", when: { mode: "deep" } }],
+      })
+      const deps = { costOf: async () => 0.1 }
+
+      async function writeDeliverable(runID: string, stage: string) {
+        const file = OrgArtifacts.deliverablePath(tmp.path, runID, stage)
+        await mkdir(path.dirname(file), { recursive: true })
+        await Bun.write(file, `# ${stage} deliverable\n\n` + "content ".repeat(20))
+      }
+
+      const run = await OrgRunner.start(tmp.path, org, "normal run, no mode")
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, {}) // instructs "a"
+      await writeDeliverable(run.runID, "a")
+      const after = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_a" })
+
+      expect(after.instruct.some((i) => i.stage === "extra")).toBe(false)
+      expect(after.done).toBe(true)
+      const state = await OrgState.read(tmp.path, run.runID)
+      expect(state.stages["extra"].status).toBe("skipped")
     })
   })
   // kilocode_change end

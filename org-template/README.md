@@ -79,12 +79,22 @@ before (fully sequential, linear pipeline):
 - `pipeline[].timeoutMs` - per-stage wall-clock timeout in milliseconds. A running
   stage past this timeout with no valid deliverable is retried and eventually failed
   instead of hanging indefinitely.
-- `pipeline[].when` - declarative skip condition, either `{ "mode": "..." }` (matches
-  the run-level mode set at `org_start`) or
-  `{ "stage": "...", "decision": "approve" | "no-go" | "revise" }` (matches a prior
-  stage's recorded decision). When `when` evaluates false the stage is marked
-  `"skipped"` - it still satisfies dependents but incurs no cost and produces no
-  deliverable.
+- `pipeline[].when` - declarative skip condition that runs the stage ONLY when the
+  condition matches - it is a positive-equality test, not a "skip if" test. Either
+  `{ "mode": "X" }` (runs the stage only when the run's mode, set once at
+  `org_start`, is exactly `"X"`; an **unset mode never matches**, so a stage gated
+  this way is skipped by default on a normal run) or
+  `{ "stage": "...", "decision": "approve" | "no-go" | "revise" }` (runs the stage
+  only when the named prior stage recorded that exact decision; that stage must be
+  one of this stage's `requires` ancestors - `OrgSchema.validate` rejects a
+  `when.stage` that isn't a transitive dependency, since a sibling's decision can
+  still be `undefined` when this stage is evaluated). When `when` evaluates false
+  the stage is marked `"skipped"` - it still satisfies dependents but incurs no
+  cost and produces no deliverable. **Caution:** because `{ "mode": "X" }` defaults
+  to skip, never put `when` on a stage whose deliverable is a required pipeline
+  output - reserve it for genuinely optional extra work (e.g. an in-depth audit
+  stage gated on `when: { "mode": "deep" }` that a normal run intentionally
+  skips).
 - `maxConcurrency` (org-level, top-level key alongside `budget`) - max stages the
   runner runs concurrently per batch. Default `1` (sequential, current behavior);
   set to `>1` on a template that also declares parallel `requires` to actually
@@ -98,9 +108,9 @@ org sets `maxConcurrency: 2` so the runner actually dispatches `backend` and `fr
 in the same batch instead of just resolving them as both-ready. Every other stage
 (`evaluation`, `planning`, `ux`, `debugging`, `marketing`) keeps the default
 previous-stage `requires` - the diamond is the pipeline's only branch point.
-`marketing` additionally carries `when: { "mode": "full" }`; since it's terminal
-(nothing depends on it), a run started with `mode: "mvp"` skips it for free once
-`debugging` completes, and the run still completes cleanly with `marketing: "skipped"`.
+`marketing` carries no `when` condition: it is the terminal App-Store deliverable
+(ASO/copy/pricing/preview package) this org exists to produce, so every run drives it
+to completion (subject to its own `gate: "human"` approval) rather than skipping it.
 No `timeoutMs` is set on any stage yet.
 
 ## Editing the organization

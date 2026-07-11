@@ -363,6 +363,65 @@ describe("OrgSchema.validate - DAG checks", () => {
     expect(errors.some((e) => e.includes('when-condition references unknown stage "ghost"'))).toBe(true)
   })
 
+  // kilocode_change - Finding #6: when.stage must reference a transitive requires-ancestor,
+  // not just any pipeline stage. A sibling reference reads a decision that is still undefined
+  // when both stages are ready in the same batch.
+  test("rejects a when.stage referencing a SIBLING (both require the same upstream stage, neither is an ancestor of the other)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: { ...dagDepartments, z: { chief: "z-chief", workers: ["z-worker"] } },
+      pipeline: [
+        { stage: "a" },
+        { stage: "b", requires: ["a"] },
+        // c is b's sibling (both require "a"), not b's ancestor - c's decision is undefined
+        // whenever b is evaluated in the same ready batch as c.
+        { stage: "z", requires: ["a"] },
+        { stage: "c", requires: ["a"], when: { stage: "z", decision: "approve" } },
+      ],
+    })
+    const errors = OrgSchema.validate(org)
+    expect(
+      errors.some(
+        (e) =>
+          e.includes('stage "c" when-condition references "z"') &&
+          e.includes("not one of its (transitive) requires") &&
+          e.includes("may be undefined"),
+      ),
+    ).toBe(true)
+  })
+
+  test("accepts a when.stage referencing a stage that IS a transitive requires-ancestor", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [
+        { stage: "a" },
+        { stage: "b", requires: ["a"] },
+        // c requires b (direct ancestor) and refers to a (transitive ancestor via b) - both are fine.
+        { stage: "c", requires: ["b"], when: { stage: "a", decision: "approve" } },
+      ],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("a when.stage referencing its OWN direct requires entry is accepted", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", requires: ["a"], when: { stage: "a", decision: "approve" } }],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
+  test("when.mode is unaffected by the ancestor check (no stage ref to validate)", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      departments: dagDepartments,
+      pipeline: [{ stage: "a" }, { stage: "b", requires: ["a"], when: { mode: "full" } }],
+    })
+    expect(OrgSchema.validate(org)).toEqual([])
+  })
+
   test("a valid diamond passes with [] errors", () => {
     const org = OrgSchema.parse({
       ...VALID,

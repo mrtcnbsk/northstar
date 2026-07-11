@@ -172,12 +172,38 @@ export namespace OrgSchema {
       errors.push(`pipeline has a dependency cycle: ${cycle.join(" -> ")}`)
     }
     for (const { stage, when } of org.pipeline) {
-      if (when && "stage" in when && !pipelineStages.has(when.stage)) {
-        errors.push(`stage "${stage}" when-condition references unknown stage "${when.stage}"`)
+      if (when && "stage" in when) {
+        if (!pipelineStages.has(when.stage)) {
+          errors.push(`stage "${stage}" when-condition references unknown stage "${when.stage}"`)
+        } else if (!isAncestor(requiresGraph, stage, when.stage)) {
+          errors.push(
+            `stage "${stage}" when-condition references "${when.stage}", which is not one of its (transitive) requires — its decision may be undefined when "${stage}" is evaluated`,
+          )
+        }
       }
     }
 
     return errors
+  }
+
+  /**
+   * True if `candidate` is `stage`'s own transitive requires-ancestor (reachable by walking
+   * `requires` backward from `stage`). Used to ensure a `when: {stage}` condition only ever reads
+   * a decision that is guaranteed to be settled before `stage` is evaluated — a sibling (or any
+   * stage not on `stage`'s dependency path) may still be `undefined` when `stage` is checked.
+   * Cycles are tolerated (findCycle reports them separately) via a visited set.
+   */
+  function isAncestor(graph: Record<string, string[]>, stage: string, candidate: string): boolean {
+    const visited = new Set<string>()
+    const stack = [...(graph[stage] ?? [])]
+    while (stack.length) {
+      const node = stack.pop()!
+      if (node === candidate) return true
+      if (visited.has(node)) continue
+      visited.add(node)
+      stack.push(...(graph[node] ?? []))
+    }
+    return false
   }
 
   /** DFS cycle detection over a resolved requires graph. Returns the cycle path (a -> b -> ... -> a) or undefined. */
