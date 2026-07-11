@@ -240,16 +240,18 @@ describe("org_advance run_tasks fan-out (W4.6)", () => {
         await advanceTool(runtime, run.runID) // plan
         await writeDeliverable(tmp.path, run.runID, "plan")
         await advanceTool(runtime, run.runID, { task_id: "ses_plan" }) // fan out fe+be
-        // both branches finished; frontend gets a revise decision (re-instructs), backend hits its gate.
+        // both branches finished; frontend gets a revise decision (re-instructs via the revise
+        // branch), backend is reported this call and hits its gate.
         await OrgState.update(tmp.path, run.runID, (s) => {
           s.stages["frontend"].taskID = "ses_fe"
-          s.stages["backend"].taskID = "ses_be"
           s.stages["frontend"].decision = "revise"
           s.stages["frontend"].decisionNote = "tighten the copy"
         })
         await writeDeliverable(tmp.path, run.runID, "frontend")
         await writeDeliverable(tmp.path, run.runID, "backend")
-        const b = await advanceTool(runtime, run.runID)
+        // Frontend settles via its pending revise; backend is reported via task_results so it settles
+        // to its human gate this call. (Frontend's revise re-instruct fans out ALONGSIDE backend's gate.)
+        const b = await advanceTool(runtime, run.runID, { task_results: [{ stage: "backend", task_id: "ses_be" }] })
         expect(b.action).toBe("run_tasks")
         expect(b.tasks).toHaveLength(1)
         expect(b.tasks[0].subagent_type).toBe("fe-chief") // frontend re-instructed
@@ -257,6 +259,75 @@ describe("org_advance run_tasks fan-out (W4.6)", () => {
         expect(b.pending_gate).toBeDefined()
         expect(b.pending_gate.stage).toBe("backend")
         expect(b.then.toLowerCase()).toContain("gate")
+      },
+    })
+  })
+
+  test("co-existing incomplete: pending_incomplete rides alongside run_tasks as a full resumable task entry (Finding #5)", async () => {
+    // Diamond plan -> {A, B, C}, maxConcurrency 3. Fan out A+B+C. Then on one settle call: A stalls
+    // (no deliverable -> incomplete, reported this call), B gets a `revise` decision (re-instructs as
+    // an instruct item), C completes. The batch is instruct=[B] AND incomplete=[A]. The tool must
+    // surface run_tasks (B) AND make pending_incomplete a FULL resumable task entry (subagent_type,
+    // prompt, and task_id when resumable) so the CEO can re-spawn A's chief in the SAME parallel turn.
+    await using tmp = await tmpdir()
+    const TRIAD = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        plan: { chief: "plan-chief", workers: ["architect"] },
+        A: { chief: "a-chief", workers: ["wa"] },
+        B: { chief: "b-chief", workers: ["wb"] },
+        C: { chief: "c-chief", workers: ["wc"] },
+      },
+      shared: ["apple-docs"],
+      pipeline: [
+        { stage: "plan" },
+        { stage: "A", requires: ["plan"] },
+        { stage: "B", requires: ["plan"] },
+        { stage: "C", requires: ["plan"] },
+      ],
+      maxConcurrency: 3,
+    })
+    await seedOrg(tmp.path, TRIAD)
+    const run = await OrgRunner.start(tmp.path, TRIAD, "triad incomplete")
+    const runtime = makeRuntime()
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        await advanceTool(runtime, run.runID) // plan
+        await writeDeliverable(tmp.path, run.runID, "plan")
+        await advanceTool(runtime, run.runID, { task_id: "ses_plan" }) // fan out A + B + C
+        // A stalls (no deliverable), B gets a revise (re-instructs), C completes.
+        await OrgState.update(tmp.path, run.runID, (s) => {
+          s.stages["A"].taskID = "ses_a"
+          s.stages["B"].taskID = "ses_b"
+          s.stages["C"].taskID = "ses_c"
+          s.stages["B"].decision = "revise"
+          s.stages["B"].decisionNote = "tighten it"
+        })
+        await writeDeliverable(tmp.path, run.runID, "B")
+        await writeDeliverable(tmp.path, run.runID, "C")
+        // Report A + C this call (B is settled via its pending revise). A has no deliverable -> incomplete.
+        const b = await advanceTool(runtime, run.runID, {
+          task_results: [
+            { stage: "A", task_id: "ses_a" },
+            { stage: "C", task_id: "ses_c" },
+          ],
+        })
+        expect(b.action).toBe("run_tasks")
+        // B re-instructed as a task; the pending_incomplete for A is a FULL resumable task entry.
+        expect(b.tasks.map((t: { subagent_type: string }) => t.subagent_type)).toContain("b-chief")
+        expect(b.pending_incomplete).toBeDefined()
+        expect(b.pending_incomplete.stage).toBe("A")
+        expect(b.pending_incomplete.reason).toBeDefined()
+        // The resume info the standalone resume_chief action carries must now ride here too, so the
+        // CEO can re-spawn A's chief in the same parallel turn and pass its task_id in task_results.
+        expect(b.pending_incomplete.subagent_type).toBe("a-chief")
+        expect(typeof b.pending_incomplete.prompt).toBe("string")
+        expect(b.pending_incomplete.prompt.length).toBeGreaterThan(0)
+        // ses_a is resumable in this session's stub? No — the stub's `.get` dies; A's resumeTaskID is
+        // ses_a which is not a child, so it is unresumable and no task_id is attached (fresh session).
+        // The `then` must tell the CEO to re-spawn the stalled stage in the same parallel turn.
+        expect(b.then.toLowerCase()).toContain("incomplete")
       },
     })
   })

@@ -520,6 +520,12 @@ export namespace OrgRunner {
       }
     }
 
+    // W4-Finding#1: track which running stages were actually REPORTED this call. Only these (plus
+    // any pending-revise stage) are settled below; a running branch that is neither reported nor
+    // pending-revise is left untouched (still in flight), so a sibling-driven advance never re-runs
+    // retryOrFail on it and never burns its retry budget without a real chief re-run.
+    const reportedThisCall = new Set<string>()
+
     // W4.6: assign each per-stage task result to its NAMED stage's record first, so every
     // concurrently-completed branch settles below with its own chief's session id (and thus its own
     // cost). Only stages that actually exist in the run are touched (an unknown stage name is ignored,
@@ -527,7 +533,10 @@ export namespace OrgRunner {
     if (input.taskResults && input.taskResults.length > 0) {
       run = await OrgState.update(projectDir, runID, (s) => {
         for (const { stage, taskID } of input.taskResults!) {
-          if (s.stages[stage]) s.stages[stage].taskID = taskID
+          if (s.stages[stage]) {
+            s.stages[stage].taskID = taskID
+            reportedThisCall.add(stage)
+          }
         }
       })
     }
@@ -554,6 +563,10 @@ export namespace OrgRunner {
         run = await OrgState.update(projectDir, runID, (s) => {
           s.stages[target].taskID = input.taskID
         })
+        // W4-Finding#1: the single-taskID target counts as reported this call (in the
+        // maxConcurrency:1 linear case this is the one running stage, so it is always settled below —
+        // byte-identical to the pre-fix "settle the single running stage" behavior).
+        if (OrgState.runningStages(org, run).includes(target)) reportedThisCall.add(target)
       }
     }
 
@@ -568,8 +581,22 @@ export namespace OrgRunner {
     let blocker: { kind: "gate"; item: GateItem } | { kind: "incomplete"; item: IncompleteItem } | undefined
     const byPipelineIndex = (a: string, b: string) =>
       org.pipeline.findIndex((p) => p.stage === a) - org.pipeline.findIndex((p) => p.stage === b)
+    // W4-Finding#1: settle a running stage ONLY IF it either (a) was reported this call (its name is
+    // in taskResults, or it is the stage the single taskID was assigned to — see reportedThisCall
+    // above), OR (b) has a pending `decision === "revise"` (the decision-driven re-instruct path,
+    // which legitimately runs without a fresh taskID), OR (c) it is the SOLE running stage this call
+    // (the pre-wave single-active-stage settle: an advance with a single running stage always meant
+    // "the chief finished, check its deliverable" — even an empty {} advance, e.g. the second half of
+    // a revise re-instruct or a late-taskID-at-gate). A running stage that is none of these is LEFT
+    // UNTOUCHED — still in flight, no settle, no retryOrFail, no attempt increment — so a
+    // sibling-driven advance (2+ stages running, only the sibling reported) can't burn a stalled
+    // branch's retry budget. Back-compat holds byte-identically for maxConcurrency:1: there is at most
+    // one running stage, so (c) always settles it exactly as the pre-wave runner did.
     // Snapshot the settle set up front (pipeline order), so mutations during the loop don't shift it.
-    const toSettle = OrgState.runningStages(org, run)
+    const running = OrgState.runningStages(org, run)
+    const toSettle = running.filter(
+      (stage) => reportedThisCall.has(stage) || run.stages[stage].decision === "revise" || running.length === 1,
+    )
     for (const stage of toSettle) {
       const pipelineStage = org.pipeline.find((p) => p.stage === stage)!
       const settled = await settleRunningStage(deps, projectDir, org, runID, run, pipelineStage)
@@ -714,6 +741,12 @@ export namespace OrgRunner {
         record.reviseBaseline = reviseBaseline
         record.completedAt = undefined // the pre-revise completion timestamp is stale now
         record.incompleteAttempts = 0 // fresh revise iteration: revise churn gets its own retry budget, not the pre-completion count
+        // W4-Finding#4: the revise run is a FRESH run of this stage — restart its clock, so its
+        // timeoutMs is measured from the revise start, not the (possibly long-past) first-run
+        // startedAt. Without this, a stage that completed, gated, then waited on a slow human
+        // decision would have its revise-run's intermediate invalid deliverable mislabeled a timeout
+        // against a stale start.
+        record.startedAt = new Date().toISOString()
         // the costs map is left as-is: it reflects real spend so far; the session's own key is overwritten on next completion.
       }
     })

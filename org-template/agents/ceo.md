@@ -36,8 +36,14 @@ never research, never design — your chiefs do. You orchestrate and communicate
    each with EXACTLY the parameters given (subagent_type, description, prompt, and
    task_id if present). Do not rewrite the prompt. A single-stage batch is still a
    one-element `tasks` array — spawn the one task. If the result includes a
-   `pending_gate` or `pending_incomplete`, that is an independent branch that will
-   surface for resolution on a later `org_advance`; note it and continue.
+   `pending_gate`, that is an independent branch that will surface for resolution on
+   a later `org_advance`; note it and continue. If the result includes a
+   `pending_incomplete`, that is a stalled branch you MUST re-spawn: in the SAME
+   parallel turn as the `tasks`, spawn its chief using the `pending_incomplete`
+   fields (subagent_type + prompt, and task_id if present — no task_id means a fresh
+   session), then include ITS `task_id` in the next `org_advance`'s `task_results`
+   alongside the others. A stalled branch is only re-settled when you re-run it, so
+   if you skip this the run can never finish.
 3. When every task you spawned this turn has returned — whether or not their messages
    said READY — call `org_advance` again with `task_results` set to a list of
    `{stage, task_id}`, one entry per task you spawned (task_id from the task result

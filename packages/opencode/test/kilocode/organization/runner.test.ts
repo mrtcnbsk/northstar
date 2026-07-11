@@ -886,14 +886,21 @@ describe("OrgRunner batch fan-out (W4.3)", () => {
     const fan = await OrgRunner.advance(deps, tmp.path, GATED_DIAMOND, run.runID, { taskID: "ses_plan" })
     expect(fan.instruct.map((i) => i.stage).sort()).toEqual(["backend", "extra", "frontend"])
 
-    // All three branches deliver. On one settle call the runner validates every running stage in
-    // pipeline order: frontend (gate:human) -> awaiting_approval, backend + extra -> completed. The
-    // batch surfaces frontend's gate as the SINGLE serialized blocker (decision #6) while the two
+    // All three branches deliver. The CEO reports every finished task via task_results (the real
+    // fan-out contract). On this one settle call the runner validates every REPORTED running stage
+    // in pipeline order: frontend (gate:human) -> awaiting_approval, backend + extra -> completed.
+    // The batch surfaces frontend's gate as the SINGLE serialized blocker (decision #6) while the two
     // independent branches transition to completed alongside it.
     await writeDeliverable(tmp.path, run.runID, "frontend")
     await writeDeliverable(tmp.path, run.runID, "backend")
     await writeDeliverable(tmp.path, run.runID, "extra")
-    const b = await OrgRunner.advance(deps, tmp.path, GATED_DIAMOND, run.runID, { taskID: "ses_fe" })
+    const b = await OrgRunner.advance(deps, tmp.path, GATED_DIAMOND, run.runID, {
+      taskResults: [
+        { stage: "frontend", taskID: "ses_fe" },
+        { stage: "backend", taskID: "ses_be" },
+        { stage: "extra", taskID: "ses_ex" },
+      ],
+    })
 
     // frontend awaiting approval -> the single gate blocker; the other two branches completed.
     expect(b.gate).toBeDefined()
@@ -1656,5 +1663,169 @@ describe("OrgRunner per-stage timeoutMs (W4.5)", () => {
     expect(result.kind).toBe("incomplete")
     if (result.kind !== "incomplete") throw new Error("unreachable")
     expect(result.reason).toBeDefined()
+  })
+})
+
+// Finding #1 (CRITICAL): passive re-settle must NOT burn a stalled branch's retry budget.
+// Wave-4 adversarial-review repro. A diamond A∥B, both requires:[], maxConcurrency:2, retries:2,
+// with a B tail b2 -> b3. A stalls (deliverable never valid) and keeps its taskID; sibling-driven
+// advances (settling b2, then b3) must NOT re-run retryOrFail on the untouched A branch.
+describe("OrgRunner passive re-settle (Finding #1)", () => {
+  const AB_TAIL = OrgSchema.parse({
+    ceo: "ceo",
+    departments: {
+      A: { chief: "a-chief", workers: ["wa"] },
+      B: { chief: "b-chief", workers: ["wb"] },
+      b2: { chief: "b2-chief", workers: ["wb2"] },
+      b3: { chief: "b3-chief", workers: ["wb3"] },
+    },
+    shared: ["apple-docs"],
+    pipeline: [
+      { stage: "A", requires: [] },
+      { stage: "B", requires: [] },
+      { stage: "b2", requires: ["B"] },
+      { stage: "b3", requires: ["b2"] },
+    ],
+    maxConcurrency: 2,
+    budget: { retries: 2 },
+  })
+
+  test("a stalled branch's incompleteAttempts is NOT incremented by sibling-driven advances", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, AB_TAIL, "diamond stall")
+
+    // advance 1: instruct A + B (both requires:[], 2 slots).
+    const b1 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, {})
+    expect(b1.instruct.map((i) => i.stage).sort()).toEqual(["A", "B"])
+
+    // A stalls (no deliverable). B completes. Settle both via task_results:
+    //   - B has a valid deliverable -> completes, b2 fans out.
+    //   - A has NO deliverable -> incomplete, attempt 1 (this is A's ONE real chief run so far).
+    await writeDeliverable(tmp.path, run.runID, "B")
+    const b2 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, {
+      taskResults: [
+        { stage: "A", taskID: "ses_a1" },
+        { stage: "B", taskID: "ses_b1" },
+      ],
+    })
+    // b2 fans out; A surfaced as the incomplete blocker with exactly one attempt.
+    expect(b2.instruct.map((i) => i.stage)).toEqual(["b2"])
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].status).toBe("running")
+    expect(state.stages["A"].incompleteAttempts).toBe(1)
+    expect(state.stages["B"].status).toBe("completed")
+
+    // Sibling advance settling b2 (its OWN taskID). A is NOT reported this call and is not
+    // pending-revise: it must be left untouched — no settle, no retryOrFail, no attempt increment.
+    await writeDeliverable(tmp.path, run.runID, "b2")
+    const b3 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, { taskResults: [{ stage: "b2", taskID: "ses_b2" }] })
+    expect(b3.halted).toBeUndefined()
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].incompleteAttempts).toBe(1) // NOT bumped by the b2 advance
+    expect(state.stages["A"].status).toBe("running")
+    expect(state.status).toBe("active")
+
+    // Sibling advance settling b3. A still untouched -> still attempt 1, still running, not halted.
+    await writeDeliverable(tmp.path, run.runID, "b3")
+    const b4 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, { taskResults: [{ stage: "b3", taskID: "ses_b3" }] })
+    expect(b4.halted).toBeUndefined()
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].incompleteAttempts).toBe(1) // STILL not bumped: retry budget intact
+    expect(state.stages["A"].status).toBe("running")
+    expect(state.status).toBe("active")
+  })
+
+  test("a re-reported stalled branch DOES increment (1:1 with real chief re-runs) and fails only after budget.retries REAL re-runs", async () => {
+    await using tmp = await tmpdir()
+    const run = await OrgRunner.start(tmp.path, AB_TAIL, "diamond stall increment")
+
+    const b1 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, {})
+    expect(b1.instruct.map((i) => i.stage).sort()).toEqual(["A", "B"])
+
+    // B completes, A stalls: A attempt 1.
+    await writeDeliverable(tmp.path, run.runID, "B")
+    await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, {
+      taskResults: [
+        { stage: "A", taskID: "ses_a1" },
+        { stage: "B", taskID: "ses_b1" },
+      ],
+    })
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].incompleteAttempts).toBe(1)
+
+    // The CEO re-runs A (reports it again, still no deliverable): attempt 2 (a REAL re-run).
+    const reA1 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, { taskResults: [{ stage: "A", taskID: "ses_a2" }] })
+    expect(reA1.halted).toBeUndefined() // retries:2 -> attempt 2 still within budget
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].incompleteAttempts).toBe(2)
+    expect(state.stages["A"].status).toBe("running")
+
+    // The CEO re-runs A a THIRD time (attempt 3 > budget.retries 2) -> fails + halts.
+    const reA2 = await OrgRunner.advance(deps, tmp.path, AB_TAIL, run.runID, { taskResults: [{ stage: "A", taskID: "ses_a3" }] })
+    expect(reA2.halted).toBeDefined()
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages["A"].incompleteAttempts).toBe(3)
+    expect(state.stages["A"].status).toBe("failed")
+    expect(state.status).toBe("halted")
+  })
+})
+
+// Finding #4 (minor): a revised stage's timeout must compare against the REVISE run's startedAt,
+// not the original run's. decide()'s revise branch resets startedAt so an intermediate invalid
+// deliverable in the revise loop is not mislabeled a timeout against a stale (first-run) start.
+describe("OrgRunner revise resets startedAt for timeout correctness (Finding #4)", () => {
+  test("decide('revise') sets startedAt to the decision time, so the revise run's timeout is measured from the revise start", async () => {
+    await using tmp = await tmpdir()
+    const org = OrgSchema.parse({
+      ceo: "ceo",
+      departments: { evaluation: { chief: "eval-chief", workers: ["market-research"] } },
+      shared: ["apple-docs"],
+      pipeline: [{ stage: "evaluation", gate: "human", timeoutMs: 1000 }],
+      budget: { retries: 0 }, // retries:0 -> a single invalid settle exhausts and halts, revealing the cause word
+    })
+    const run = await OrgRunner.start(tmp.path, org, "idea revise clock reset")
+
+    // A deterministic clock: the first run started far in the past.
+    const firstStart = "2026-01-01T00:00:00.000Z"
+    const gateNow = Date.parse("2026-01-01T01:00:00.000Z") // 1 hour after the first start
+
+    // Drive: first run completes with a VALID deliverable -> gate.
+    const gateDeps = { costOf: async () => 0.1, now: () => gateNow }
+    await OrgState.update(tmp.path, run.runID, (s) => {
+      s.stages["evaluation"].status = "running"
+      s.stages["evaluation"].startedAt = firstStart
+      s.stages["evaluation"].attempts = 1
+    })
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    const gated = await advance1(gateDeps, tmp.path, org, run.runID, { taskID: "ses_eval" })
+    expect(gated.kind).toBe("gate")
+
+    // The user waits a long time, then asks for a revise. decide must reset startedAt to "now".
+    const before = await OrgState.read(tmp.path, run.runID)
+    expect(before.stages["evaluation"].startedAt).toBe(firstStart) // still the stale first-run start
+    await OrgRunner.decide(tmp.path, org, run.runID, "revise", "tighten it")
+    const afterDecide = await OrgState.read(tmp.path, run.runID)
+    // startedAt was reset to a FRESH timestamp (no longer the stale first-run start).
+    expect(afterDecide.stages["evaluation"].startedAt).not.toBe(firstStart)
+    const reviseStart = Date.parse(afterDecide.stages["evaluation"].startedAt!)
+
+    // The re-instruct fires; then the revise-run chief re-emits an INVALID deliverable only 500ms
+    // into the revise run — well WITHIN the 1000ms timeout measured from the reset revise start.
+    // With retries:0, this single incomplete exhausts and halts; the halt REASON's cause word proves
+    // whether the timeout was measured from the (reset) revise start or the stale first-run start:
+    //   - fix present: 500ms < 1000ms -> NOT timed out -> "deliverable never produced".
+    //   - fix absent (stale startedAt): reviseStart+500 is ~1h past firstStart -> mislabeled "timeout".
+    await advance1(gateDeps, tmp.path, org, run.runID, {}) // re-instruct (clears the revise decision)
+    await writeDeliverable(tmp.path, run.runID, "evaluation", "short") // invalid: too short (5 < 50)
+    const withinTimeoutDeps = { costOf: async () => 0.1, now: () => reviseStart + 500 }
+    const halted = await advance1(withinTimeoutDeps, tmp.path, org, run.runID, { taskID: "ses_eval_r" })
+    expect(halted.kind).toBe("halted")
+    if (halted.kind !== "halted") throw new Error("unreachable")
+    // Because startedAt was reset, the 500ms elapsed is under the timeout: the failure is the plain
+    // never-produced cause, NOT a timeout mislabel.
+    expect(halted.reason).toContain("deliverable never produced")
+    expect(halted.reason).not.toContain("timeout")
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.haltReason).not.toContain("timeout")
   })
 })

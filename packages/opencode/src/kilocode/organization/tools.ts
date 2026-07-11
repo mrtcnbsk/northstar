@@ -242,8 +242,27 @@ export const OrgAdvanceTool = Tool.define(
               then += ` NOTE: stage "${batch.gate.stage}" is ALSO awaiting a human gate (pending_gate); it will be surfaced as a human_gate to resolve once these tasks settle.`
             }
             if (batch.incomplete) {
-              extra.pending_incomplete = { stage: batch.incomplete.stage, reason: batch.incomplete.reason }
-              then += ` NOTE: stage "${batch.incomplete.stage}" is ALSO incomplete (pending_incomplete) and will be surfaced to re-run once these tasks settle.`
+              // W4-Finding#5: a stalled fan-out branch is now only re-settled when the CEO re-runs it
+              // (see runner's reported-or-revise settle selection), so it MUST be re-runnable here.
+              // Carry the SAME resume info the standalone resume_chief action uses so the CEO can
+              // re-spawn this stalled stage's chief IN THE SAME parallel turn as the other tasks and
+              // report its task_id in the next task_results — a real re-run that legitimately
+              // increments attempts, so the branch can complete or fail after real retries rather
+              // than stall forever (which would keep the run from ever reaching done).
+              const inc = batch.incomplete
+              const resumable = inc.resumeTaskID ? yield* isResumable(inc.resumeTaskID, ctx) : false
+              extra.pending_incomplete = {
+                stage: inc.stage,
+                reason: inc.reason,
+                subagent_type: inc.chief,
+                description: `${inc.stage} stage (re-spawn stalled branch)`,
+                prompt: inc.taskPrompt,
+                ...(resumable ? { task_id: inc.resumeTaskID } : {}),
+                ...(inc.resumeTaskID && !resumable
+                  ? { note: "previous chief session is not resumable from this session; re-spawn without task_id (fresh chief session)" }
+                  : {}),
+              }
+              then += ` NOTE: stage "${inc.stage}" is ALSO incomplete (pending_incomplete). Re-spawn its chief in THIS SAME parallel turn using pending_incomplete (subagent_type + prompt, and task_id if present) and include its task_id in the next task_results.`
             }
             return result(`run_tasks: ${stages}`, { action: "run_tasks", tasks, ...extra, then })
           }
