@@ -5990,10 +5990,10 @@ export class AgentBuilder extends HeyApiClient {
       permission?: {
         [key: string]: unknown
       }
-      prompt?: string
       subordinates?: Array<string>
       capabilities?: Array<string>
       preferredTypes?: Array<string>
+      prompt?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6013,10 +6013,10 @@ export class AgentBuilder extends HeyApiClient {
             { in: "body", key: "steps" },
             { in: "body", key: "tools" },
             { in: "body", key: "permission" },
-            { in: "body", key: "prompt" },
             { in: "body", key: "subordinates" },
             { in: "body", key: "capabilities" },
             { in: "body", key: "preferredTypes" },
+            { in: "body", key: "prompt" },
           ],
         },
       ],
@@ -6056,10 +6056,10 @@ export class AgentBuilder extends HeyApiClient {
       permission?: {
         [key: string]: unknown
       }
-      prompt?: string
       subordinates?: Array<string>
       capabilities?: Array<string>
       preferredTypes?: Array<string>
+      prompt?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6088,10 +6088,10 @@ export class AgentBuilder extends HeyApiClient {
             { in: "body", key: "steps" },
             { in: "body", key: "tools" },
             { in: "body", key: "permission" },
-            { in: "body", key: "prompt" },
             { in: "body", key: "subordinates" },
             { in: "body", key: "capabilities" },
             { in: "body", key: "preferredTypes" },
+            { in: "body", key: "prompt" },
           ],
         },
       ],

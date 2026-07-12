@@ -1,5 +1,40 @@
 # @kilocode/cli
 
+## 0.1.0
+
+### Minor Changes
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Local/openai-compatible provider authoring (BYOK + presets — Ollama, LM Studio, or a custom openai-compatible endpoint) via the "Add a local provider" TUI dialog and global auth store, with local-model capability validation: an unverified model (unknown context window or tool-call support) surfaces a visible warning and keeps automatic compaction off.
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - TUI Builder — author org models/agents/organization from the terminal (Models/Agents/Organization screens + agent-builder subordinate serialization + org-builder write endpoint).
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - TUI Chat — org slash commands, org roster in the agent selector, @mention side-channel notes (org_note), inline gate card.
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - TUI Cockpit — live run dashboard (pipeline, agent tree, budget gauge, activity log), hard stop, gate/halt/budget notifications, run-list home, and `--dry-run`/`--auto`/`--attach` modes.
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Generalize the on-device agent organization kernel beyond iOS: kernel prompt copy is de-iOS'd
+  ("App idea" -> "Idea", the Apple/HIG consultant label -> a generic "specialist/domain advisors"
+  label), and the generalization is proven end-to-end - a non-iOS org (research-desk) runs through
+  the pipeline to completion, the Apple-only tool surface stays opt-in via the apple-delivery
+  toolpack rather than baked into the kernel, and `org init --template research-desk` scaffolds a
+  valid `.kilo/`.
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Rebrand the CLI from Kilo to **northstar** (published as `@ilura/northstar`, binary `northstar`), by Ilura Technology OÜ. Fully open-source (MIT); upstream attribution to Kilo Code and opencode preserved.
+  - Published package renamed from the Kilo Code CLI to `@ilura/northstar`; binary `kilo` → `northstar`.
+  - Global config dir → `~/.config/northstar`; the old `~/.config/kilo` config is still read (back-compat). Data, sessions, and the sqlite DB are **not** relocated — no migration, no data loss.
+  - Config files `northstar.jsonc` / `northstar.json` (old `kilo.jsonc` / `kilo.json` still read).
+  - Config-critical env vars gain `NORTHSTAR_*` names; the old `KILO_*` names still work as a fallback.
+  - Installer targets `$HOME/.northstar/bin`; `uninstall` cleans up both the new and the legacy install dir. Self-update polls `@ilura/northstar` (npm) and `mrtcnbsk/northstar` (GitHub releases).
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Terminal-only, npm-only release pipeline. northstar now ships via `npm i -g @ilura/northstar` and a `curl … | bash` one-liner from the raw GitHub URL; the VS Code, JetBrains, Docker/ghcr, AUR, and Homebrew release channels and CI jobs are removed.
+  - `publish.yml` drops the `build-vscode` and `smoke-test` jobs (the latter depended on a private upstream bench repo) and the docker/AUR/vsce publish steps; both `publish.ts` scripts publish npm only.
+  - Deleted the JetBrains/VSCode/Docker/Kotlin-CodeQL workflows and pruned the JetBrains/VSCode jobs from `test.yml` / `typecheck.yml` / `visual-regression.yml`; the `check-workflows` allowlist is synced.
+  - README installation section rewritten to npm + curl; product identity updated to northstar.
+
+### Patch Changes
+
+- [`e21962c`](https://github.com/mrtcnbsk/northstar/commit/e21962c944c07fe803cd4d3fb6e25980a399fe51) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Inherit the current model and reasoning variant when Agent Manager starts sessions without explicit overrides.
+
 ## 7.4.4
 
 ### Minor Changes
