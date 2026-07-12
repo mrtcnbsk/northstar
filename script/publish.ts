@@ -102,11 +102,19 @@ if (Script.release) {
 console.log("\n=== cli ===\n")
 await import(`../packages/opencode/script/publish.ts`)
 
-console.log("\n=== sdk ===\n")
-await import(`../packages/sdk/js/script/publish.ts`)
-
-console.log("\n=== plugin ===\n")
-await import(`../packages/plugin/script/publish.ts`)
+// kilocode_change start - the `@kilocode/sdk` + `@kilocode/plugin` npm scope is NOT owned by
+// Ilura, so publishing them 403s and would leave a partial release (the CLI publishes first,
+// then the job dies here). They are INTERNAL workspace packages — the published
+// `@ilura/northstar` CLI bundles what it needs and does not depend on them at runtime (its
+// package.json's optionalDependencies are only the platform binaries). They are still BUILT
+// above (packages/sdk/js/script/build.ts) for the CLI build. To publish them publicly later,
+// rename them to the `@ilura/*` scope first, then re-enable these imports.
+// console.log("\n=== sdk ===\n")
+// await import(`../packages/sdk/js/script/publish.ts`)
+//
+// console.log("\n=== plugin ===\n")
+// await import(`../packages/plugin/script/publish.ts`)
+// kilocode_change end
 
 // kilocode_change start - Kilo does not ship the opencode desktop app
 // if (Script.release) {
