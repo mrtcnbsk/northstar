@@ -41,7 +41,7 @@ permissions:
 
 jobs:
   version:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04 # kilocode_change - GitHub-hosted runner (no Blacksmith on this fork)
     if: github.repository == 'mrtcnbsk/northstar'
     steps:
       - uses: actions/checkout@v6 # kilocode_change
@@ -56,6 +56,9 @@ jobs:
 
       - name: Install Kilo
         if: inputs.bump || inputs.version
+        # kilocode_change - non-fatal: @ilura/northstar is not on npm during the FIRST release
+        # (chicken-and-egg), and version.ts is self-contained (uses @opencode-ai/script + gh).
+        continue-on-error: true
         run: bun i -g @ilura/northstar
       # kilocode_change end
 
@@ -75,7 +78,7 @@ jobs:
 
   build-cli:
     needs: version
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04 # kilocode_change - GitHub-hosted runner (no Blacksmith on this fork)
     if: github.repository == 'mrtcnbsk/northstar'
     steps:
       - uses: actions/checkout@v6 # kilocode_change
