@@ -104,7 +104,7 @@ export function make(input: {
         "terminal-auth": {
           command: "opencode",
           args: ["auth", "login"],
-          label: "Northstar Login",
+          label: "Northstar Login", // kilocode_change
         },
       }
     }
@@ -130,7 +130,7 @@ export function make(input: {
       },
       authMethods: [authMethod],
       agentInfo: {
-        name: "Northstar",
+        name: "Northstar", // kilocode_change
         version: InstallationVersion,
       },
     }

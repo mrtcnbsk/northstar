@@ -3,6 +3,17 @@
 Kaynak: feat/agent-organization final review (2026-07-10) + Wave 0 kapanış review'u
 (feat/wave-0-hardening, WAVE-MERGE: READY-WITH-TRACKED-FOLLOWUPS, 2026-07-10).
 
+## Northstar görünür marka sınırı kapatıldı (2026-07-12)
+
+- CLI/TUI, Console, VS Code ve JetBrains kullanıcı yüzeyleri Northstar olarak sunuluyor;
+  `script/check-forbidden-strings.ts` 8.144 tracked dosyada bu invariant'ı denetliyor.
+- Çalışan yapıyı korumak için iç uyumluluk isimleri bilinçli olarak değişmedi: `kilo` provider
+  ve paket kimlikleri, `kilo-code.*`/`Kilo.*` action ve configuration ID'leri, `.kilo` yolları,
+  `Kilo-Org` ve `kilo.ai` adresleri, entegrasyon header/User-Agent değerleri, JetBrains tool
+  window/notification group ID'leri ve dondurulmuş legacy migration fixture'ları.
+- JetBrains tool window görünür adı, kalıcı `Kilo Code` ID'si değiştirilmeden
+  `toolwindow.stripe.Kilo_Code=Northstar` resource key'iyle ayrıştırıldı.
+
 ## MUST-FIX (Wave 1'in İLK işi — gerçek run iddiasından önce)
 
 (boş — W0-R1 ve W0-R3 Wave 1'de kapatıldı, aşağıya bak.)
@@ -196,6 +207,13 @@ drift'ini yalnız gerçek bir çalıştırma yakalar.
 
 ## Ortam notları
 
+- **2026-07-12 Northstar rebrand kapanışı:** root `bun run typecheck` 20 paketin 19'unda
+  geçti; `@kilocode/kilo-jetbrains` backend `generateOpenApiSpec`, pinned
+  `https://api.github.com/repos/Kilo-Org/kilocode/releases/tags/v0.1.0` release'i yayımlı
+  olmadığı için HTTP 404 ile durdu. İlgili JetBrains frontend Kotlin compile ve 2.035/2.035
+  test İngilizce JVM locale'iyle geçti. `northstar --help` wrapper'ı da bu checkout'ta
+  `@ilura/northstar-darwin-arm64` native paketinin kurulu olmaması nedeniyle branded kurulum
+  hatasında durdu; wrapper parse/brand testi ve hata çıktısı `Northstar CLI` olarak doğrulandı.
 - Kullanıcının diski tekrar tekrar %100'e doluyor (opencode-test-* iki kez ~9GB
   temizlendi; Wave 0 kapanışında 5 klasör daha silindi). Tam sweep CI'da veya alanı
   olan makinede.

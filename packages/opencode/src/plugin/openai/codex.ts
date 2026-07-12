@@ -156,6 +156,7 @@ async function refreshAccessToken(refreshToken: string, issuer = ISSUER, signal?
   return response.json()
 }
 
+// kilocode_change start
 const HTML_SUCCESS = `<!doctype html>
 <html>
   <head>
@@ -201,7 +202,9 @@ const HTML_SUCCESS = `<!doctype html>
     </script>
   </body>
 </html>`
+// kilocode_change end
 
+// kilocode_change start
 const HTML_ERROR = (error: string) => `<!doctype html>
 <html>
   <head>
@@ -251,6 +254,7 @@ const HTML_ERROR = (error: string) => `<!doctype html>
     </div>
   </body>
 </html>`
+// kilocode_change end
 
 interface PendingOAuth {
   pkce: PkceCodes

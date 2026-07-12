@@ -604,7 +604,8 @@ export const dict = {
   "error.chain.didYouMean": "Можливо ви мали на увазі: {{suggestions}}",
   "error.chain.modelNotFound": "Модель не знайдено: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Перевірте назви провайдера/моделі у файлі конфігурації (opencode.json)",
-  "error.chain.mcpFailed": 'MCP-сервер "{{name}}" зазнав помилки. Примітка: Northstar поки не підтримує автентифікацію MCP.',
+  "error.chain.mcpFailed":
+    'MCP-сервер "{{name}}" зазнав помилки. Примітка: Northstar поки не підтримує автентифікацію MCP.',
   "error.chain.providerAuthFailed": "Автентифікація провайдера не вдалася ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Не вдалося ініціалізувати провайдера "{{provider}}". Перевірте облікові дані та конфігурацію.',
@@ -1429,7 +1430,8 @@ export const dict = {
   "settings.models.speechToText.disabledDescription":
     "Увімкніть провайдер Northstar та виконайте вхід, щоб використовувати Speech to Text. Наразі Speech to Text підтримується лише з Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Модель мовлення в текст",
-  "settings.models.speechToTextModel.description": "Виберіть модель транскрипції Northstar Gateway для голосового введення.",
+  "settings.models.speechToTextModel.description":
+    "Виберіть модель транскрипції Northstar Gateway для голосового введення.",
   "settings.experimental.nativeNotebookTools.title": "Власні інструменти для блокнотів",
   "settings.experimental.nativeNotebookTools.description":
     "Увімкнути експериментальні інструменти для читання, редагування та виконання блокнотів VS Code",

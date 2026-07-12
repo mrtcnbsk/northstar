@@ -7,6 +7,8 @@
 - <https://api.apertis.ai/v1>
   <!-- packages/opencode/src/provider/model-cache.ts -->
   <!-- packages/opencode/src/provider/models.ts -->
+- <https://api.appstoreconnect.apple.com>
+  <!-- packages/opencode/src/kilocode/asc/client.ts -->
 - <https://api.digitalocean.com>
   <!-- packages/opencode/src/plugin/digitalocean.ts -->
 - <https://api.kilo.ai>
@@ -96,6 +98,8 @@
   <!-- packages/kilo-vscode/webview-ui/src/components/chat/FeedbackDialog.tsx -->
 - <https://github.com/microsoft/vscode-eslint/archive/refs/heads/main.zip>
   <!-- packages/opencode/src/lsp/server.ts -->
+- <https://github.com/mrtcnbsk/northstar#readme>
+  <!-- packages/opencode/src/kilocode/cli/cmd/tui/app.tsx -->
 - <https://github.com/oven-sh/bun/issues/16682>
   <!-- packages/opencode/src/provider/provider.ts -->
 - <https://github.com/Rob--W/proxy-from-env>
@@ -123,9 +127,6 @@
   <!-- packages/kilo-vscode/webview-ui/src/components/settings/AboutKiloCodeTab.tsx -->
 - <https://kilo.ai/docs>
   <!-- packages/kilo-vscode/webview-ui/src/hooks/useSlashCommand.ts -->
-  <!-- packages/opencode/src/kilocode/cli/cmd/tui/app.tsx -->
-- <https://kilo.ai/docs/ai-providers/cloudflare>
-  <!-- packages/opencode/src/cli/cmd/providers.ts -->
 - <https://kilo.ai/docs/ai-providers#custom-provider>
   <!-- packages/kilo-vscode/webview-ui/src/components/settings/CustomProviderDialog.tsx -->
 - <https://kilo.ai/docs/automate/mcp/what-is-mcp>

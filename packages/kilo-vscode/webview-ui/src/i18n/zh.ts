@@ -239,7 +239,8 @@ export const dict = {
   "provider.connect.oauth.code.invalid": "授权码无效",
   "provider.connect.oauth.auto.visit.prefix": "访问 ",
   "provider.connect.oauth.auto.visit.link": "此链接",
-  "provider.connect.oauth.auto.visit.suffix": " 并输入以下代码，以连接你的帐户并在 Northstar 中使用 {{provider}} 模型。",
+  "provider.connect.oauth.auto.visit.suffix":
+    " 并输入以下代码，以连接你的帐户并在 Northstar 中使用 {{provider}} 模型。",
   "provider.connect.oauth.auto.confirmationCode": "确认码",
   "provider.connect.toast.connected.title": "{{provider}} 已连接",
   "provider.connect.toast.connected.description": "现在可以使用 {{provider}} 模型了。",
@@ -1391,7 +1392,8 @@ export const dict = {
   "settings.experimental.imageGenerationModel.placeholder": "默认 (Auto Router)",
 
   "settings.experimental.speechToText.title": "语音转文本",
-  "settings.experimental.speechToText.description": "通过 Northstar Gateway 使用您的 Northstar 帐户在提示词字段中启用语音输入。",
+  "settings.experimental.speechToText.description":
+    "通过 Northstar Gateway 使用您的 Northstar 帐户在提示词字段中启用语音输入。",
   "settings.models.speechToText.disabledDescription":
     "启用并登录 Northstar 提供商以使用 Speech to Text。Speech to Text 目前仅支持通过 Northstar Gateway 使用。",
   "settings.models.speechToTextModel.title": "语音转文本模型",
@@ -1416,7 +1418,8 @@ export const dict = {
   "settings.experimental.mcpTimeout.title": "MCP 超时（毫秒）",
   "settings.experimental.mcpTimeout.description": "MCP 服务器请求的超时时间（毫秒）",
   "settings.experimental.remote.title": "Remote 控制",
-  "settings.experimental.remote.description": "通过 Northstar Cloud 启用会话的 Remote 控制。这也会影响此计算机上的 CLI。",
+  "settings.experimental.remote.description":
+    "通过 Northstar Cloud 启用会话的 Remote 控制。这也会影响此计算机上的 CLI。",
   "settings.experimental.remote.current": "当前状态：",
   "settings.experimental.remote.startup": "启动时自动启用：",
   "settings.experimental.remote.active": "已启用",

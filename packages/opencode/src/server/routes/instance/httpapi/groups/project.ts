@@ -36,7 +36,7 @@ export const ProjectApi = HttpApi.make("project")
           OpenApi.annotations({
             identifier: "project.current",
             summary: "Get current project",
-            description: "Retrieve the currently active project that Northstar is working with.",
+            description: "Retrieve the currently active project that Northstar is working with.", // kilocode_change
           }),
         ),
         HttpApiEndpoint.post("initGit", `${root}/git/init`, {

@@ -231,7 +231,8 @@ export const dict = {
   "provider.connect.opencodeZen.visit.prefix": "",
   "provider.connect.opencodeZen.visit.link": "https://opencode.ai/zen",
   "provider.connect.opencodeZen.visit.suffix": " adresini ziyaret ederek API anahtarınızı alın.",
-  "provider.connect.oauth.code.visit.prefix": "Hesabınızı bağlamak ve Northstar'da {{provider}} modellerini kullanmak için ",
+  "provider.connect.oauth.code.visit.prefix":
+    "Hesabınızı bağlamak ve Northstar'da {{provider}} modellerini kullanmak için ",
   "provider.connect.oauth.code.visit.link": "bu bağlantıya",
   "provider.connect.oauth.code.visit.suffix": " tıklayarak yetkilendirme kodunuzu alın.",
   "provider.connect.oauth.code.label": "{{method}} yetkilendirme kodu",
@@ -1030,7 +1031,8 @@ export const dict = {
   "settings.config.title": "{{scope}} Northstar yapılandırma dosyasını aç",
   "settings.config.placeholder":
     "Yapılandırma dosyaları sırayla birleştirilir; yüklendi olarak işaretlenen dosyalar şu anda ayarları etkiler.",
-  "settings.config.noWorkspace": "Yerel Northstar yapılandırma dosyasını düzenlemek için bir çalışma alanı klasörü açın.",
+  "settings.config.noWorkspace":
+    "Yerel Northstar yapılandırma dosyasını düzenlemek için bir çalışma alanı klasörü açın.",
   "settings.config.openFailed": "{{scope}} Northstar yapılandırma dosyası açılamadı: {{message}}",
   "settings.config.source.xdg": "XDG küresel yapılandırma",
   "settings.config.source.homeKilo": "Home .kilo yapılandırması",
@@ -1661,7 +1663,8 @@ export const dict = {
   "settings.display.username.title": "Kullanıcı Adı",
   "settings.display.username.description": "Sohbetlerde görüntülenen özel kullanıcı adı",
   "settings.display.fontSize.title": "Yazı Tipi Boyutu",
-  "settings.display.fontSize.description": "Northstar webview UI yazı tipi boyutunu VS Code'dan bağımsız olarak ayarlayın.",
+  "settings.display.fontSize.description":
+    "Northstar webview UI yazı tipi boyutunu VS Code'dan bağımsız olarak ayarlayın.",
   "settings.display.reasoningAutoCollapse.title": "Akıl yürütmeyi otomatik daralt",
   "settings.display.reasoningAutoCollapse.description":
     "Ajan yazmayı bitirdikten sonra akıl yürütme bloklarını daraltır. Manuel olarak daraltmadığınız sürece akıl yürütmenin geniş kalması için kapalı bırakın.",

@@ -1082,7 +1082,8 @@ export const dict = {
   "settings.config.title": "Otvori {{scope}} Northstar konfiguracijsku datoteku",
   "settings.config.placeholder":
     "Konfiguracijske datoteke se spajaju po redu; datoteke označene kao učitane trenutno utiču na postavke.",
-  "settings.config.noWorkspace": "Otvorite fasciklu radnog prostora da uredite lokalnu Northstar konfiguracijsku datoteku.",
+  "settings.config.noWorkspace":
+    "Otvorite fasciklu radnog prostora da uredite lokalnu Northstar konfiguracijsku datoteku.",
   "settings.config.openFailed": "Nije uspjelo otvaranje {{scope}} Northstar konfiguracijske datoteke: {{message}}",
   "settings.config.source.xdg": "XDG globalna konfiguracija",
   "settings.config.source.homeKilo": "Home .kilo konfiguracija",
@@ -1443,7 +1444,8 @@ export const dict = {
   "settings.models.speechToText.disabledDescription":
     "Omogućite i prijavite se na Northstar provajder da biste koristili Speech to Text. Speech to Text je trenutno podržan samo uz Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Model govora u tekst",
-  "settings.models.speechToTextModel.description": "Odaberite Northstar Gateway model za transkripciju za glasovni unos.",
+  "settings.models.speechToTextModel.description":
+    "Odaberite Northstar Gateway model za transkripciju za glasovni unos.",
   "settings.experimental.nativeNotebookTools.title": "Izvorni alati za bilježnice",
   "settings.experimental.nativeNotebookTools.description":
     "Omogući eksperimentalne alate za čitanje, uređivanje i izvršavanje VS Code bilježnica",

@@ -132,11 +132,11 @@ describe("run permission shared", () => {
 
   test("formats always-allow copy for wildcard and explicit patterns", () => {
     expect(permissionAlwaysLines(req({ permission: "bash", always: ["*"] }))).toEqual([
-      "This will allow bash until Northstar is restarted.",
+      "This will allow bash until Northstar is restarted.", // kilocode_change
     ])
 
     expect(permissionAlwaysLines(req({ always: ["src/**/*.ts", "src/**/*.tsx"] }))).toEqual([
-      "This will allow the following patterns until Northstar is restarted.",
+      "This will allow the following patterns until Northstar is restarted.", // kilocode_change
       "- src/**/*.ts",
       "- src/**/*.tsx",
     ])

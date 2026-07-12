@@ -480,7 +480,8 @@ export const dict = {
   "error.chain.didYouMean": "Intendevi: {{suggestions}}",
   "error.chain.modelNotFound": "Modello non trovato: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Controlla i nomi provider/modello nella configurazione (opencode.json)",
-  "error.chain.mcpFailed": 'Server MCP "{{name}}" non riuscito. Nota: Northstar non supporta ancora l\'autenticazione MCP.',
+  "error.chain.mcpFailed":
+    'Server MCP "{{name}}" non riuscito. Nota: Northstar non supporta ancora l\'autenticazione MCP.',
   "error.chain.providerAuthFailed": "Autenticazione provider non riuscita ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Inizializzazione provider "{{provider}}" non riuscita. Controlla credenziali e configurazione.',
@@ -944,7 +945,8 @@ export const dict = {
   "workStyle.choice.visibility": "Visibilità",
   "workStyle.choice.human-in-the-loop.eyebrow": "Supervisione umana",
   "workStyle.choice.human-in-the-loop.title": "Prima la revisione",
-  "workStyle.choice.human-in-the-loop.description": "Northstar si mette in pausa e ti mostra il suo piano mentre lavora.",
+  "workStyle.choice.human-in-the-loop.description":
+    "Northstar si mette in pausa e ti mostra il suo piano mentre lavora.",
   "workStyle.choice.human-in-the-loop.permissions": "Chiede conferma prima di modificare file o eseguire comandi.",
   "workStyle.choice.human-in-the-loop.bash": "Chiede l'autorizzazione per ogni comando del terminale.",
   "workStyle.choice.human-in-the-loop.visibility":
@@ -1170,7 +1172,8 @@ export const dict = {
     "Usa il browser Chrome installato invece di un'istanza Chromium separata.",
   "settings.browser.headless.title": "Modalità headless",
   "settings.browser.headless.description": "Esegui in modalità headless (senza finestra browser visibile).",
-  "settings.language.description": 'Scegli la lingua dell\'interfaccia Northstar Code. "Auto" usa la lingua di VS Code.',
+  "settings.language.description":
+    'Scegli la lingua dell\'interfaccia Northstar Code. "Auto" usa la lingua di VS Code.',
   "settings.language.auto": "Auto (lingua VS Code)",
   "settings.language.current": "Corrente:",
   "common.add": "Aggiungi",
@@ -1691,7 +1694,8 @@ export const dict = {
   "settings.models.speechToText.disabledDescription":
     "Abilita e accedi al provider Northstar per usare Da voce a testo. Da voce a testo è attualmente supportato solo tramite Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Modello Da voce a testo",
-  "settings.models.speechToTextModel.description": "Scegli il modello di trascrizione Northstar Gateway per l'input vocale.",
+  "settings.models.speechToTextModel.description":
+    "Scegli il modello di trascrizione Northstar Gateway per l'input vocale.",
 
   // Compaction limit
   "settings.context.compactionLimit.title": "Limite compattazione automatica",

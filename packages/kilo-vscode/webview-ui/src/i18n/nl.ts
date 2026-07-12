@@ -606,7 +606,8 @@ export const dict = {
   "error.chain.didYouMean": "Bedoelde je: {{suggestions}}",
   "error.chain.modelNotFound": "Model niet gevonden: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Controleer je configuratie (opencode.json) provider/model namen",
-  "error.chain.mcpFailed": 'MCP-server "{{name}}" is mislukt. Let op, Northstar ondersteunt nog geen MCP-authenticatie.',
+  "error.chain.mcpFailed":
+    'MCP-server "{{name}}" is mislukt. Let op, Northstar ondersteunt nog geen MCP-authenticatie.',
   "error.chain.providerAuthFailed": "Provider-authenticatie mislukt ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Initialiseren van provider "{{provider}}" is mislukt. Controleer referenties en configuratie.',
@@ -1674,7 +1675,8 @@ export const dict = {
   "settings.display.username.title": "Gebruikersnaam",
   "settings.display.username.description": "Aangepaste gebruikersnaam weergegeven in gesprekken",
   "settings.display.fontSize.title": "Lettergrootte",
-  "settings.display.fontSize.description": "Pas de lettergrootte van de Northstar webview UI onafhankelijk van VS Code aan.",
+  "settings.display.fontSize.description":
+    "Pas de lettergrootte van de Northstar webview UI onafhankelijk van VS Code aan.",
   "settings.display.reasoningAutoCollapse.title": "Redenering automatisch inklappen",
   "settings.display.reasoningAutoCollapse.description":
     "Klapt redeneerblokken in nadat de agent klaar is met schrijven. Laat uitgeschakeld om redenering uitgeklapt te houden, tenzij je die handmatig inklapt.",

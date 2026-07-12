@@ -1179,7 +1179,8 @@ export const dict = {
   "workStyle.choice.visibility": "Видимость",
   "workStyle.choice.human-in-the-loop.eyebrow": "Человек контролирует процесс",
   "workStyle.choice.human-in-the-loop.title": "Сначала проверка",
-  "workStyle.choice.human-in-the-loop.description": "Northstar приостанавливается и показывает свой план по ходу работы.",
+  "workStyle.choice.human-in-the-loop.description":
+    "Northstar приостанавливается и показывает свой план по ходу работы.",
   "workStyle.choice.human-in-the-loop.permissions":
     "Запрашивает разрешение перед редактированием файлов или выполнением команд.",
   "workStyle.choice.human-in-the-loop.bash": "Запрашивает разрешение на каждую команду терминала.",
@@ -1380,7 +1381,8 @@ export const dict = {
   "settings.browser.headless.title": "Безголовый режим",
   "settings.browser.headless.description": "Запуск в безголовом режиме (без видимого окна браузера).",
 
-  "settings.language.description": "Выберите язык интерфейса Northstar Code. «Авто» использует язык отображения VS Code.",
+  "settings.language.description":
+    "Выберите язык интерфейса Northstar Code. «Авто» использует язык отображения VS Code.",
   "settings.language.auto": "Авто (язык VS Code)",
   "settings.language.current": "Текущий:",
 
@@ -1441,7 +1443,8 @@ export const dict = {
   "settings.models.speechToText.disabledDescription":
     "Включите провайдер Northstar и выполните вход, чтобы использовать Speech to Text. В настоящее время Speech to Text поддерживается только с Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Модель речи в текст",
-  "settings.models.speechToTextModel.description": "Выберите модель транскрипции Northstar Gateway для голосового ввода.",
+  "settings.models.speechToTextModel.description":
+    "Выберите модель транскрипции Northstar Gateway для голосового ввода.",
   "settings.experimental.nativeNotebookTools.title": "Нативные инструменты блокнотов",
   "settings.experimental.nativeNotebookTools.description":
     "Включить экспериментальные инструменты для чтения, редактирования и выполнения блокнотов VS Code",

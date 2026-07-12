@@ -45,7 +45,8 @@ export const anacondaDesktopDict = {
   "provider.anaconda.action.continue": "ดำเนินการต่อ",
   "provider.anaconda.action.manage": "จัดการ / รีเฟรช",
   "provider.anaconda.toast.refreshed.title": "รีเฟรช Anaconda Desktop แล้ว",
-  "provider.anaconda.toast.refreshed.description": "เซิร์ฟเวอร์ในเครื่องและโมเดลที่ใช้งานอยู่เป็นปัจจุบันใน Northstar แล้ว",
+  "provider.anaconda.toast.refreshed.description":
+    "เซิร์ฟเวอร์ในเครื่องและโมเดลที่ใช้งานอยู่เป็นปัจจุบันใน Northstar แล้ว",
   "settings.providers.note.anacondaDesktop": "เรียกใช้โมเดลที่ให้บริการในเครื่องโดย Anaconda Desktop",
   "settings.providers.tag.local": "ในเครื่อง",
 } as const
@@ -240,7 +241,8 @@ export const dict = {
   "provider.connect.oauth.code.invalid": "รหัสการอนุญาตไม่ถูกต้อง",
   "provider.connect.oauth.auto.visit.prefix": "เยี่ยมชม ",
   "provider.connect.oauth.auto.visit.link": "ลิงก์นี้",
-  "provider.connect.oauth.auto.visit.suffix": " และป้อนรหัสด้านล่างเพื่อเชื่อมต่อบัญชีและใช้โมเดล {{provider}} ใน Northstar",
+  "provider.connect.oauth.auto.visit.suffix":
+    " และป้อนรหัสด้านล่างเพื่อเชื่อมต่อบัญชีและใช้โมเดล {{provider}} ใน Northstar",
   "provider.connect.oauth.auto.confirmationCode": "รหัสยืนยัน",
   "provider.connect.toast.connected.title": "{{provider}} ที่เชื่อมต่อแล้ว",
   "provider.connect.toast.connected.description": "โมเดล {{provider}} พร้อมใช้งานแล้ว",
@@ -956,7 +958,8 @@ export const dict = {
   "settings.providers.subagentModel.description":
     "โมเดลเริ่มต้นและระดับการใช้เหตุผลสำหรับตัวแทนย่อยของ task-tool ปล่อยว่างไว้เพื่อรับค่าโมเดลจากตัวแทนที่เรียก",
   "settings.models.hidePromptTraining.title": "ซ่อนโมเดลที่ใช้พรอมต์ในการฝึก",
-  "settings.models.hidePromptTraining.description": "ซ่อนโมเดล Northstar Gateway ที่ผู้ให้บริการอาจใช้พรอมต์ของคุณในการฝึก",
+  "settings.models.hidePromptTraining.description":
+    "ซ่อนโมเดล Northstar Gateway ที่ผู้ให้บริการอาจใช้พรอมต์ของคุณในการฝึก",
   "settings.providers.modeModels": "โมเดลต่อโหมด",
   "settings.providers.custom.note": "เพิ่มผู้ให้บริการแบบกำหนดเองด้วย Base URL",
   "settings.providers.modeModels.description":
@@ -1420,7 +1423,8 @@ export const dict = {
   "settings.models.speechToText.disabledDescription":
     "เปิดใช้งานและลงชื่อเข้าใช้ผู้ให้บริการ Northstar เพื่อใช้ Speech to Text ปัจจุบัน Speech to Text รองรับเฉพาะกับ Northstar Gateway เท่านั้น",
   "settings.models.speechToTextModel.title": "โมเดลแปลงเสียงเป็นข้อความ",
-  "settings.models.speechToTextModel.description": "เลือกโมเดลการถอดเสียง Northstar Gateway สำหรับการป้อนข้อมูลด้วยเสียง",
+  "settings.models.speechToTextModel.description":
+    "เลือกโมเดลการถอดเสียง Northstar Gateway สำหรับการป้อนข้อมูลด้วยเสียง",
   "settings.experimental.nativeNotebookTools.title": "เครื่องมือโน้ตบุ๊กดั้งเดิม",
   "settings.experimental.nativeNotebookTools.description":
     "เปิดใช้งานเครื่องมือทดลองสำหรับการอ่าน แก้ไข และเรียกใช้โน้ตบุ๊ก VS Code",

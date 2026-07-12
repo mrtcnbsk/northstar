@@ -19,7 +19,8 @@ export const anacondaDesktopDict = {
     "Öffnen Sie Anaconda Desktop, schließen Sie die Einrichtung ab und melden Sie sich an. Wählen Sie dann Erneut prüfen.",
   "provider.anaconda.state.invalidConfig":
     "Die Einrichtung von Anaconda Desktop ist unvollständig. Öffnen Sie Desktop, schließen Sie die Einrichtung ab und starten Sie es bei Bedarf neu.",
-  "provider.anaconda.state.signedOut": "Öffnen Sie Anaconda Desktop und melden Sie sich an, bevor Sie Northstar verbinden.",
+  "provider.anaconda.state.signedOut":
+    "Öffnen Sie Anaconda Desktop und melden Sie sich an, bevor Sie Northstar verbinden.",
   "provider.anaconda.state.unauthorized":
     "Northstar konnte nicht auf Anaconda Desktop zugreifen. Öffnen Sie Desktop, melden Sie sich erneut an und starten Sie es bei Bedarf neu.",
   "provider.anaconda.state.unavailable":
@@ -1733,7 +1734,8 @@ export const dict = {
   "settings.display.username.title": "Benutzername",
   "settings.display.username.description": "Benutzerdefinierter Benutzername in Gesprächen",
   "settings.display.fontSize.title": "Schriftgröße",
-  "settings.display.fontSize.description": "Passen Sie die Schriftgröße der Northstar webview UI unabhängig von VS Code an.",
+  "settings.display.fontSize.description":
+    "Passen Sie die Schriftgröße der Northstar webview UI unabhängig von VS Code an.",
   "settings.display.reasoningAutoCollapse.title": "Reasoning automatisch einklappen",
   "settings.display.reasoningAutoCollapse.description":
     "Klappt Reasoning-Blöcke ein, nachdem der Agent sie fertig geschrieben hat. Deaktiviert lassen, damit Reasoning erweitert bleibt, sofern du es nicht manuell einklappst.",

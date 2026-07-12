@@ -10,6 +10,7 @@ const log = Log.create({ service: "mcp.oauth-callback" })
 let currentPort = OAUTH_CALLBACK_PORT
 let currentPath = OAUTH_CALLBACK_PATH
 
+// kilocode_change start
 const HTML_SUCCESS = `<!DOCTYPE html>
 <html>
 <head>
@@ -33,7 +34,9 @@ const HTML_SUCCESS = `<!DOCTYPE html>
   <script>setTimeout(() => window.close(), 2000);</script>
 </body>
 </html>`
+// kilocode_change end
 
+// kilocode_change start
 const HTML_ERROR = (error: string) => `<!DOCTYPE html>
 <html>
 <head>
@@ -56,6 +59,7 @@ const HTML_ERROR = (error: string) => `<!DOCTYPE html>
   </div>
 </body>
 </html>`
+// kilocode_change end
 
 interface PendingAuth {
   resolve: (code: string) => void

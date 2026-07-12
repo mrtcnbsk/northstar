@@ -533,7 +533,9 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
           <text fg={theme.text}>Reject permission</text>
         </box>
         <box paddingLeft={1}>
+          {/* kilocode_change start */}
           <text fg={theme.textMuted}>Tell Northstar what to do differently</text>
+          {/* kilocode_change end */}
         </box>
       </box>
       <box

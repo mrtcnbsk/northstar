@@ -6,6 +6,7 @@ export type BrandHit = { file: string; line: number; pattern: string }
 export type BrandRule = { pattern: RegExp; label: string }
 
 export const VISIBLE_ROOTS = [
+  "packages/opencode/bin/",
   "packages/opencode/src/cli/",
   "packages/opencode/src/kilocode/",
   "packages/kilo-console/src/",
@@ -46,7 +47,29 @@ function inUrl(line: string, start: number, end: number) {
   return false
 }
 
-function ignored(line: string, start: number, end: number) {
+function blockComments(line: string, open: boolean) {
+  const ranges: { start: number; end: number }[] = []
+  let cursor = 0
+  while (cursor < line.length) {
+    if (open) {
+      const close = line.indexOf("*/", cursor)
+      if (close < 0) return { ranges: [...ranges, { start: cursor, end: line.length }], open: true }
+      ranges.push({ start: cursor, end: close + 2 })
+      cursor = close + 2
+      open = false
+      continue
+    }
+    const start = line.indexOf("/*", cursor)
+    if (start < 0) break
+    const close = line.indexOf("*/", start + 2)
+    if (close < 0) return { ranges: [...ranges, { start, end: line.length }], open: true }
+    ranges.push({ start, end: close + 2 })
+    cursor = close + 2
+  }
+  return { ranges, open }
+}
+
+function ignored(line: string, start: number, end: number, blocks: { start: number; end: number }[] = []) {
   const trimmed = line.trimStart()
   if (
     trimmed.startsWith("//") ||
@@ -56,6 +79,7 @@ function ignored(line: string, start: number, end: number) {
   ) {
     return true
   }
+  if (blocks.some((block) => start >= block.start && end <= block.end)) return true
   const comment = commentStart(line)
   if (comment >= 0 && comment <= start) return true
   if (inUrl(line, start, end)) return true
@@ -80,14 +104,17 @@ function candidates(sources: BrandSource[]) {
     if (/(?:^|\/)(?:__tests__\/|[^/]+\.(?:test|spec)\.)/.test(source.file)) continue
     if (source.file.endsWith("/legacy-migration/native-mode-defaults.ts")) continue
     const lines = source.text.split("\n")
+    let block = false
     for (const [index, line] of lines.entries()) {
+      const comments = blockComments(line, block)
+      block = comments.open
       const found: { start: number; end: number; pattern: string }[] = []
       for (const rule of rules) {
         rule.pattern.lastIndex = 0
         for (const match of line.matchAll(rule.pattern)) {
           const start = match.index
           const end = start + match[0].length
-          if (ignored(line, start, end)) continue
+          if (ignored(line, start, end, comments.ranges)) continue
           found.push({ start, end, pattern: match[0] })
         }
       }

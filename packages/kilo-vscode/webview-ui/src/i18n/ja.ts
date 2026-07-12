@@ -46,7 +46,8 @@ export const anacondaDesktopDict = {
   "provider.anaconda.action.continue": "このまま続行",
   "provider.anaconda.action.manage": "管理 / 更新",
   "provider.anaconda.toast.refreshed.title": "Anaconda Desktop を更新しました",
-  "provider.anaconda.toast.refreshed.description": "アクティブなローカルサーバーとモデルが Northstar で最新になりました。",
+  "provider.anaconda.toast.refreshed.description":
+    "アクティブなローカルサーバーとモデルが Northstar で最新になりました。",
   "settings.providers.note.anacondaDesktop": "Anaconda Desktop によってローカルで提供されるモデルを実行します。",
   "settings.providers.tag.local": "ローカル",
 } as const
@@ -599,7 +600,8 @@ export const dict = {
   "error.chain.didYouMean": "もしかして: {{suggestions}}",
   "error.chain.modelNotFound": "モデルが見つかりません: {{provider}}/{{model}}",
   "error.chain.checkConfig": "config (opencode.json) のプロバイダー/モデル名を確認してください",
-  "error.chain.mcpFailed": 'MCPサーバー "{{name}}" が失敗しました。注意: NorthstarはまだMCP認証をサポートしていません。',
+  "error.chain.mcpFailed":
+    'MCPサーバー "{{name}}" が失敗しました。注意: NorthstarはまだMCP認証をサポートしていません。',
   "error.chain.providerAuthFailed": "プロバイダー認証に失敗しました ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'プロバイダー "{{provider}}" の初期化に失敗しました。認証情報と設定を確認してください。',
@@ -1070,7 +1072,8 @@ export const dict = {
   "settings.config.title": "{{scope}}のNorthstar構成ファイルを開く",
   "settings.config.placeholder":
     "構成ファイルは順番にマージされます。読み込み済みとしてマークされているファイルが現在設定に影響しています。",
-  "settings.config.noWorkspace": "ローカルのNorthstar構成ファイルを編集するには、ワークスペースフォルダーを開いてください。",
+  "settings.config.noWorkspace":
+    "ローカルのNorthstar構成ファイルを編集するには、ワークスペースフォルダーを開いてください。",
   "settings.config.openFailed": "{{scope}}のNorthstar構成ファイルを開けませんでした: {{message}}",
   "settings.config.source.xdg": "XDGグローバル構成",
   "settings.config.source.homeKilo": "Homeの.kilo構成",

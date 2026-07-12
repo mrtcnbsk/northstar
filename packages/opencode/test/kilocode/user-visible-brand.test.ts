@@ -44,6 +44,9 @@ describe("user-visible Northstar brand boundary", () => {
           file: "packages/kilo-jetbrains/frontend/src/main/example.kt",
           text: [
             '// Kilo compatibility',
+            '/*',
+            ' Kilo compatibility block',
+            '*/',
             'const val ID = "Kilo.NewSession" // Kilo compatibility action',
             'const headers = { "X-Title": "Kilo Code", "User-Agent": "Kilo-Code/1.0" }',
             'const integration = { "X-Cerebras-3rd-Party-Integration": "Kilo Code" }',
