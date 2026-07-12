@@ -29,6 +29,13 @@ export namespace AgentBuilder {
     steps: z.number().int().positive().optional(),
     tools: z.string().array().optional(),
     permission: z.record(z.string(), z.unknown()).optional(),
+    // kilocode_change start - agent-organization: declarative fields the writer must round-trip
+    // so agents authored via the Agents editor can participate in an org chart. `subordinates` is
+    // expanded into `permission.task` by the loader's `normalize` (src/config/agent.ts), NOT here.
+    subordinates: z.string().array().optional(),
+    capabilities: z.string().array().optional(),
+    preferredTypes: z.string().array().optional(),
+    // kilocode_change end
     prompt: z.string().regex(/\S/).trim(),
   })
 
@@ -91,6 +98,11 @@ export namespace AgentBuilder {
       color: input.color,
       steps: input.steps,
       permission,
+      // kilocode_change start - omit when empty so pre-existing plain agents serialize byte-identically
+      subordinates: input.subordinates?.length ? input.subordinates : undefined,
+      capabilities: input.capabilities?.length ? input.capabilities : undefined,
+      preferredTypes: input.preferredTypes?.length ? input.preferredTypes : undefined,
+      // kilocode_change end
     })
     return `---\n${Object.entries(data)
       .map(([key, value]) => `${key}: ${format(value)}`)

@@ -25,6 +25,12 @@ const Body = {
   steps: Schema.optional(Schema.Number),
   tools: Schema.optional(Schema.Array(Schema.String)),
   permission: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  // kilocode_change start - agent-organization: round-trip the org delegation fields through the
+  // HTTP surface too (AgentBuilder.Input already carries them - see src/kilocode/agent/builder.ts)
+  subordinates: Schema.optional(Schema.Array(Schema.String)),
+  capabilities: Schema.optional(Schema.Array(Schema.String)),
+  preferredTypes: Schema.optional(Schema.Array(Schema.String)),
+  // kilocode_change end
   prompt: Prompt,
 }
 

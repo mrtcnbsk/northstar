@@ -39,5 +39,11 @@ function normalize(input: typeof AgentBuilderInput.Type): AgentBuilder.Input {
     mode: input.mode ?? "primary",
     prompt: input.prompt.trim(),
     tools: input.tools ? [...input.tools] : undefined,
+    // kilocode_change start - agent-organization: mirror the `tools` mutable-copy pattern above so
+    // these round-trip through the HTTP surface (see src/kilocode/agent/builder.ts)
+    subordinates: input.subordinates ? [...input.subordinates] : undefined,
+    capabilities: input.capabilities ? [...input.capabilities] : undefined,
+    preferredTypes: input.preferredTypes ? [...input.preferredTypes] : undefined,
+    // kilocode_change end
   }
 }
