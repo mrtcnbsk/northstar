@@ -68,6 +68,8 @@ export namespace OrgState {
         }),
       )
       .optional(),
+    /** Exact tool IDs observed across chief iterations; used by the irreversible final-gate policy. */
+    toolsUsed: z.array(z.string().min(1)).optional(),
   })
   export type Stage = z.output<typeof Stage>
 

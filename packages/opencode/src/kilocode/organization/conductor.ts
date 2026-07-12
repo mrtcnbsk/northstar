@@ -1,0 +1,192 @@
+// kilocode_change - SP1 deterministic autonomous loop driver
+import { OrgArtifacts } from "./artifacts"
+import { OrgEvaluator } from "./evaluator"
+import { OrgRunner } from "./runner"
+import { OrgSchema } from "./schema"
+import { OrgState } from "./state"
+
+export namespace OrgConductor {
+  export type EventType =
+    | "stage_started"
+    | "deliverable_settled"
+    | "evaluator_verdict"
+    | "revise_iteration"
+    | "escalation"
+    | "final_gate"
+    | "completed"
+    | "halted"
+
+  export type Event = {
+    type: EventType
+    ts: number
+    stage?: string
+    detail?: string
+    iteration?: number
+    pass?: boolean
+    taskID?: string
+    cost?: number
+  }
+
+  export interface Deps {
+    projectDir: string
+    org: OrgSchema.Organization
+    runnerDeps: OrgRunner.Deps
+    spawnChief(input: {
+      runID: string
+      stage: string
+      chief: string
+      instruction: string
+      resumeTaskID?: string
+    }): Promise<{ taskID: string; cost: number; toolIDs?: string[] }>
+    evaluate(input: { runID: string; stage: string; model: string; prompt: string }): Promise<string>
+    readDeliverable?: (input: { runID: string; stage: string; path: string }) => Promise<string>
+    now: () => number
+    emit: (event: Event) => void
+  }
+
+  export type Outcome =
+    | { type: "completed" }
+    | { type: "halted"; reason: string }
+    | { type: "paused"; kind: "escalation" | "final_gate" | "manual"; stage: string; detail: string }
+
+  function instruction(taskPrompt: string, stage: OrgState.Stage): string {
+    const criteria = stage.criteria ?? []
+    if (criteria.length === 0) return taskPrompt
+    return [
+      taskPrompt,
+      "",
+      "Approved acceptance criteria (produce explicit evidence for every item):",
+      ...criteria.map((criterion) => `- [ ] ${criterion}`),
+    ].join("\n")
+  }
+
+  function emit(deps: Deps, event: Omit<Event, "ts">) {
+    deps.emit({ ...event, ts: deps.now() })
+  }
+
+  export async function drive(runID: string, deps: Deps): Promise<Outcome> {
+    const loop = OrgSchema.resolveLoop(deps.org)
+    let taskResults: Array<{ stage: string; taskID: string }> = []
+
+    for (;;) {
+      const batch = await OrgRunner.advance(deps.runnerDeps, deps.projectDir, deps.org, runID, { taskResults })
+      taskResults = []
+
+      if (batch.halted) {
+        emit(deps, { type: "halted", detail: batch.halted.reason })
+        return { type: "halted", reason: batch.halted.reason }
+      }
+      if (batch.done) {
+        emit(deps, { type: "completed" })
+        return { type: "completed" }
+      }
+      if (batch.paused) return { type: "paused", ...batch.paused }
+
+      if (batch.gate) {
+        const stage = batch.gate.stage
+        const run = await OrgState.read(deps.projectDir, runID)
+        if (run.auto !== true) {
+          const detail = "run reached a human gate outside autonomous mode"
+          const paused = await OrgRunner.pause(deps.projectDir, deps.org, runID, {
+            kind: "final_gate",
+            stage,
+            detail,
+          })
+          emit(deps, { type: "final_gate", stage, detail })
+          return { type: "paused", ...paused.pausedReason! }
+        }
+        const record = run.stages[stage]
+        const path = OrgArtifacts.deliverablePath(deps.projectDir, runID, stage)
+        const deliverable = deps.readDeliverable
+          ? await deps.readDeliverable({ runID, stage, path })
+          : await Bun.file(path)
+              .text()
+              .catch(() => "")
+        const prompt = OrgEvaluator.prompt({
+          stage,
+          objective: record.objective ?? `Complete stage ${stage}`,
+          criteria: record.criteria ?? [],
+          deliverable,
+        })
+        const reply = await deps.evaluate({ runID, stage, model: loop.evaluatorModel, prompt }).catch(() => "")
+        const verdict = OrgEvaluator.parse(reply)
+        emit(deps, {
+          type: "evaluator_verdict",
+          stage,
+          pass: verdict.pass,
+          detail: verdict.reasons?.join("; ") ?? verdict.summary,
+        })
+        const applied = await OrgRunner.applyVerdict(deps.projectDir, deps.org, runID, stage, verdict, deps.now())
+        if (applied.outcome === "escalated" || applied.outcome === "final_gate") {
+          const reason = applied.run.pausedReason!
+          emit(deps, { type: applied.outcome === "escalated" ? "escalation" : "final_gate", stage, detail: reason.detail })
+          return { type: "paused", ...reason }
+        }
+        if (applied.outcome === "revise") {
+          emit(deps, {
+            type: "revise_iteration",
+            stage,
+            iteration: applied.run.stages[stage].iterations,
+            detail: verdict.reasons?.join("; "),
+          })
+        }
+        continue
+      }
+
+      const jobs = [
+        ...batch.instruct.map((item) => ({
+          stage: item.stage,
+          chief: item.chief,
+          taskPrompt: item.taskPrompt,
+          resumeTaskID: item.resumeTaskID,
+        })),
+        ...(batch.incomplete
+          ? [
+              {
+                stage: batch.incomplete.stage,
+                chief: batch.incomplete.chief ?? deps.org.departments[batch.incomplete.stage].chief,
+                taskPrompt: batch.incomplete.taskPrompt ?? batch.incomplete.reason,
+                resumeTaskID: batch.incomplete.resumeTaskID,
+              },
+            ]
+          : []),
+      ]
+      if (jobs.length === 0) {
+        const reason = "autonomous conductor made no progress"
+        emit(deps, { type: "halted", detail: reason })
+        return { type: "halted", reason }
+      }
+
+      const run = await OrgState.read(deps.projectDir, runID)
+      for (const job of jobs) emit(deps, { type: "stage_started", stage: job.stage })
+      const settled = await Promise.all(
+        jobs.map(async (job) => ({
+          stage: job.stage,
+          result: await deps.spawnChief({
+            runID,
+            stage: job.stage,
+            chief: job.chief,
+            instruction: instruction(job.taskPrompt, run.stages[job.stage]),
+            resumeTaskID: job.resumeTaskID,
+          }),
+        })),
+      )
+      for (const item of settled) {
+        await OrgRunner.recordToolUsage(
+          deps.projectDir,
+          deps.org,
+          runID,
+          item.stage,
+          item.result.toolIDs ?? [],
+        )
+        taskResults.push({ stage: item.stage, taskID: item.result.taskID })
+        emit(deps, {
+          type: "deliverable_settled",
+          stage: item.stage,
+          taskID: item.result.taskID,
+          cost: item.result.cost,
+        })
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { OrgAudit } from "./audit"
 import { OrgVersions } from "./versions" // kilocode_change - W8.5: best-effort deliverable version snapshots
 import { OrgGraph } from "./graph" // kilocode_change - W8.6: impact radius surfaced on revise
 import { OrgEvaluator } from "./evaluator" // kilocode_change - SP1 autonomous evaluator verdicts
+import { OrgIrreversible } from "./irreversible" // kilocode_change - SP1 final-gate policy
 
 export namespace OrgRunner {
   export interface Deps {
@@ -765,7 +766,11 @@ export namespace OrgRunner {
     // a concurrency slot, so this loop keeps filling slots until nothing more is ready or slots
     // run out.
     const maxConcurrency = org.maxConcurrency ?? 1
-    for (;;) {
+    // In auto mode an evaluator gate serializes the next transition. Starting newly-ready work in
+    // the same call would let it escape before the held deliverable is judged. Initial DAG fan-out
+    // is unaffected because it has no blocker.
+    const mayFanOut = !(run.auto === true && blocker?.kind === "gate")
+    for (; mayFanOut; ) {
       const runningCount = OrgState.runningStages(org, run).length
       const slots = Math.max(0, maxConcurrency - runningCount)
       if (slots === 0) break
@@ -928,6 +933,22 @@ export namespace OrgRunner {
 
   export type VerdictOutcome = "approved" | "revise" | "escalated" | "final_gate"
 
+  /** Persist exact tool usage before the evaluator turn so a re-entrant conductor cannot lose it. */
+  export async function recordToolUsage(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    stage: string,
+    toolIDs: readonly string[],
+  ): Promise<OrgState.Run> {
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    if (!run.stages[stage]) throw new Error(`Unknown stage "${stage}" in run ${runID}`)
+    return OrgState.update(projectDir, runID, (state) => {
+      state.stages[stage].toolsUsed = [...new Set([...(state.stages[stage].toolsUsed ?? []), ...toolIDs])]
+    })
+  }
+
   /** Apply one structured evaluator verdict at the held evaluator boundary. */
   export async function applyVerdict(
     projectDir: string,
@@ -950,7 +971,9 @@ export namespace OrgRunner {
     const detail = verdict.reasons?.join("; ") ?? verdict.summary ?? "all acceptance criteria passed"
     const nextIterations = (run.stages[stage].iterations ?? 0) + (verdict.pass ? 0 : 1)
     const exhausted = !verdict.pass && nextIterations > OrgSchema.resolveLoop(org).maxIterations
-    const finalGate = verdict.pass && OrgState.isIrreversible(org, stage)
+    const finalGate =
+      verdict.pass &&
+      (OrgState.isIrreversible(org, stage) || OrgIrreversible.touched(run.stages[stage].toolsUsed ?? []))
     const reviseBaseline = !verdict.pass && !exhausted ? await deliverableHash(projectDir, runID, stage) : undefined
     const deliverableHashForAudit = await deliverableHashOrUndefined(projectDir, runID, stage)
     if (!verdict.pass && !exhausted) await OrgVersions.snapshot(projectDir, runID, stage).catch(() => undefined)
