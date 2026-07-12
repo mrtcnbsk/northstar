@@ -294,7 +294,7 @@ jobs:
         shell: pwsh
         run: |
           $package = "${{ matrix.package }}".Replace("/", "\")
-          $binary = ".\dist\$package\bin\kilo.exe"
+          $binary = ".\dist\$package\bin\northstar.exe"
           & $binary --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
