@@ -373,4 +373,10 @@ jobs:
           KILO_PRE_RELEASE: ${{ inputs.pre_release }}
           GH_REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ steps.committer.outputs.token }}
-          NPM_CONFIG_PROVENANCE: true
+          # kilocode_change start - wire the NPM_TOKEN secret into the .npmrc that setup-node
+          # writes (it references ${NODE_AUTH_TOKEN}; without this env npm publishes with the
+          # setup-node placeholder token and the registry masks the auth failure as E404).
+          # NPM_CONFIG_PROVENANCE dropped for the first publish: provenance attestation 404s on
+          # brand-new packages. Re-enable once @ilura/northstar exists on npm.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # kilocode_change end
