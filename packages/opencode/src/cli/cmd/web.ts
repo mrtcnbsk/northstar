@@ -10,7 +10,7 @@ import open from "open"
 export const WebCommand = effectCmd({
   command: "web",
   builder: (yargs) => withNetworkOptions(yargs),
-  describe: "start kilo server and open web interface",
+  describe: "start Northstar server and open web interface", // kilocode_change - presentation brand
   // Server loads instances per-request via x-kilo-directory header — no
   // ambient project InstanceContext needed at startup.
   instance: false, // kilocode_change

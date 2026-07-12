@@ -21,7 +21,7 @@ describe("opencode acp initialize/auth subprocess", () => {
         expect(initialized.agentCapabilities?.sessionCapabilities?.fork).toEqual({})
         expect(initialized.agentCapabilities?.sessionCapabilities?.list).toEqual({})
         expect(initialized.agentCapabilities?.sessionCapabilities?.resume).toEqual({})
-        expect(initialized.agentInfo?.name).toBe("Kilo") // kilocode_change
+        expect(initialized.agentInfo?.name).toBe("Northstar") // kilocode_change
       }),
     60_000,
   )

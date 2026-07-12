@@ -8,7 +8,7 @@ import { InstanceRuntime } from "../../project/instance-runtime" // kilocode_cha
 export const ServeCommand = effectCmd({
   command: "serve",
   builder: (yargs) => withNetworkOptions(yargs),
-  describe: "starts a headless kilo server",
+  describe: "starts a headless Northstar server", // kilocode_change - presentation brand
   // Server loads instances per-request via x-kilo-directory header — no
   // need for an ambient project InstanceContext at startup.
   instance: false, // kilocode_change

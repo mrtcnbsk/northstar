@@ -8,9 +8,9 @@
 // diff tells you exactly which command(s) changed.
 //
 // Snapshots are taken at COLUMNS=120 so wrapping is stable across
-// kilocode_change start - describe Kilo's branded CLI
-// terminal sizes. The default kilo TUI command is excluded —
-// `kilo --help` includes an ASCII banner that pulls in the install
+// kilocode_change start - describe Northstar's branded CLI
+// terminal sizes. The default Northstar TUI command is excluded —
+// `northstar --help` includes an ASCII banner that pulls in the install
 // kilocode_change end
 // version (changes per release), so we'd snapshot a moving target.
 import { describe, expect } from "bun:test"
@@ -29,8 +29,9 @@ import { normalizeForSnapshot, PATH_SEP } from "../../lib/snapshot"
 //      path widths produce different leading-whitespace counts (or even
 //      line-wraps onto a fresh line on Windows). `\s+` matches both forms.
 function normalize(text: string): string {
-  // kilocode_change start - snapshot Kilo help independently of lifecycle logs
-  const help = text.slice(text.indexOf("kilo "))
+  // kilocode_change start - snapshot Northstar help independently of lifecycle logs
+  const start = text.indexOf("northstar ")
+  const help = start >= 0 ? text.slice(start) : text
   const output = help
     .replace(/(?=INFO  \d{4}-\d{2}-\d{2}).*$/s, "")
     .replace(/ {4}(?=\[aliases: ls\])/g, "")
@@ -49,11 +50,11 @@ function normalize(text: string): string {
   })
 }
 
-// kilocode_change start - describe Kilo's command list
-// Top-level commands. Order matches what `kilo --help` prints today;
+// kilocode_change start - describe Northstar's command list
+// Top-level commands. Order matches what `northstar --help` prints today;
 // keep it in that order so the snapshot file reads as a table of contents.
 // `completion` is intentionally excluded — it's a yargs built-in that emits
-// top-level help on `--help` and exits 1; not a real kilo command.
+// top-level help on `--help` and exits 1; not a real Northstar command.
 // kilocode_change end
 const TOP_LEVEL = [
   "acp",
@@ -104,7 +105,7 @@ const SUBCOMMANDS = [
 const SNAPSHOT_ENV = { COLUMNS: "120" }
 
 // kilocode_change start - name snapshots after the shipped CLI
-describe("Kilo CLI help-text snapshots", () => {
+describe("Northstar CLI help-text snapshots", () => {
   // kilocode_change end
   // Single test, parallel spawns. Each command's help fires under
   // `concurrency: 8` — wall-clock stays under ~10s even for ~35 commands,
@@ -125,18 +126,19 @@ describe("Kilo CLI help-text snapshots", () => {
             Effect.gen(function* () {
               const result = yield* opencode.spawn([...argv, "--help"], { env: SNAPSHOT_ENV })
               if (result.exitCode !== 0) {
-                return yield* Effect.fail(`kilo ${argv.join(" ")}: exit ${result.exitCode}`) // kilocode_change
+                return yield* Effect.fail(`northstar ${argv.join(" ")}: exit ${result.exitCode}`) // kilocode_change
               }
               return { argv, result }
             }),
-          { concurrency: 8 },
+          // kilocode_change - keep nested process fan-out bounded when the outer test runner also batches files.
+          { concurrency: 4 },
         )
 
         for (const { argv, result } of results) {
           // yargs writes --help to stderr, not stdout. Snapshotting stderr
           // means our test catches the help body; stdout for these commands
           // is expected to be empty.
-          expect(normalize(result.stderr)).toMatchSnapshot(`kilo ${argv.join(" ")} --help`) // kilocode_change
+          expect(normalize(result.stderr)).toMatchSnapshot(`northstar ${argv.join(" ")} --help`) // kilocode_change
         }
         if (failures.length > 0) {
           throw new Error(`Help text failed for:\n  ${failures.join("\n  ")}`)

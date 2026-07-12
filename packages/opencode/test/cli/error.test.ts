@@ -73,7 +73,7 @@ describe("cli.error", () => {
     const expected = [
       "Model not found: anthropic/claude-sonet-4",
       "Did you mean: claude-sonnet-4",
-      "Try: `kilo models` to list available models",
+      "Try: `northstar models` to list available models",
       "Or check your kilo.json provider/model names", // kilocode_change
     ].join("\n")
 

@@ -15,10 +15,11 @@ import path from "path"
 
 const mcpSource = path.join(__dirname, "..", "..", "src", "mcp", "index.ts")
 
-describe("Kilo MCP branding", () => {
-  test("auth toast tells the user to run `kilo mcp auth`, never `opencode mcp auth`", async () => {
+describe("Northstar MCP presentation", () => {
+  test("auth toast tells the user to run `northstar mcp auth`, never an internal executable", async () => {
     const src = await Bun.file(mcpSource).text()
-    expect(src).toContain("Run: kilo mcp auth ${key}")
+    expect(src).toContain("Run: northstar mcp auth ${key}")
+    expect(src).not.toContain("Run: kilo mcp auth")
     expect(src).not.toContain("Run: opencode mcp auth")
   })
 

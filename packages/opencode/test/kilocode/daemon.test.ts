@@ -307,7 +307,7 @@ describe("daemon manager", () => {
     ])
 
     expect(code).toBe(0)
-    expect(stdout).toContain("kilo daemon stopped")
+    expect(stdout).toContain("northstar daemon stopped")
     expect(stderr).not.toContain("Could not open browser automatically")
     expect((await Daemon.status()).running).toBe(false)
   }, 45_000)
@@ -318,7 +318,7 @@ describe("daemon manager", () => {
       await using tmp = await tmpdir()
       const env = dirs(tmp.path)
       const proc = cli(["daemon", "-f", "--port", "0"], env)
-      const stdout = capture(proc.stdout, "Press Ctrl+C to stop the Kilo daemon.")
+      const stdout = capture(proc.stdout, "Press Ctrl+C to stop the Northstar daemon.")
       const stderr = new Response(proc.stderr).text()
 
       try {
@@ -338,7 +338,7 @@ describe("daemon manager", () => {
         proc.kill("SIGINT")
         expect(await deadline(proc.exited, 10_000)).toBe(0)
         expect((await Daemon.status()).running).toBe(false)
-        expect(await stdout.text).toContain("kilo daemon started")
+        expect(await stdout.text).toContain("northstar daemon started")
         await stderr
       } finally {
         if (proc.exitCode === null) proc.kill("SIGKILL")
