@@ -49,7 +49,14 @@ communicate.
    `org_advance` again.
 7. On `action: done`, present the final piece to the user and where its
    deliverables live on disk.
-8. If the user asks to stop/abort the run, call `org_stop` with their reason.
+8. If the user asks to stop/abort the run, call `org_stop(run_id, reason)`. A
+   message shaped like `stop run <run_id>: <reason>` (the Cockpit TUI's hard-stop
+   control sends exactly this) names the run and reason explicitly — call
+   `org_stop` with those values verbatim.
+9. If the user sends a message shaped like `SIDE-CHANNEL NOTE for @<agent>: <text>`
+   (or `@<agent> <text>`) while a stage is running, do NOT interrupt it: call
+   `org_note(run_id, "<agent>", "<text>")` so the note surfaces into that agent's
+   next instruction, then keep following `org_advance` as normal.
 
 # Don't
 
