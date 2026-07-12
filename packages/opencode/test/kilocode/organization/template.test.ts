@@ -24,16 +24,14 @@ describe("org-template consistency", () => {
     const { org } = await loadTemplate()
     expect(OrgSchema.validate(org)).toEqual([])
     expect(org.pipeline.length).toBe(11)
-    expect(org.pipeline[0]).toMatchObject({ stage: "evaluation", gate: "human", haltOn: "no-go" })
-    // kilocode_change - W5.4: review is the pre-ship quality gate, inserted between debugging and
-    // the terminal marketing stage.
+    expect(org.pipeline[0]).toMatchObject({ stage: "evaluation" })
+    expect(org.pipeline[1]).toMatchObject({ stage: "planning", gate: "human", haltOn: "no-go" })
+    // SP1 loop mode: review and marketing are evaluator-driven; delivery is the sole final gate.
     expect(org.pipeline[7]).toMatchObject({
       stage: "review",
       requires: ["debugging"],
-      gate: "human",
-      haltOn: "no-go",
     })
-    expect(org.pipeline[8]).toMatchObject({ stage: "marketing", requires: ["review"], gate: "human" })
+    expect(org.pipeline[8]).toMatchObject({ stage: "marketing", requires: ["review"] })
     // kilocode_change start - W7.7: the ship gate is now a REAL gate. `delivery` prepares (archive/
     // export/validate metadata) and gates on human approval BEFORE anything is submitted;
     // `release` (no gate) submits via asc_submit and only ever runs after the human approved
@@ -575,16 +573,18 @@ describe("org-template consistency", () => {
       const run = await OrgRunner.start(tmp.path, org, "no mode idea")
       expect(run.mode).toBeUndefined()
 
-      // Drive: evaluation (gate:human) -> approve -> planning -> ux -> backend+frontend (parallel,
-      // maxConcurrency 2) -> testing -> debugging -> marketing (gate:human) -> approve -> done.
+      // Drive: evaluation -> planning (the one plan gate) -> ux -> backend+frontend (parallel,
+      // maxConcurrency 2) -> testing -> debugging -> review -> marketing -> delivery gate -> release.
       await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
       await writeDeliverable(run.runID, "evaluation")
-      await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_eval" })
-      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
+      const afterEvaluation = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_eval" })
+      expect(afterEvaluation.instruct.map((i) => i.stage)).toEqual(["planning"])
 
-      await OrgRunner.advance(deps, tmp.path, org, run.runID, {}) // instructs planning
       await writeDeliverable(run.runID, "planning")
-      await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_plan" }) // instructs ux
+      const afterPlanning = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_plan" })
+      expect(afterPlanning.gate?.stage).toBe("planning")
+      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
+      await OrgRunner.advance(deps, tmp.path, org, run.runID, {}) // instructs ux
       await writeDeliverable(run.runID, "ux")
       const afterUx = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_ux" })
       expect(afterUx.instruct.map((i) => i.stage).sort()).toEqual(["backend", "frontend"])
@@ -608,26 +608,13 @@ describe("org-template consistency", () => {
       expect(afterDebugging.instruct.map((i) => i.stage)).toEqual(["review"])
       await writeDeliverable(run.runID, "review")
       const afterReview = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_review" })
-      expect(afterReview.gate).toBeDefined() // review has gate:"human"
-      expect(afterReview.gate!.stage).toBe("review")
-      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
-
-      // marketing must now be INSTRUCTED (its when:{mode:"full"} is gone, and review passed).
-      const afterDebugging2 = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
-      expect(afterDebugging2.instruct.map((i) => i.stage)).toEqual(["marketing"])
+      expect(afterReview.instruct.map((i) => i.stage)).toEqual(["marketing"])
       const midState = await OrgState.read(tmp.path, run.runID)
       expect(midState.stages["marketing"].status).toBe("running")
 
       await writeDeliverable(run.runID, "marketing")
       const afterMarketing = await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskID: "ses_marketing" })
-      expect(afterMarketing.gate).toBeDefined() // marketing has gate:"human"
-      expect(afterMarketing.gate!.stage).toBe("marketing")
-      await OrgRunner.decide(tmp.path, org, run.runID, "approve")
-
-      // kilocode_change start - W7.6/W7.7: marketing's approval now instructs "delivery" (the
-      // gated ship-readiness prep stage) instead of completing the run directly.
-      const afterMarketingApprove = await OrgRunner.advance(deps, tmp.path, org, run.runID, {})
-      expect(afterMarketingApprove.instruct.map((i) => i.stage)).toEqual(["delivery"])
+      expect(afterMarketing.instruct.map((i) => i.stage)).toEqual(["delivery"])
       const midStateDelivery = await OrgState.read(tmp.path, run.runID)
       expect(midStateDelivery.stages["delivery"].status).toBe("running")
 

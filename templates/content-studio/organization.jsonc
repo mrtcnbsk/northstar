@@ -1,10 +1,11 @@
-// Organization chart + pipeline for a content organization: draft, edit, then
-// a human-gated fact-check/quality review before the run completes.
+// Organization chart + pipeline for a content organization: one editable plan
+// approval, then evaluator-driven draft, edit, and fact-check loops.
 // Scaffold this template into your project: northstar org init --template content-studio
 {
   "ceo": "ceo",
   "toolpacks": [],
   "departments": {
+    "plan":   { "chief": "editorial-chief", "workers": ["writer"] },
     // editorial-chief chiefs ALL THREE departments (a chief may chief more than
     // one department - OrgSchema.validate/crossCheck only bar a name being both
     // a chief and a worker; a chief's subordinates just need to be a superset of
@@ -20,12 +21,12 @@
   // omitted fields fall back to these owner-approved defaults. See
   // OrgSchema.resolveBudget / the ios-app-factory template for the full field docs.
   "budget": { "run": 30, "stage": 10, "escalationThreshold": 8, "retries": 2 },
-  // Linear, drivable-to-done pipeline: draft -> edit (needs the draft) ->
-  // review (needs the edited copy; a human fact-check gate that can halt the
-  // run on a "no-go" verdict instead of publishing unverified content).
+  "loop": { "maxIterations": 4, "evaluatorModel": "haiku" },
+  // One editable plan approval, then evaluator-driven draft/edit/review loops.
   "pipeline": [
-    { "stage": "draft" },
-    { "stage": "edit", "requires": ["draft"] },
-    { "stage": "review", "requires": ["edit"], "gate": "human", "haltOn": "no-go" }
+    { "stage": "plan", "gate": "human", "criteria": ["Audience, voice, sources, and acceptance evidence are explicit"] },
+    { "stage": "draft", "criteria": ["The draft covers the approved brief and cites required sources"] },
+    { "stage": "edit", "requires": ["draft"], "criteria": ["Structure, voice, and mechanics meet the approved brief"] },
+    { "stage": "review", "requires": ["edit"], "criteria": ["Every factual claim is supported and no blocking quality issue remains"] }
   ]
 }

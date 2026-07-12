@@ -100,6 +100,8 @@ export namespace OrgState {
     auto: z.boolean().optional(),
     /** Root/CEO session that owns child chief and evaluator sessions for the headless driver. */
     ownerSessionID: z.string().optional(),
+    /** Single-use authorization minted by a final-gate approval for the next denylisted action stage. */
+    irreversibleApproval: z.object({ stage: z.string(), ts: z.number() }).optional(),
     pausedReason: z
       .object({
         kind: z.enum(["escalation", "final_gate", "manual"]),

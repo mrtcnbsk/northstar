@@ -6,6 +6,7 @@
   "ceo": "ceo",
   "toolpacks": [],
   "departments": {
+    "plan": { "chief": "lead", "workers": ["worker"] },
     "work": { "chief": "lead", "workers": ["worker"] }
   },
   "shared": [],
@@ -13,7 +14,10 @@
   // omitted fields fall back to these owner-approved defaults. See
   // OrgSchema.resolveBudget / the ios-app-factory template for the full field docs.
   "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
-  // A single, ungated stage: the chief receives the idea, delegates to the
-  // worker, and writes the department's one deliverable (work.md).
-  "pipeline": [{ "stage": "work" }]
+  "loop": { "maxIterations": 4, "evaluatorModel": "haiku" },
+  // One editable plan approval, followed by autonomous work.
+  "pipeline": [
+    { "stage": "plan", "gate": "human", "criteria": ["Scope and acceptance evidence are explicit"] },
+    { "stage": "work", "criteria": ["The requested outcome is complete and verified"] }
+  ]
 }

@@ -984,9 +984,10 @@ export namespace OrgRunner {
     const detail = verdict.reasons?.join("; ") ?? verdict.summary ?? "all acceptance criteria passed"
     const nextIterations = (run.stages[stage].iterations ?? 0) + (verdict.pass ? 0 : 1)
     const exhausted = !verdict.pass && nextIterations > OrgSchema.resolveLoop(org).maxIterations
+    const touchedIrreversibleTool = OrgIrreversible.touched(run.stages[stage].toolsUsed ?? [])
+    const toolUseAuthorized = touchedIrreversibleTool && run.irreversibleApproval !== undefined
     const finalGate =
-      verdict.pass &&
-      (OrgState.isIrreversible(org, stage) || OrgIrreversible.touched(run.stages[stage].toolsUsed ?? []))
+      verdict.pass && (OrgState.isIrreversible(org, stage) || (touchedIrreversibleTool && !toolUseAuthorized))
     const reviseBaseline = !verdict.pass && !exhausted ? await deliverableHash(projectDir, runID, stage) : undefined
     const deliverableHashForAudit = await deliverableHashOrUndefined(projectDir, runID, stage)
     if (!verdict.pass && !exhausted) await OrgVersions.snapshot(projectDir, runID, stage).catch(() => undefined)
@@ -1007,6 +1008,7 @@ export namespace OrgRunner {
         record.decision = "approve"
         record.decisionNote = verdict.summary
         record.escalationNote = undefined
+        if (toolUseAuthorized) state.irreversibleApproval = undefined
         return
       }
       if (exhausted) {
@@ -1135,6 +1137,7 @@ export namespace OrgRunner {
     // kilocode_change end
     // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
     const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
+    const mintsIrreversibleApproval = decision === "approve" && run.pausedReason?.kind === "final_gate"
     // kilocode_change start - W8.5: best-effort content snapshot of the PRE-revise deliverable.
     // The chief overwrites the live .md in place, so without this the content being revised away
     // would be unrecoverable once the chief's next write lands. Must NEVER break the decision;
@@ -1152,6 +1155,9 @@ export namespace OrgRunner {
       record.escalationNote = undefined
       if (decision === "approve") {
         record.status = "completed"
+        if (mintsIrreversibleApproval) {
+          s.irreversibleApproval = { stage: gated.stage, ts: Date.now() }
+        }
         // `commitPlan` arms loop mode with auto:false; approving the first plan gate starts it.
         if (s.auto === false && gated.stage === org.pipeline[0].stage) s.auto = true
       } else if (decision === "no-go") {

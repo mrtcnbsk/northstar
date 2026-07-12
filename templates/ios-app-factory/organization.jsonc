@@ -11,7 +11,7 @@
     "frontend":   { "chief": "frontend-chief", "workers": ["swiftui-dev-1", "swiftui-dev-2"] },
     "testing":    { "chief": "test-chief", "workers": ["unit-tester", "ui-tester"] },
     "debugging":  { "chief": "debug-chief", "workers": ["debugger"] },
-    // W5.3/W5.4: the pre-ship quality gate. review-chief fans OUT its workers (each a focused
+    // W5.3/W5.4: the pre-ship quality loop. review-chief fans OUT its workers (each a focused
     // reviewer) plus consultant validators already used by other chiefs (appstore-review-validator,
     // accessibility-validator, hig-validator, entitlement-validator - see review-chief.md's
     // `subordinates`) IN PARALLEL, then aggregates a per-reviewer-vote consensus into review.md.
@@ -42,6 +42,7 @@
   //   escalationThreshold: spend level that triggers a human-escalation warning
   //   retries: max retries for a stage before it is treated as failed
   "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
+  "loop": { "maxIterations": 4, "evaluatorModel": "haiku" },
   // DAG fields (all optional, opt-in - see Wave 4 plan). As of W4.7 this template actually
   // exercises them (see the pipeline below), so this is no longer just reference documentation:
   //   pipeline[].requires  - stage names this stage depends on. Omitted defaults to
@@ -79,30 +80,28 @@
   // concurrently instead of just resolving them as both-ready. `marketing` is terminal (nothing
   // depends on it) and carries NO `when` - it is the App-Store deliverable this org exists to
   // produce, so it always runs; every run completes with marketing either "completed" or (if the
-  // human gate rejects it) handled via the normal gate/halt path, never silently "skipped".
+  // evaluator rejects it) handled via the bounded revise/escalation path, never silently "skipped".
   "pipeline": [
-    { "stage": "evaluation", "gate": "human", "haltOn": "no-go" },
-    { "stage": "planning" },
-    { "stage": "ux" },
-    { "stage": "backend", "requires": ["ux"] },
-    { "stage": "frontend", "requires": ["ux"] },
-    { "stage": "testing", "requires": ["backend", "frontend"] },
-    { "stage": "debugging" },
-    // W5.4: the pre-ship quality gate. review-chief fans its reviewers out in parallel over the
+    { "stage": "evaluation", "criteria": ["Market, competitor, and feasibility evidence supports the recommendation"] },
+    { "stage": "planning", "gate": "human", "haltOn": "no-go", "criteria": ["Scope, architecture, risks, and per-stage acceptance evidence are explicit"] },
+    { "stage": "ux", "criteria": ["Every approved flow has an accessible interaction specification"] },
+    { "stage": "backend", "requires": ["ux"], "criteria": ["Data and service behavior satisfy the approved architecture with tests"] },
+    { "stage": "frontend", "requires": ["ux"], "criteria": ["SwiftUI implementation covers approved flows and accessibility states"] },
+    { "stage": "testing", "requires": ["backend", "frontend"], "criteria": ["Unit and UI suites pass with cited command output"] },
+    { "stage": "debugging", "criteria": ["All reproduced blockers are fixed or explicitly bounded with evidence"] },
+    // W5.4: the pre-ship quality loop. review-chief fans its reviewers out in parallel over the
     // built app + every prior deliverable and aggregates a consensus verdict (see review-chief.md).
-    // `gate: "human"` + `haltOn: "no-go"` mean a human sees the per-reviewer votes and the overall
-    // verdict before the app is allowed to proceed to the terminal marketing stage; a "no-go"
-    // decision halts the run so a seeded defect (hardcoded secret, missing privacy manifest, App
-    // Store guideline rejection, insecure transport) never reaches ship.
-    { "stage": "review", "requires": ["debugging"], "gate": "human", "haltOn": "no-go" },
+    // Its measurable criterion keeps seeded defects (hardcoded secret, missing privacy manifest,
+    // App Store guideline rejection, insecure transport) in a bounded revise loop; exhaustion
+    // pauses with the rejection reasons instead of proceeding.
+    { "stage": "review", "requires": ["debugging"], "criteria": ["Consensus review reports PASS with no blocking security, privacy, or App Store issue"] },
     // Always runs (no `when`): marketing is the terminal App-Store deliverable (ASO/copy/
     // pricing/preview) - the whole reason this org exists - so it must not be gated behind a
     // condition that defaults to skip. See the `when` doc comment above for why a positive-match
     // condition like {mode:"full"} is the wrong shape for a required stage: a run's mode is
     // undefined unless something explicitly sets it, so {mode:"full"} would skip it by default.
-    // `requires: ["review"]` (W5.4) means marketing only runs once the review gate has been
-    // approved - it no longer defaults to its previous-stage (debugging); review sits between them.
-    { "stage": "marketing", "requires": ["review"], "gate": "human" },
+    // `requires: ["review"]` means marketing only runs once review passes its evaluator criteria.
+    { "stage": "marketing", "requires": ["review"], "criteria": ["Store copy, pricing, keywords, and previews are complete and policy-safe"] },
     // W7.6/W7.7: the ship gate, split into TWO stages so it's a REAL gate rather than a decorative
     // one. Why split: the runner fires a stage's `gate:"human"` AFTER its chief already produced
     // the deliverable, and `decide()`'s approve branch just flips the stage's status to
@@ -115,7 +114,7 @@
     // archive, export the .ipa, validate the marketing metadata - and writes a ship-readiness
     // deliverable. THIS gate is the actual "ship it" decision: no-go halts (nothing built has been
     // submitted); approve just marks this stage completed and lets `release` become ready.
-    { "stage": "delivery", "requires": ["marketing"], "gate": "human", "haltOn": "no-go" },
+    { "stage": "delivery", "requires": ["marketing"], "gate": "human", "haltOn": "no-go", "criteria": ["Archive, export, metadata, privacy, and signing checks are ready for submission"] },
     // `release` (`requires: ["delivery"]`, no gate): the new terminal stage. Its chief (the same
     // delivery-chief) calls `asc_submit` - this only ever runs once "delivery" has transitioned to
     // "completed", i.e. strictly after the human approved the ship gate above. A
@@ -123,8 +122,8 @@
     // user, who directs a fresh release-chief session to fix the metadata/build and resubmit (see
     // ceo.md) - `org_decision "revise"` cannot target this stage since it has no gate of its own
     // to reopen (decide() only ever acts on a stage currently "awaiting_approval").
-    { "stage": "release", "requires": ["delivery"] }
-    // Per-stage override example: { "stage": "marketing", "gate": "human", "budget": 25 }
+    { "stage": "release", "requires": ["delivery"], "criteria": ["Submission receipt and observed App Store Connect state are recorded"] }
+    // Per-stage override example: { "stage": "marketing", "budget": 25 }
   ],
   // Default 1 (sequential) would still resolve backend/frontend as both-ready together, but only
   // run one at a time; 2 lets the runner actually dispatch both branches of the diamond above in

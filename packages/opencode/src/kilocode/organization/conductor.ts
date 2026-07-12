@@ -74,6 +74,18 @@ export namespace OrgConductor {
     const loop = OrgSchema.resolveLoop(deps.org)
     let taskResults: Array<{ stage: string; taskID: string }> = []
 
+    const escalate = async (stage: string, detail: string): Promise<Outcome> => {
+      const pause = () =>
+        OrgRunner.pause(deps.projectDir, deps.org, runID, {
+          kind: "escalation",
+          stage,
+          detail,
+        })
+      await (deps.lock ? deps.lock(pause) : pause())
+      await emit(deps, runID, { type: "escalation", stage, detail })
+      return { type: "paused", kind: "escalation", stage, detail }
+    }
+
     for (;;) {
       const advance = () => OrgRunner.advance(deps.runnerDeps, deps.projectDir, deps.org, runID, { taskResults })
       const batch = await (deps.lock ? deps.lock(advance) : advance())
@@ -166,26 +178,38 @@ export namespace OrgConductor {
           : []),
       ]
       if (jobs.length === 0) {
-        const reason = "autonomous conductor made no progress"
-        await emit(deps, runID, { type: "halted", detail: reason })
-        return { type: "halted", reason }
+        const run = await OrgState.read(deps.projectDir, runID)
+        const stage = OrgState.runSummary(run).currentStage ?? "none"
+        return escalate(stage, "autonomous conductor made no progress")
       }
 
       const run = await OrgState.read(deps.projectDir, runID)
       for (const job of jobs) await emit(deps, runID, { type: "stage_started", stage: job.stage })
       const settled = await Promise.all(
-        jobs.map(async (job) => ({
-          stage: job.stage,
-          result: await deps.spawnChief({
-            runID,
-            stage: job.stage,
-            chief: job.chief,
-            instruction: instruction(job.taskPrompt, run.stages[job.stage]),
-            resumeTaskID: job.resumeTaskID,
-          }),
-        })),
+        jobs.map(async (job) => {
+          try {
+            return {
+              stage: job.stage,
+              result: await deps.spawnChief({
+                runID,
+                stage: job.stage,
+                chief: job.chief,
+                instruction: instruction(job.taskPrompt, run.stages[job.stage]),
+                resumeTaskID: job.resumeTaskID,
+              }),
+            }
+          } catch (error) {
+            return { stage: job.stage, error }
+          }
+        }),
       )
+      const failed = settled.find((item): item is { stage: string; error: unknown } => "error" in item)
+      if (failed) {
+        const message = failed.error instanceof Error ? failed.error.message : String(failed.error)
+        return escalate(failed.stage, `chief session failed: ${message}`)
+      }
       for (const item of settled) {
+        if (!item.result) continue
         const record = () =>
           OrgRunner.recordToolUsage(
             deps.projectDir,

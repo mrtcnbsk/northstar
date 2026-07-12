@@ -188,4 +188,24 @@ describe("OrgConductor.drive", () => {
     if (outcome.type === "halted") expect(outcome.reason).toMatch(/budget ceiling exceeded/)
     expect(h.evaluatorCalls()).toBe(0)
   })
+
+  test("turns a chief-session failure into a visible recoverable escalation", async () => {
+    await using tmp = await tmpdir()
+    const org = orgOf([{ stage: "build" }])
+    const run = await seedAuto(tmp.path, org)
+    const h = harness({ projectDir: tmp.path, org, replies: ['{"pass":true}'] })
+    h.deps.spawnChief = async () => {
+      throw new Error("provider unavailable")
+    }
+
+    expect(await OrgConductor.drive(run.runID, h.deps)).toEqual({
+      type: "paused",
+      kind: "escalation",
+      stage: "build",
+      detail: "chief session failed: provider unavailable",
+    })
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("paused")
+    expect(state.stages.build.status).toBe("awaiting_approval")
+  })
 })

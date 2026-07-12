@@ -704,6 +704,24 @@ Full sweep SOLO 665/665. openapi.json + bun.lock dokunulmadı.
 # EPIC ROADMAP (0-8) TAMAMLANDI — 2026-07-12
 W0-W9 master plan + EPIC 0/1/2/3/4/5/6/7/8 hepsi main'de + push'lu (repo PUBLIC, Ilura Technology OÜ, MIT). Her epic: JIT plan → subagent-driven TDD → exit test → adversarial wave-close review (Workflow, 3-şüpheci refutation) → full sweep SOLO → merge --no-ff → push --no-verify. Kalan tracked follow-up'lar: E6-R1/R2, E7-R1/R2/R3, E8-R1/R2/R3. Dependabot 9 açık (upstream deps).
 
+## SP1 Autonomous Loop Engine (2026-07-12)
+
+SP1, approved tasarımın backend/headless yarısını tamamlar: saf fail-closed `OrgEvaluator`, additive loop/state şeması,
+deterministik `OrgConductor`, tek-seferlik düzenlenebilir `org_plan`, escalation/final-gate pause/resume geçişleri,
+run-scoped plan/decision/note/stop/pause/resume HTTP komutları, kalıcı conductor event audit'i ve single-flight session driver.
+Template lifecycle'ı `plan gate → autonomous criteria loops → (yalnız dış aksiyon varsa) final preflight gate` biçimine taşındı.
+Final-gate onayı bir sonraki denylisted action stage için tek kullanımlık yetki üretir; kullanım sonrası silinir, böylece onaysız
+publish/submit fail-closed kalırken onaylı release ikinci/post-action dekoratif kapı üretmez.
+
+**SP1 doğrulama kapsamı:** evaluator parse/prompt, legacy state back-compat, runner geçişleri, revise→pass, exhaustion→escalation,
+DAG fan-out, budget hard-stop, authored/tool denylist final gate, session small-model seçimi + tools-denied evaluator, HTTP 400/404/500
+ayrımı ve gerçek exit akışı (`plan approve → revise → pass → delivery final gate → release → completed`).
+
+**TRACK (SP1 sonrası, SP2 girdisi):** Mission Control render/polling/conversation strip SP2'de uygulanacak. Process restart anında
+settled olmuş fakat conductor'a henüz raporlanmamış child-session sonucu için durable recovery checkpoint'i yok; driver single-flight
+process-içi ve state/audit kalıcı, fakat bu dar crash penceresinde operatör resume/steer gerekebilir. Cross-process run lock da mevcut
+process-local `withRunLock` sınırının dışında kalır.
+
 ## Release prep (2026-07-12) — npm publish hazırlığı
 Kullanıcı npm publish setup'ı istedi (token'ı chat'e yapıştırdı → **compromised, revoke edilmeli; asistan token'ı KULLANMADI/kullanamaz** — credential/publish prohibited). Repo tarafı hazırlandı:
 - **`@kilocode/sdk` + `@kilocode/plugin` root `script/publish.ts` publish path'inden ÇIKARILDI** (`33ad50746a` sonrası). Kök neden: bu scope Ilura'nın DEĞİL → gerçek CI publish CLI'ı yayınlar sonra bu iki pakette 403 alıp job'ı öldürür (kısmi release). CLI self-contained (`@ilura/northstar` dist package.json'ı yalnız platform-binary optionalDependencies taşır, @kilocode/sdk'ye runtime-bağımlı DEĞİL); sdk/plugin hâlâ BUILD ediliyor (CLI build'i için) ama publish edilmiyor. **EPIC 2 DEFERRED/RISK (a) ÇÖZÜLDÜ.** İleride @ilura/* rename ile publish açılabilir.

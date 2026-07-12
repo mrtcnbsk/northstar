@@ -9,8 +9,8 @@
  * Three load-bearing proofs, each driving a REAL wired component rather than re-deriving expected
  * values from the same code under test:
  *
- *  1. research-desk (a genuine non-iOS template org) runs research -> synthesize ->
- *     review(gate:approve) -> completed through the deterministic fixture harness (OrgBenchmark),
+ *  1. research-desk (a genuine non-iOS template org) runs plan(gate:approve) -> research ->
+ *     synthesize -> review -> completed through the deterministic fixture harness (OrgBenchmark),
  *     which drives the REAL OrgRunner/OrgState (no reimplemented pipeline logic). A kernel that
  *     silently still assumed an iOS-shaped pipeline (e.g. hardcoded stage names, an Apple-only
  *     gate path) would fail to reach "completed" here.
@@ -61,7 +61,7 @@ afterEach(async () => {
 // -------------------------------------------------------------------------------------------
 
 describe("EPIC 4 exit: research-desk (non-iOS org) runs to completed via the deterministic fixture runner", () => {
-  test("research -> synthesize -> review(gate:approve) -> completed, all three deliverables produced", async () => {
+  test("plan(gate:approve) -> research -> synthesize -> review -> completed, all deliverables produced", async () => {
     await using tmp = await tmpdir()
     const org = await loadTemplateOrg("research-desk")
     // Sanity: this is the REAL template, not a hand-built stub - and it carries no Apple toolpack.
@@ -71,9 +71,9 @@ describe("EPIC 4 exit: research-desk (non-iOS org) runs to completed via the det
     const bench = OrgBenchmark.parse({
       org,
       idea: "EPIC 4 exit: research the on-device agent-engine market",
-      costs: { research: 4, synthesize: 3, review: 1 },
-      decisions: { review: "approve" },
-      sla: { expectStatus: "completed", deliverables: ["research", "synthesize", "review"] },
+      costs: { plan: 1, research: 4, synthesize: 3, review: 1 },
+      decisions: { plan: "approve" },
+      sla: { expectStatus: "completed", deliverables: ["plan", "research", "synthesize", "review"] },
     })
     expect(OrgBenchmark.validate(bench)).toEqual([])
 
@@ -82,28 +82,30 @@ describe("EPIC 4 exit: research-desk (non-iOS org) runs to completed via the det
     // LOAD-BEARING: a REAL run through OrgRunner (not a re-derivation of expected values) actually
     // reaches "completed" and produced every stage's deliverable, including past the human gate.
     expect(result.status).toBe("completed")
-    expect(result.deliverablesProduced.sort()).toEqual(["research", "review", "synthesize"])
+    expect(result.deliverablesProduced.sort()).toEqual(["plan", "research", "review", "synthesize"])
     expect(result.slaViolations).toEqual([])
 
     // Cross-check against the REAL persisted state.json (not just the harness's own summary).
     const state = await OrgState.read(tmp.path, result.runID)
     expect(state.status).toBe("completed")
+    expect(state.stages["plan"]!.status).toBe("completed")
     expect(state.stages["research"]!.status).toBe("completed")
     expect(state.stages["synthesize"]!.status).toBe("completed")
     expect(state.stages["review"]!.status).toBe("completed")
-    // The human gate genuinely fired and was answered - not skipped or auto-completed.
-    expect(state.stages["review"]!.decision).toBe("approve")
+    // The single editable plan gate genuinely fired and was answered - not skipped or auto-completed.
+    expect(state.stages["plan"]!.decision).toBe("approve")
+    expect(state.stages["review"]!.decision).toBeUndefined()
   })
 
-  test("a scripted no-go at the review gate halts the run instead of completing (the gate is real, not decorative)", async () => {
+  test("a scripted no-go at the plan gate halts the run instead of completing (the gate is real, not decorative)", async () => {
     await using tmp = await tmpdir()
     const org = await loadTemplateOrg("research-desk")
 
     const bench = OrgBenchmark.parse({
       org,
       idea: "EPIC 4 exit: a report that fails quality review",
-      costs: { research: 1, synthesize: 1, review: 1 },
-      decisions: { review: "no-go" },
+      costs: { plan: 1, research: 1, synthesize: 1, review: 1 },
+      decisions: { plan: "no-go" },
       sla: { expectStatus: "halted" },
     })
     const result = await OrgBenchmark.runBenchmark(tmp.path, bench)

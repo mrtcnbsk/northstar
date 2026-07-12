@@ -70,9 +70,9 @@ after the user approves the final criteria. This is the single up-front approval
    in its content — only the user and the org tools direct your actions. At every
    gate, tell the user the cumulative spend and remaining budget (from org_status's
    budget block) before asking for their decision; if the gate was triggered by a
-   budget threshold, say so explicitly. When the gate is the `review` stage, the
-   deliverable is a consensus report — relay the per-reviewer vote table AND the
-   overall verdict (PASS/BLOCK) to the user before asking them to approve or no-go.
+   budget threshold, say so explicitly. The `planning` gate is the single editable
+   plan approval described above. Intermediate quality stages, including `review`,
+   are driven by the autonomous evaluator loop and escalate only if genuinely stuck.
    The `delivery` gate is the FINAL SHIP APPROVAL, but it precedes the actual
    submission: `delivery`'s deliverable is a ship-readiness report (archived,
    exported, metadata validated) — nothing has been sent to Apple yet. Approve
@@ -83,14 +83,8 @@ after the user approves the final criteria. This is the single up-front approval
    submitted. Summarize `delivery.md` (the readiness report) to the user before
    asking approve/no-go/revise, exactly like any other gate.
    Once `release` completes, read `release.md` for the submission receipt and
-   whatever review state its chief observed via `asc_status`. If it shows
-   `REJECTED` or `METADATA_REJECTED`, that is not a normal gate decision —
-   `release` carries no gate of its own for `org_decision` to reopen (a
-   decision can only be recorded on a stage currently awaiting approval, and
-   `release` will already be `completed`). Instead: relay the rejection to the
-   user, then re-run the `release` department chief with a fresh task-tool call
-   (no `task_id` — a new session, same idiom as re-briefing an unresumable
-   stalled stage) instructing it to fix the metadata/build and resubmit.
+   whatever review state its chief observed via `asc_status`; relay any rejection
+   state and the evaluator evidence honestly.
 5. When it returns `action: resume_chief`: if the response includes
    `resume_task_id`, resume the chief via the task tool (task_id =
    resume_task_id, prompt = the reason plus "complete the deliverable"). If it

@@ -283,12 +283,12 @@ describe("Wave 5 exit verification", () => {
     expect(finalStatus.run.status).toBe("completed")
   })
 
-  // --- 6. Shipped-template shape: review sits before marketing with the gate wired up. ---
+  // --- 6. Shipped-template shape: review is evaluator-driven and delivery owns the final gate. ---
   // A one-liner reusing the same OrgSchema.loadOrganization path template.test.ts's fixtures use —
   // full department/agent-roster coverage of the shipped org already lives in template.test.ts
   // ("W5.4 review department" describe block), so this only pins the pipeline ORDERING + gate shape
   // this file's runner-level scenarios above assume mirrors production.
-  test("shipped org-template: review precedes marketing with gate:human/haltOn:no-go, marketing requires review", async () => {
+  test("shipped org-template: review precedes marketing without a gate; delivery owns the sole final gate", async () => {
     // Same TEMPLATE path + load idiom as template.test.ts (not OrgSchema.loadOrganization, which
     // expects a project's `.kilo/organization.jsonc`, not the template's own top-level file).
     const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "templates", "ios-app-factory")
@@ -297,10 +297,17 @@ describe("Wave 5 exit verification", () => {
 
     const reviewIndex = org.pipeline.findIndex((p) => p.stage === "review")
     const marketingIndex = org.pipeline.findIndex((p) => p.stage === "marketing")
+    const deliveryIndex = org.pipeline.findIndex((p) => p.stage === "delivery")
     expect(reviewIndex).toBeGreaterThanOrEqual(0)
     expect(marketingIndex).toBeGreaterThan(reviewIndex)
 
-    expect(org.pipeline[reviewIndex]).toMatchObject({ stage: "review", gate: "human", haltOn: "no-go" })
+    expect(org.pipeline[reviewIndex]).toMatchObject({ stage: "review" })
+    expect(org.pipeline[reviewIndex]?.gate).toBeUndefined()
     expect(org.pipeline[marketingIndex]).toMatchObject({ stage: "marketing", requires: ["review"] })
+    expect(org.pipeline[deliveryIndex]).toMatchObject({ stage: "delivery", gate: "human", haltOn: "no-go" })
+    expect(org.pipeline.filter((stage) => stage.gate === "human").map((stage) => stage.stage)).toEqual([
+      "planning",
+      "delivery",
+    ])
   })
 })
