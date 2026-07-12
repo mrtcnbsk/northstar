@@ -144,33 +144,33 @@ jobs:
           - target: darwin-arm64
             runner: macos-15
             uname: arm64
-            package: "@kilocode/cli-darwin-arm64"
+            package: "@ilura/northstar-darwin-arm64"
             mode: host
           - target: darwin-x64
             runner: macos-15-intel
             uname: x86_64
-            package: "@kilocode/cli-darwin-x64"
+            package: "@ilura/northstar-darwin-x64"
             mode: host
           - target: linux-arm64
             runner: ubuntu-24.04-arm
             uname: aarch64
-            package: "@kilocode/cli-linux-arm64"
+            package: "@ilura/northstar-linux-arm64"
             mode: host
           - target: linux-x64
             runner: ubuntu-24.04
             uname: x86_64
-            package: "@kilocode/cli-linux-x64"
+            package: "@ilura/northstar-linux-x64"
             mode: host
           - target: alpine-arm64
             runner: ubuntu-24.04-arm
             uname: aarch64
-            package: "@kilocode/cli-linux-arm64-musl"
+            package: "@ilura/northstar-linux-arm64-musl"
             mode: alpine
             platform: linux/arm64
           - target: alpine-x64
             runner: ubuntu-24.04
             uname: x86_64
-            package: "@kilocode/cli-linux-x64-musl"
+            package: "@ilura/northstar-linux-x64-musl"
             mode: alpine
             platform: linux/amd64
     steps:
@@ -221,7 +221,7 @@ jobs:
           }
 
           if [ "${{ matrix.mode }}" = "host" ]; then
-            smoke_host "./dist/${{ matrix.package }}/bin/kilo"
+            smoke_host "./dist/${{ matrix.package }}/bin/northstar"
             exit 0
           fi
 
@@ -237,7 +237,7 @@ jobs:
               # as optional packages and must be installed for any Bun-compiled musl binary to run.
               apk add --no-cache libstdc++ libgcc
               # kilocode_change end
-              binary="/dist/$PACKAGE/bin/kilo" # kilocode_change
+              binary="/dist/$PACKAGE/bin/northstar" # kilocode_change
               "$binary" --version # kilocode_change
               "/dist/$PACKAGE/bin/bwrap" --version # kilocode_change
               grep -q '\''^SPDX-License-Identifier: LGPL-2.0-or-later$'\'' "/dist/$PACKAGE/bin/licenses/bubblewrap/NOTICE" # kilocode_change
@@ -266,10 +266,10 @@ jobs:
         include:
           - arch: arm64
             runner: windows-11-arm
-            package: "@kilocode/cli-windows-arm64"
+            package: "@ilura/northstar-windows-arm64"
           - arch: x64
             runner: windows-2025
-            package: "@kilocode/cli-windows-x64"
+            package: "@ilura/northstar-windows-x64"
     steps:
       - uses: actions/download-artifact@v8
         with:
