@@ -58,10 +58,10 @@ jobs:
           GENERAL: ${{ github.event_name != 'pull_request' || steps.filter.outputs.general == 'true' }}
         run: |
           if [ "$GENERAL" = "true" ]; then
-            echo 'settings=[{"name":"linux","host":"ubuntu-24.04","run":true},{"name":"macos","host":"macos-15","run":true},{"name":"windows","host":"windows-2025","run":true}]' >> "$GITHUB_OUTPUT"
+            echo 'settings=[{"name":"linux","host":"ubuntu-24.04","run":true,"timeout":45},{"name":"macos","host":"macos-15","run":true,"timeout":45},{"name":"windows","host":"windows-2025","run":true,"timeout":90}]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo 'settings=[{"name":"linux","host":"ubuntu-24.04","run":false}]' >> "$GITHUB_OUTPUT"
+          echo 'settings=[{"name":"linux","host":"ubuntu-24.04","run":false,"timeout":45}]' >> "$GITHUB_OUTPUT"
 
   unit:
     name: unit (${{ matrix.settings.name }})
@@ -71,7 +71,7 @@ jobs:
       matrix:
         settings: ${{ fromJSON(needs.changes.outputs.settings) }}
     runs-on: ${{ matrix.settings.host }}
-    timeout-minutes: 45 # kilocode_change
+    timeout-minutes: ${{ matrix.settings.timeout }} # kilocode_change
     defaults:
       run:
         shell: bash
