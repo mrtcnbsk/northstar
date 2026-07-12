@@ -5989,6 +5989,9 @@ export class AgentBuilder extends HeyApiClient {
         [key: string]: unknown
       }
       prompt?: string
+      subordinates?: Array<string>
+      capabilities?: Array<string>
+      preferredTypes?: Array<string>
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6009,6 +6012,9 @@ export class AgentBuilder extends HeyApiClient {
             { in: "body", key: "tools" },
             { in: "body", key: "permission" },
             { in: "body", key: "prompt" },
+            { in: "body", key: "subordinates" },
+            { in: "body", key: "capabilities" },
+            { in: "body", key: "preferredTypes" },
           ],
         },
       ],
@@ -6049,6 +6055,9 @@ export class AgentBuilder extends HeyApiClient {
         [key: string]: unknown
       }
       prompt?: string
+      subordinates?: Array<string>
+      capabilities?: Array<string>
+      preferredTypes?: Array<string>
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6078,6 +6087,9 @@ export class AgentBuilder extends HeyApiClient {
             { in: "body", key: "tools" },
             { in: "body", key: "permission" },
             { in: "body", key: "prompt" },
+            { in: "body", key: "subordinates" },
+            { in: "body", key: "capabilities" },
+            { in: "body", key: "preferredTypes" },
           ],
         },
       ],

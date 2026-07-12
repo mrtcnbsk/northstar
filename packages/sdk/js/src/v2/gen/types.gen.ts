@@ -9899,6 +9899,9 @@ export type AgentBuilderPreviewData = {
       [key: string]: unknown
     }
     prompt: string
+    subordinates?: Array<string>
+    capabilities?: Array<string>
+    preferredTypes?: Array<string>
   }
   path?: never
   query?: {
@@ -9945,6 +9948,9 @@ export type AgentBuilderSaveData = {
       [key: string]: unknown
     }
     prompt: string
+    subordinates?: Array<string>
+    capabilities?: Array<string>
+    preferredTypes?: Array<string>
   }
   path: {
     id: string

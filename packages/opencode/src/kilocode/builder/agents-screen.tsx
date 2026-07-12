@@ -9,18 +9,19 @@
 // which lets a plain, always-mounted `<textarea>` (the prompt) coexist with cycle/picker rows
 // without fighting over real terminal focus.
 //
-// SDK plumbing note (Task 6.2 Step 3): the server-side write path (`AgentBuilder` in
-// `src/kilocode/agent/builder.ts` + the `agent-builder` HttpApi group/handler) now round-trips
+// SDK plumbing note (Task 6.2 Step 3, closed): the server-side write path (`AgentBuilder` in
+// `src/kilocode/agent/builder.ts` + the `agent-builder` HttpApi group/handler) round-trips
 // `subordinates`/`capabilities`/`preferredTypes`. The GENERATED SDK client
-// (`packages/sdk/js/src/v2/gen/sdk.gen.ts`, `AgentBuilder.preview`/`.save`) does not yet — its
-// `buildClientParams` call hard-codes the list of body keys it forwards, and that list is only
-// refreshed by a full `bun run script/generate.ts` regen. A dry-run of that regen (diffed against
-// the committed `packages/sdk/openapi.json`) pulled in unrelated, already-drifted endpoints
-// (`/agents` metrics, `orgRuns`) that were never synced — regenerating now would fold that
-// unrelated churn into this change, so it was deliberately deferred as a follow-up. Until then this
-// screen gathers subordinates/capabilities/preferredTypes for the preview and warns on save instead
-// of silently dropping them (see `save()` below). The mandatory, tested round-trip is the
-// in-process `AgentBuilder.save` path exercised by `test/kilocode/agent/builder-org-fields.test.ts`.
+// (`packages/sdk/js/src/v2/gen/sdk.gen.ts`, `AgentBuilder.preview`/`.save`) now forwards them too —
+// its `buildClientParams` body-key whitelist was hand-extended to include the three fields (a
+// surgical, regen-consistent edit; a future full `bun run script/generate.ts` regen from the
+// now-extended endpoint schema produces the same additions). A full regen was NOT run here because
+// it would also fold in unrelated, already-drifted endpoints (`/agents` metrics, `orgRuns`) that
+// are missing from the committed `packages/sdk/openapi.json` — that drift is a separate,
+// pre-existing follow-up. This screen now sends subordinates/capabilities/preferredTypes on both
+// preview and save; the round-trip is exercised end-to-end by
+// `test/kilocode/server/agent-builder.test.ts` (real HTTP handler) and
+// `test/kilocode/agent/builder-org-fields.test.ts` (in-process writer).
 
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -230,6 +231,13 @@ export function AgentsScreen() {
       mode: draft.mode,
       model: draft.providerID && draft.modelID ? `${draft.providerID}/${draft.modelID}` : undefined,
       permission: Object.fromEntries(PERMISSION_KEYS.map((key) => [key, draft.permission[key]])),
+      // Always forwarded (even when empty): `AgentBuilder.markdown` rewrites the whole frontmatter
+      // each save and omits these keys when the array is empty (src/kilocode/agent/builder.ts), so
+      // sending `[]` correctly clears a field that was previously set (e.g. removing the last
+      // subordinate in the picker) rather than leaving it unresolved.
+      subordinates: [...draft.subordinates],
+      capabilities: [...draft.capabilities],
+      preferredTypes: [...draft.preferredTypes],
       // EditBufferRenderable exposes no onInput/onChange prop, only onContentChange (fires per
       // keystroke) or reading `.plainText` on demand — matching DialogExportOptions/DialogPrompt,
       // which both read `textarea.plainText` at submit time rather than mirroring it into a store.
@@ -248,7 +256,6 @@ export function AgentsScreen() {
       toast.show({ variant: "warning", message: "Agent needs a prompt before saving.", duration: 4000 })
       return
     }
-    const hasOrgFields = draft.subordinates.length > 0 || draft.capabilities.length > 0 || draft.preferredTypes.length > 0
 
     setSaving(true)
     try {
@@ -262,13 +269,7 @@ export function AgentsScreen() {
       await sync.bootstrap()
       setDraft("original", payload.id)
 
-      toast.show({
-        variant: hasOrgFields ? "warning" : "success",
-        message: hasOrgFields
-          ? `Saved "${payload.id}" (prompt/model/permission only — subordinates/capabilities/preferredTypes need an SDK regen, tracked as a follow-up).`
-          : `Saved agent "${payload.id}".`,
-        duration: hasOrgFields ? 6000 : 3000,
-      })
+      toast.show({ variant: "success", message: `Saved agent "${payload.id}".`, duration: 3000 })
     } catch (err) {
       toast.show({
         variant: "error",
