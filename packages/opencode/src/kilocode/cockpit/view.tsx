@@ -39,14 +39,17 @@ import type { OrgRunDetailResponse } from "@kilocode/sdk/v2/client"
 import {
   auditTrail,
   badgeToThemeKey,
+  buildEvaluatorPanel, // kilocode_change - SP2 Task 3
   budgetFromRun,
   budgetGauge,
   buildAgentTree,
   buildRunList, // kilocode_change - Task 8.3: run-list home
   formatCost,
+  loopGauge, // kilocode_change - SP2 Task 3
   stageTimeline,
   type BudgetGauge,
 } from "./cockpit-view"
+import { MissionEvaluatorPanel, MissionLoopGauge } from "./mission-view" // kilocode_change - SP2 Task 3
 // kilocode_change - Task 8.2: hard stop goes via the SAME CEO-instruction-message convention as
 // the 7.4 gate card (gate-card.tsx's `send`) — never a direct `OrgRunner.stop` (the cockpit stays
 // READ-ONLY over run state; see the EPIC 8 plan's determinism/security invariants).
@@ -130,7 +133,9 @@ export function CockpitView() {
   // interval -- polling survives the failure. It still stops normally once a genuinely successful
   // poll returns a new object whose `run.status` is no longer "active" (completed/halted).
   createEffect(() => {
-    if (detail()?.run.status !== "active") return
+    // kilocode_change - SP2 Task 3: paused autonomous runs still need to observe external decisions.
+    const status = detail()?.run.status
+    if (status !== "active" && status !== "paused") return
     const timer = setInterval(() => void refetch(), POLL_INTERVAL_MS)
     onCleanup(() => clearInterval(timer))
   })
@@ -198,6 +203,16 @@ export function CockpitView() {
     const input = budgetInput()
     return input ? budgetGauge(input) : undefined
   })
+  // kilocode_change start - SP2 Task 3: pure autonomous-loop view-models.
+  const evaluator = createMemo(() => {
+    const run = detail()
+    return run ? buildEvaluatorPanel(run) : undefined
+  })
+  const loop = createMemo(() => {
+    const run = detail()
+    return run ? loopGauge(run) : undefined
+  })
+  // kilocode_change end
 
   // kilocode_change start - Task 8.2: gate/halt/budget notifications, fired ONCE per transition.
   // Tracks the previous poll's snapshot (per-stage status, run status, escalated) and compares it
@@ -385,6 +400,11 @@ export function CockpitView() {
             </Show>
           </box>
 
+          {/* kilocode_change start - SP2 Task 3: Mission Control panels */}
+          <Show when={loop()}>{(value) => <MissionLoopGauge gauge={value()} />}</Show>
+          <Show when={evaluator()}>{(value) => <MissionEvaluatorPanel panel={value()} />}</Show>
+          {/* kilocode_change end */}
+
           {/* Pipeline */}
           <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
             <text attributes={TextAttributes.BOLD} fg={theme.text}>
@@ -403,6 +423,9 @@ export function CockpitView() {
                     {stage.status.replace(/_/g, " ")}
                   </text>
                   <text fg={theme.textMuted}>{formatCost(stage.cost)}</text>
+                  <Show when={stage.annotation}>
+                    <text fg={theme.warning}>{stage.annotation}</text>
+                  </Show>
                 </box>
               )}
             </For>

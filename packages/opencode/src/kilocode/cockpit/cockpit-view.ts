@@ -106,20 +106,21 @@ export function budgetGauge(budget: BudgetGaugeInput): BudgetGauge {
 export const DEFAULT_MAX_ITERATIONS = 4
 export const DEFAULT_EVALUATOR_MODEL = "haiku"
 
-export type VerdictView = { pass: boolean; reasons?: string[]; ts: string }
+type NumericView = number | "NaN" | "Infinity" | "-Infinity"
+export type VerdictView = { pass: boolean; reasons?: string[]; ts: string | NumericView }
 
 export type EvaluatorStageView = {
   stage: string
   status: string
   criteria?: string[]
-  iterations?: number
+  iterations?: NumericView
   verdictHistory?: VerdictView[]
 }
 
 export type EvaluatorDetailView = {
   run: { status: string; pausedReason?: { kind: string; stage: string; detail: string } | null }
   stages: EvaluatorStageView[]
-  loop?: { maxIterations: number; evaluatorModel: string }
+  loop?: { maxIterations: NumericView; evaluatorModel: string }
 }
 
 export type EvaluatorCriterion = { text: string; met: boolean }
@@ -178,7 +179,7 @@ function criterionMet(text: string, verdict: VerdictView | undefined): boolean {
 }
 
 export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel {
-  const maxIterations = detail.loop?.maxIterations ?? DEFAULT_MAX_ITERATIONS
+  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
   const stage = focusStage(detail)
   if (!stage) {
     return { stage: null, criteria: [], iteration: 0, maxIterations, latestRejection: null, passed: null }
@@ -189,7 +190,7 @@ export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel
   return {
     stage: stage.stage,
     criteria,
-    iteration: stage.iterations ?? 0,
+    iteration: number(stage.iterations ?? 0),
     maxIterations,
     latestRejection: latest && !latest.pass ? firstReason ?? "rejected (no reason given)" : null,
     passed: latest?.pass ?? null,
@@ -198,11 +199,11 @@ export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel
 // kilocode_change end
 
 // kilocode_change start - SP2 Task 2: loop gauge view-model.
-export type LoopStageView = { stage: string; status: string; iterations?: number; startedAt?: string | null }
+export type LoopStageView = { stage: string; status: string; iterations?: NumericView; startedAt?: string | null }
 export type LoopDetailView = {
   run: { createdAt: string; status: string; pausedReason?: { kind: string; stage: string; detail: string } | null }
   stages: LoopStageView[]
-  loop?: { maxIterations: number; evaluatorModel: string }
+  loop?: { maxIterations: NumericView; evaluatorModel: string }
 }
 
 export type LoopGaugeVM = {
@@ -226,12 +227,12 @@ export function formatElapsed(ms: number): string {
 }
 
 export function loopGauge(detail: LoopDetailView, now: number = Date.now()): LoopGaugeVM {
-  const maxIterations = detail.loop?.maxIterations ?? DEFAULT_MAX_ITERATIONS
+  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
   const evaluatorModel = detail.loop?.evaluatorModel ?? DEFAULT_EVALUATOR_MODEL
   const active =
     detail.stages.find((stage) => stage.status === "running") ??
     detail.stages.find((stage) => stage.status === "awaiting_approval")
-  const iteration = active?.iterations ?? 0
+  const iteration = number(active?.iterations ?? 0)
   const started = Date.parse(active?.startedAt ?? detail.run.createdAt)
   const elapsed = formatElapsed(Number.isNaN(started) ? 0 : now - started)
   return { iteration, maxIterations, elapsed, evaluatorModel, atLimit: iteration >= maxIterations }
