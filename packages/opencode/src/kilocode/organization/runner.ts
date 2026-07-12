@@ -875,8 +875,8 @@ export namespace OrgRunner {
   export type PlanStage = {
     stage: string
     objective: string
-    criteria: string[]
-    agents?: string[]
+    criteria: readonly string[]
+    agents?: readonly string[]
   }
 
   /**
@@ -887,7 +887,7 @@ export namespace OrgRunner {
     projectDir: string,
     org: OrgSchema.Organization,
     runID: string,
-    plan: PlanStage[],
+    plan: readonly PlanStage[],
   ): Promise<OrgState.Run> {
     const run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)

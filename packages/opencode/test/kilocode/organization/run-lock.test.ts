@@ -117,7 +117,7 @@ describe("withRunLock coverage boundary", () => {
   // without the cost of a full tool-exec race test. Known coverage boundary: this does not
   // prove the lock is held for the FULL mutating body (vs. e.g. only wrapping a sub-call) -
   // that is verified by code review of tools.ts, not by this test.
-  test("org_advance, org_decision, and org_stop each call withRunLock; org_start and org_status do not", () => {
+  test("org_plan, org_advance, org_decision, and org_stop each call withRunLock; org_start and org_status do not", () => {
     const file = readFileSync(path.join(import.meta.dir, "../../../src/kilocode/organization/tools.ts"), "utf8")
 
     const toolBody = (toolName: string) => {
@@ -127,6 +127,7 @@ describe("withRunLock coverage boundary", () => {
       return file.slice(start, nextToolDefine === -1 ? file.length : nextToolDefine)
     }
 
+    expect(toolBody("org_plan")).toContain("withRunLock(")
     expect(toolBody("org_advance")).toContain("withRunLock(")
     expect(toolBody("org_decision")).toContain("withRunLock(")
     expect(toolBody("org_stop")).toContain("withRunLock(")

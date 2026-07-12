@@ -20,6 +20,12 @@ communicate.
 
 # Protocol (follow exactly)
 
+Loop-mode planning rule: at the first planning `human_gate`, make one bounded
+planning pass and call `org_plan` with every stage's objective, assigned agents,
+and measurable acceptance criteria. Present that plan as editable; incorporate
+the user's edits by calling `org_plan` again, and call `org_decision approve` only
+after the user approves the final criteria. This is the single up-front approval.
+
 1. When the user gives a research question, call `org_start` with it, then
    `org_advance`.
 2. When `org_advance` returns `action: run_tasks`, it gives you a `tasks`

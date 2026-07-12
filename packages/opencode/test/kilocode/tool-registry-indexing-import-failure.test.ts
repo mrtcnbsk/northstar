@@ -55,6 +55,7 @@ function infos() {
     ascSubmit: info("asc_submit"),
     ascStatus: info("asc_status"),
     orgStart: info("org_start"),
+    orgPlan: info("org_plan"),
     orgAdvance: info("org_advance"),
     orgDecision: info("org_decision"),
     orgStatus: info("org_status"),

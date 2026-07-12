@@ -422,6 +422,7 @@ describe("kilocode tool registry indexing", () => {
       ascSubmit: def("asc_submit"),
       ascStatus: def("asc_status"),
       orgStart: def("org_start"),
+      orgPlan: def("org_plan"),
       orgAdvance: def("org_advance"),
       orgDecision: def("org_decision"),
       orgStatus: def("org_status"),
@@ -437,6 +438,7 @@ describe("kilocode tool registry indexing", () => {
     }
     const orgIDs = [
       "org_start",
+      "org_plan",
       "org_advance",
       "org_decision",
       "org_status",

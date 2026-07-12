@@ -22,6 +22,7 @@ import { AscSubmitTool } from "./asc-submit"
 import { AscStatusTool } from "./asc-status"
 import {
   OrgStartTool,
+  OrgPlanTool,
   OrgAdvanceTool,
   OrgDecisionTool,
   OrgStatusTool,
@@ -101,6 +102,7 @@ export namespace KiloToolRegistry {
       const ascSubmit = yield* AscSubmitTool
       const ascStatus = yield* AscStatusTool
       const orgStart = yield* OrgStartTool
+      const orgPlan = yield* OrgPlanTool
       const orgAdvance = yield* OrgAdvanceTool
       const orgDecision = yield* OrgDecisionTool
       const orgStatus = yield* OrgStatusTool
@@ -133,6 +135,7 @@ export namespace KiloToolRegistry {
           ascSubmit,
           ascStatus,
           orgStart,
+          orgPlan,
           orgAdvance,
           orgDecision,
           orgStatus,
@@ -170,6 +173,7 @@ export namespace KiloToolRegistry {
         ascSubmit,
         ascStatus,
         orgStart,
+        orgPlan,
         orgAdvance,
         orgDecision,
         orgStatus,
@@ -209,6 +213,7 @@ export namespace KiloToolRegistry {
       ascSubmit: Tool.Info
       ascStatus: Tool.Info
       orgStart: Tool.Info
+      orgPlan: Tool.Info
       orgAdvance: Tool.Info
       orgDecision: Tool.Info
       orgStatus: Tool.Info
@@ -247,6 +252,7 @@ export namespace KiloToolRegistry {
         ascSubmit: Tool.init(tools.ascSubmit),
         ascStatus: Tool.init(tools.ascStatus),
         orgStart: Tool.init(tools.orgStart),
+        orgPlan: Tool.init(tools.orgPlan),
         orgAdvance: Tool.init(tools.orgAdvance),
         orgDecision: Tool.init(tools.orgDecision),
         orgStatus: Tool.init(tools.orgStatus),
@@ -340,6 +346,7 @@ export namespace KiloToolRegistry {
       ascSubmit: Tool.Def
       ascStatus: Tool.Def
       orgStart: Tool.Def
+      orgPlan: Tool.Def
       orgAdvance: Tool.Def
       orgDecision: Tool.Def
       orgStatus: Tool.Def
@@ -388,6 +395,7 @@ export namespace KiloToolRegistry {
       tools.ascSubmit,
       tools.ascStatus,
       tools.orgStart,
+      tools.orgPlan,
       tools.orgAdvance,
       tools.orgDecision,
       tools.orgStatus,

@@ -1,6 +1,33 @@
 // kilocode_change - new file
 
 export namespace OrgPrompts {
+  export function planDocument(
+    stages: ReadonlyArray<{
+      stage: string
+      objective: string
+      criteria: readonly string[]
+      agents?: readonly string[]
+    }>,
+  ): string {
+    return [
+      "# Autonomous execution plan",
+      "",
+      "This plan and its acceptance criteria are the approved contract for loop mode.",
+      "",
+      ...stages.flatMap((entry) => [
+        `## ${entry.stage}`,
+        "",
+        `Objective: ${entry.objective}`,
+        "",
+        `Agents: ${entry.agents?.join(", ") || "(assigned by organization roster)"}`,
+        "",
+        "Acceptance criteria:",
+        ...entry.criteria.map((criterion) => `- [ ] ${criterion}`),
+        "",
+      ]),
+    ].join("\n")
+  }
+
   export interface StageInput {
     stage: string
     idea: string

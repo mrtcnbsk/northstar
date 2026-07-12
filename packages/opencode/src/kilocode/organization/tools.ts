@@ -14,6 +14,8 @@ import { OrgState, OrgNote } from "./state"
 import { OrgAudit } from "./audit" // kilocode_change - W6.2: postmortem's gate-decision trail
 import { OrgPostmortem } from "./postmortem" // kilocode_change - W6.2: postrun postmortem hook
 import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson in the org memory pool
+import { OrgArtifacts } from "./artifacts" // kilocode_change - SP1 approved plan deliverable
+import { OrgPrompts } from "./prompts" // kilocode_change - SP1 approved plan rendering
 
 // kilocode_change start - W6.2: postrun postmortem hook.
 const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
@@ -184,6 +186,55 @@ export const OrgStartTool = Tool.define(
             run_id: run.runID,
             pipeline: org.pipeline,
             next: "call org_advance with this run_id",
+          })
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const PlanStageParameters = Schema.Struct({
+  stage: Schema.String,
+  objective: Schema.String,
+  criteria: Schema.Array(Schema.String),
+  agents: Schema.optional(Schema.Array(Schema.String)),
+})
+
+const PlanParameters = Schema.Struct({
+  run_id: Schema.String,
+  stages: Schema.Array(PlanStageParameters).annotate({
+    description: "Exactly one objective, measurable criteria list, and optional agent list per pipeline stage",
+  }),
+})
+
+export const OrgPlanTool = Tool.define(
+  "org_plan",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Commit or replace the one-shot autonomous execution plan while its first human gate is awaiting approval. The user may edit criteria before approving; approval then starts loop mode.",
+      parameters: PlanParameters,
+      execute: (params: Schema.Schema.Type<typeof PlanParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          const run = yield* tryOrg(() =>
+            withRunLock(params.run_id, async () => {
+              const updated = await OrgRunner.commitPlan(dir, org, params.run_id, params.stages)
+              await Bun.write(
+                OrgArtifacts.deliverablePath(dir, params.run_id, org.pipeline[0].stage),
+                OrgPrompts.planDocument(params.stages),
+              )
+              return updated
+            }),
+          )
+          return result(`autonomous plan: ${params.run_id}`, {
+            run_id: params.run_id,
+            status: run.status,
+            auto: run.auto,
+            stages: params.stages,
+            next: "present this editable plan to the user, then call org_decision approve on the plan gate",
           })
         }).pipe(Effect.orDie),
     }
