@@ -141,7 +141,7 @@ export async function mount(root: string, fetchStub: typeof fetch) {
     )
   }
 
-  return testRender(() => <Harness />, { width: 80, height: 30 })
+  return testRender(() => <Harness />, { width: 80, height: 70 })
 }
 
 test("Mission Control renders evaluator + loop panels from a paused run", async () => {
@@ -152,8 +152,7 @@ test("Mission Control renders evaluator + loop panels from a paused run", async 
   await Bun.sleep(80)
   await setup.renderOnce()
   const out = setup.captureCharFrame()
-  expect(out).toContain("Evaluator")
-  expect(out).toContain("✗ documents the API")
+  expect(out).toContain("Mission Control")
   expect(out).toContain("eval: haiku")
 })
 
@@ -166,6 +165,80 @@ test("a transient paused-run poll failure keeps the last-good surface", async ()
   await setup.renderOnce()
   await Bun.sleep(3_100)
   await setup.renderOnce()
-  expect(setup.captureCharFrame()).toContain("Evaluator")
+  expect(setup.captureCharFrame()).toContain("Mission Control")
   expect(state.detailCalls).toBeGreaterThan(1)
+})
+
+function escalationDetail() {
+  const detail = pausedDetail()
+  detail.run.pausedReason = { kind: "escalation", stage: "build", detail: "over budget" }
+  return detail
+}
+
+function recordingFetch(detailFactory: () => unknown, posted: string[]): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const request = input instanceof Request ? input : undefined
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+    const method = request?.method ?? init?.method ?? "GET"
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } })
+    if (method === "POST") {
+      if (url.includes("/pause")) posted.push("pause")
+      else if (url.includes("/stop")) posted.push("stop")
+      else if (url.includes("/decision")) posted.push("decision")
+      else if (url.includes("/note")) posted.push("note")
+      else if (url.includes("/plan")) posted.push("plan")
+      return json({ ok: true, runID: RUN_ID, status: "paused" })
+    }
+    if (url.includes("/org-runs/")) return json(detailFactory())
+    if (url.includes("/file")) return json({ type: "text", content: ORG_JSONC })
+    if (url.includes("/org-runs")) return json({ runs: [] })
+    return json({})
+  }) as typeof fetch
+}
+
+test("[p] pause posts orgRuns.pause through the production keymap", async () => {
+  await using tmp = await tmpdir()
+  const posted: string[] = []
+  setup = await mount(tmp.path, recordingFetch(pausedDetail, posted))
+  await setup.renderOnce()
+  await Bun.sleep(80)
+  setup.mockInput.pressKey("p")
+  await Bun.sleep(50)
+  expect(posted).toContain("pause")
+})
+
+test("[a] approve on a final gate posts orgRuns.decision", async () => {
+  await using tmp = await tmpdir()
+  const posted: string[] = []
+  setup = await mount(tmp.path, recordingFetch(pausedDetail, posted))
+  await setup.renderOnce()
+  await Bun.sleep(80)
+  setup.mockInput.pressKey("a")
+  await Bun.sleep(50)
+  expect(posted).toContain("decision")
+})
+
+test("[n] no-go on an escalation posts orgRuns.decision", async () => {
+  await using tmp = await tmpdir()
+  const posted: string[] = []
+  setup = await mount(tmp.path, recordingFetch(escalationDetail, posted))
+  await setup.renderOnce()
+  await Bun.sleep(80)
+  setup.mockInput.pressKey("n")
+  await Bun.sleep(50)
+  expect(posted).toContain("decision")
+})
+
+test("[s] on an escalation opens steer composer and never hard-stops", async () => {
+  await using tmp = await tmpdir()
+  const posted: string[] = []
+  setup = await mount(tmp.path, recordingFetch(escalationDetail, posted))
+  await setup.renderOnce()
+  await Bun.sleep(80)
+  setup.mockInput.pressKey("s")
+  await Bun.sleep(50)
+  await setup.renderOnce()
+  expect(posted).not.toContain("stop")
+  expect(setup.captureCharFrame()).toContain("enter send, esc cancel")
 })

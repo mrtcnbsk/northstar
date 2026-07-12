@@ -33,7 +33,6 @@ import { useTheme } from "@tui/context/theme"
 import { useBindings } from "@tui/keymap"
 import { useSDK } from "@tui/context/sdk"
 import { useProject } from "@tui/context/project"
-import { PartID } from "@/session/schema"
 import { OrgSchema } from "@/kilocode/organization/schema"
 import type { OrgRunDetailResponse } from "@kilocode/sdk/v2/client"
 import {
@@ -50,10 +49,8 @@ import {
   type BudgetGauge,
 } from "./cockpit-view"
 import { MissionEvaluatorPanel, MissionLoopGauge } from "./mission-view" // kilocode_change - SP2 Task 3
-// kilocode_change - Task 8.2: hard stop goes via the SAME CEO-instruction-message convention as
-// the 7.4 gate card (gate-card.tsx's `send`) — never a direct `OrgRunner.stop` (the cockpit stays
-// READ-ONLY over run state; see the EPIC 8 plan's determinism/security invariants).
-import { stopMessage } from "./stop"
+import { conversationCard, parseMention } from "./conversation" // kilocode_change - SP2 Task 5
+import { MissionStrip, type StripMode } from "./mission-strip" // kilocode_change - SP2 Task 5
 
 // Mirrors the same relative path used by `/org-status` and the Builder Organization screen (see
 // `kilo-commands.tsx`'s ORG_RELATIVE_PATH comment for the read-path rationale — this is the
@@ -212,6 +209,10 @@ export function CockpitView() {
     const run = detail()
     return run ? loopGauge(run) : undefined
   })
+  const card = createMemo(() => {
+    const run = detail()
+    return run ? conversationCard(run) : ({ kind: "none" } as const)
+  })
   // kilocode_change end
 
   // kilocode_change start - Task 8.2: gate/halt/budget notifications, fired ONCE per transition.
@@ -259,38 +260,158 @@ export function CockpitView() {
   })
   // kilocode_change end
 
-  // kilocode_change start - Task 8.2: hard stop. NEVER calls `OrgRunner.stop` directly (the
-  // cockpit is READ-ONLY over run state) — sends a plain CEO-instruction chat message via
-  // sdk.client.session.prompt, the SAME send mechanism the 7.4 gate card uses
-  // (routes/session/gate-card.tsx's `send`), into the CEO's own session. `ceo.md`'s protocol step
-  // 8 recognizes a "stop run <id>: <reason>" message and turns it into `org_stop(run_id, reason)`.
-  async function hardStop() {
-    const sid = sessionID()
-    if (!sid) {
-      toast.show({
-        message: "Stop requires opening the Cockpit from its originating CEO session.",
-        variant: "error",
-      })
+  // kilocode_change start - SP2 Task 5: view-owned conversation state and HTTP-only dispatch.
+  const [stripMode, setStripMode] = createSignal<StripMode>("idle")
+  const [stripSent, setStripSent] = createSignal<string>()
+  const dispatch = (request: Promise<unknown>) => {
+    void request.then(() => void refetch()).catch(() => {
+      toast.show({ message: "Mission Control request failed.", variant: "error" })
+    })
+  }
+  const stripDone = (label: string) => {
+    setStripSent(label)
+    setStripMode("sent")
+  }
+  const cardStage = () => {
+    const current = card()
+    return current.kind === "none" ? undefined : current.stage
+  }
+
+  function decide(decision: "approve" | "no-go" | "revise", note?: string) {
+    const id = runID()
+    if (!id) return
+    dispatch(
+      sdk.client.orgRuns.decision({
+        runID: id,
+        workspace: project.workspace.current(),
+        stage: cardStage(),
+        decision,
+        note,
+      }),
+    )
+  }
+
+  function sendNote(raw: string) {
+    const id = runID()
+    if (!id) return
+    const { target, text } = parseMention(raw)
+    if (!text) return
+    dispatch(
+      sdk.client.orgRuns.note({
+        runID: id,
+        workspace: project.workspace.current(),
+        target_agent: target,
+        text,
+      }),
+    )
+    stripDone(`Note sent to ${target}`)
+  }
+
+  function approvePlan() {
+    const id = runID()
+    const current = card()
+    const run = detail()
+    if (!id || current.kind !== "plan" || !run) return
+    const stages = run.stages.map((stage) => ({
+      stage: stage.stage,
+      objective: stage.objective?.trim() || `Complete ${stage.stage}`,
+      criteria: stage.criteria ?? [],
+    }))
+    dispatch(
+      sdk.client.orgRuns
+        .plan({ runID: id, workspace: project.workspace.current(), stages })
+        .then(async (result) => {
+          if (result.error) throw new Error("Plan update failed")
+          return sdk.client.orgRuns.decision({
+            runID: id,
+            workspace: project.workspace.current(),
+            stage: current.stage,
+            decision: "approve",
+          })
+        }),
+    )
+    stripDone("Plan approved — run is now autonomous")
+  }
+
+  function submitNote(text: string) {
+    if (stripMode() === "revise-note") {
+      decide("revise", text)
+      stripDone(`Revision requested: ${text}`)
       return
     }
+    sendNote(text)
+  }
+
+  function cardApprove() {
+    const current = card()
+    if (current.kind === "plan") return approvePlan()
+    if (current.kind !== "final_gate") return
+    decide("approve")
+    stripDone("Approved")
+  }
+
+  function cardNoGo() {
+    if (card().kind !== "escalation") return
+    decide("no-go")
+    stripDone("No-go sent")
+  }
+
+  function cardCancel() {
+    if (card().kind !== "final_gate") return
+    decide("no-go")
+    stripDone("Cancelled")
+  }
+
+  async function hardStop() {
+    const id = runID()
+    if (!id) return
     const reason = await DialogPrompt.show(dialog, "Stop run", {
-      placeholder: "Reason for stopping (sent to the CEO)",
+      placeholder: "Reason for stopping",
     })
     if (reason === null) return
     const trimmed = reason.trim()
     if (!trimmed) return
-    void sdk.client.session
-      .prompt({
-        sessionID: sid,
-        parts: [{ id: PartID.ascending(), type: "text", text: stopMessage(runID(), trimmed) }],
-      })
-      .catch(() => {})
-    toast.show({ message: "Stop request sent to the CEO.", variant: "info" })
+    dispatch(sdk.client.orgRuns.stop({ runID: id, workspace: project.workspace.current(), reason: trimmed }))
+    toast.show({ message: "Stop request sent.", variant: "info" })
+  }
+
+  function pauseRun() {
+    const id = runID()
+    if (!id) return
+    dispatch(
+      sdk.client.orgRuns.pause({
+        runID: id,
+        workspace: project.workspace.current(),
+        detail: "operator pause from Mission Control",
+        stage: cardStage(),
+      }),
+    )
+    toast.show({ message: "Pause requested.", variant: "info" })
   }
   // kilocode_change end
 
-  useBindings(() => ({
-    commands: [
+  useBindings(() => {
+    const current = card()
+    const composing = stripMode() === "note" || stripMode() === "revise-note"
+    const hasRun = !!runID()
+    const cardBindings: { key: string; cmd: string }[] = []
+    if (hasRun && !composing) {
+      if (current.kind === "plan") {
+        cardBindings.push({ key: "a", cmd: "cockpit.card.approve" })
+        cardBindings.push({ key: "e", cmd: "cockpit.card.message" })
+      } else if (current.kind === "escalation") {
+        cardBindings.push({ key: "s", cmd: "cockpit.card.steer" })
+        cardBindings.push({ key: "n", cmd: "cockpit.card.nogo" })
+      } else if (current.kind === "final_gate") {
+        cardBindings.push({ key: "a", cmd: "cockpit.card.approve" })
+        cardBindings.push({ key: "r", cmd: "cockpit.card.revise" })
+        cardBindings.push({ key: "c", cmd: "cockpit.card.cancel" })
+      }
+      cardBindings.push({ key: "m", cmd: "cockpit.card.message" })
+    }
+    const escalationClaimsS = hasRun && !composing && current.kind === "escalation"
+    return {
+      commands: [
       {
         namespace: "palette",
         name: "cockpit.back",
@@ -307,21 +428,86 @@ export function CockpitView() {
         namespace: "palette",
         name: "cockpit.stop",
         title: "Stop run",
-        desc: "Send a hard-stop instruction to the CEO for the current run",
+        desc: "Stop the current run server-side",
         category: "Cockpit",
         run: () => void hardStop(),
       },
-    ],
-    bindings: [
-      { key: "escape", cmd: "cockpit.back" },
-      { key: "s", cmd: "cockpit.stop" }, // kilocode_change - Task 8.2
-    ],
-  }))
+      {
+        namespace: "palette",
+        name: "cockpit.pause",
+        title: "Pause run",
+        desc: "Pause the autonomous loop",
+        category: "Cockpit",
+        run: () => pauseRun(),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.approve",
+        title: "Approve",
+        desc: "Approve the active plan or final gate",
+        category: "Cockpit",
+        hidden: true,
+        run: () => cardApprove(),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.nogo",
+        title: "No-go",
+        desc: "Reject the active escalation",
+        category: "Cockpit",
+        hidden: true,
+        run: () => cardNoGo(),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.revise",
+        title: "Request revision",
+        desc: "Ask for final-gate changes",
+        category: "Cockpit",
+        hidden: true,
+        run: () => setStripMode("revise-note"),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.cancel",
+        title: "Cancel run",
+        desc: "Cancel at the final gate",
+        category: "Cockpit",
+        hidden: true,
+        run: () => cardCancel(),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.steer",
+        title: "Steer",
+        desc: "Compose an escalation steering note",
+        category: "Cockpit",
+        hidden: true,
+        run: () => setStripMode("note"),
+      },
+      {
+        namespace: "palette",
+        name: "cockpit.card.message",
+        title: "Message an agent",
+        desc: "Compose a steering note",
+        category: "Cockpit",
+        hidden: true,
+        run: () => setStripMode("note"),
+      },
+      ],
+      bindings: [
+        { key: "escape", cmd: "cockpit.back" },
+        { key: "p", cmd: "cockpit.pause" },
+        ...(escalationClaimsS ? [] : [{ key: "s", cmd: "cockpit.stop" }]),
+        ...cardBindings,
+      ],
+    }
+  })
 
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0} paddingLeft={2} paddingTop={1} gap={1}>
       <text attributes={TextAttributes.BOLD} fg={theme.text}>
-        Cockpit
+        Mission Control
       </text>
 
       {/* kilocode_change start - Task 8.3: run-list home (no runID -> pick a run) */}
@@ -372,8 +558,8 @@ export function CockpitView() {
             <text fg={theme.textMuted}>
               {formatCost(typeof detail()!.totalCost === "number" ? (detail()!.totalCost as number) : 0)}
             </text>
-            {/* kilocode_change - Task 8.2: hard-stop hint (s) */}
-            <text fg={theme.textMuted}>s: stop run</text>
+            {/* kilocode_change - SP2 Task 5: contextual pause / stop controls. */}
+            <text fg={theme.textMuted}>p: pause · s: stop</text>
           </box>
 
           {/* kilocode_change - Task 8.2: budget gauge moved into the header (right under the run
@@ -475,6 +661,16 @@ export function CockpitView() {
               </For>
             </scrollbox>
           </box>
+
+          {/* kilocode_change start - SP2 Task 5: plan/escalation/final-gate conversation strip. */}
+          <MissionStrip
+            card={card()}
+            mode={stripMode()}
+            sent={stripSent()}
+            onSubmitNote={submitNote}
+            onCancelNote={() => setStripMode("idle")}
+          />
+          {/* kilocode_change end */}
         </box>
       </Show>
     </box>
