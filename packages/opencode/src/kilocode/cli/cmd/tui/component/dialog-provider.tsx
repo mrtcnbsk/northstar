@@ -10,6 +10,20 @@ import type { RGBA } from "@opentui/core"
 import type { ProviderAuthAuthorization } from "@kilocode/sdk/v2"
 import { KiloAutoMethod } from "@/kilocode/components/dialog-kilo-auto-method"
 export { selectProvider } from "@/kilocode/anaconda-desktop/tui/setup"
+export { LocalProviderMethod } from "./local-provider-method"
+
+// ---------------------------------------------------------------------------
+// "Add a local provider" list entry (Ollama / LM Studio / custom baseURL)
+// ---------------------------------------------------------------------------
+
+export const LOCAL_PROVIDER_OPTION_VALUE = "__kilo_local_provider__"
+
+export const LOCAL_PROVIDER_OPTION = {
+  title: "Add a local provider",
+  value: LOCAL_PROVIDER_OPTION_VALUE,
+  description: "Ollama, LM Studio, or a custom OpenAI-compatible endpoint",
+  category: "Providers",
+} as const
 
 // ---------------------------------------------------------------------------
 // Failed-state gutter/description helpers

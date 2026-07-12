@@ -496,7 +496,7 @@ exports[`Kilo CLI help-text snapshots every documented command emits stable help
 log in to a provider
 
 Positionals:
-  url  kilo auth provider                                                                   [string]
+  url  provider to authenticate with, or a login URL                                        [string]
 
 Options:
   -h, --help        show help                                                              [boolean]

@@ -37,6 +37,11 @@ type ProviderOption =
   | (ProviderOptionBase & {
       type: "custom"
     })
+  // kilocode_change start - "Add a local provider" (Ollama/LM Studio/custom baseURL)
+  | (ProviderOptionBase & {
+      type: "local"
+    })
+// kilocode_change end
 
 export function providerOptions(list: { id: string; name: string }[]): ProviderOption[] {
   return [
@@ -52,6 +57,7 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
         category: provider.id in PROVIDER_PRIORITY ? "Popular" : "Providers",
       })),
     ),
+    { type: "local", ...KiloProvider.LOCAL_PROVIDER_OPTION }, // kilocode_change - "Add a local provider"
     {
       type: "custom",
       title: "Other",
@@ -115,6 +121,20 @@ export function createDialogProviderOptions() {
             },
           }
         }
+
+        // kilocode_change start - "Add a local provider" (Ollama/LM Studio/custom baseURL)
+        if (provider.type === "local") {
+          return {
+            title: provider.title,
+            value: provider.value,
+            description: provider.description,
+            category: provider.category,
+            onSelect() {
+              dialog.replace(() => <KiloProvider.LocalProviderMethod model={DialogModel} />)
+            },
+          }
+        }
+        // kilocode_change end
 
         const providerID = provider.providerID
         const consoleManaged = isConsoleManagedProvider(sync.data.console_state.consoleManagedProviders, providerID)

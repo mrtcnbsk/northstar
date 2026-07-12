@@ -6,6 +6,7 @@ import * as Core from "@opencode-ai/core/models-dev"
 import { Context, Effect, Layer } from "effect"
 import { AI_SDK_PROVIDERS, KILO_OPENROUTER_BASE, PROMPTS } from "@kilocode/kilo-gateway"
 import { overlay } from "@/kilocode/anaconda-desktop/provider"
+import { addLocalProviders } from "@/kilocode/provider/local-provider"
 
 export const Model = Core.Model
 export type Model = Core.Model
@@ -69,6 +70,7 @@ export const layer: Layer.Layer<Service, never, Core.Service | Config.Service | 
 
         if (!allowed) {
           yield* addApertis()
+          yield* addLocalProviders(providers, auth, cache)
           return providers
         }
 
@@ -91,6 +93,7 @@ export const layer: Layer.Layer<Service, never, Core.Service | Config.Service | 
         }
         if (Object.keys(models).length === 0) yield* cache.refresh("kilo", fetch).pipe(Effect.ignore, Effect.forkDetach)
         yield* addApertis()
+        yield* addLocalProviders(providers, auth, cache)
         return providers
       })
 

@@ -45,6 +45,7 @@ const seed: Record<string, ModelsDev.Provider> = {
 
 const auth = Layer.mock(Auth.Service)({
   get: () => Effect.succeed(undefined),
+  all: () => Effect.succeed({}),
 })
 
 const files = Layer.effect(
