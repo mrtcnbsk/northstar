@@ -98,7 +98,7 @@ export namespace OrgState {
     auto: z.boolean().optional(),
     pausedReason: z
       .object({
-        kind: z.enum(["escalation", "final_gate"]),
+        kind: z.enum(["escalation", "final_gate", "manual"]),
         stage: z.string(),
         detail: z.string(),
       })

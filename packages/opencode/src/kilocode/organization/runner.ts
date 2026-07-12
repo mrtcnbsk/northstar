@@ -7,6 +7,7 @@ import { OrgPrompts } from "./prompts"
 import { OrgAudit } from "./audit"
 import { OrgVersions } from "./versions" // kilocode_change - W8.5: best-effort deliverable version snapshots
 import { OrgGraph } from "./graph" // kilocode_change - W8.6: impact radius surfaced on revise
+import { OrgEvaluator } from "./evaluator" // kilocode_change - SP1 autonomous evaluator verdicts
 
 export namespace OrgRunner {
   export interface Deps {
@@ -71,6 +72,8 @@ export namespace OrgRunner {
     incomplete?: IncompleteItem
     /** The run halted this call (a hard stop; no further fan-out). */
     halted?: { reason: string }
+    /** Autonomous drive is intentionally suspended and needs a human transition. */
+    paused?: { kind: "escalation" | "final_gate" | "manual"; stage: string; detail: string }
     /** The run is complete: nothing running, ready, gated, or pending. */
     done?: true
   }
@@ -539,7 +542,10 @@ export namespace OrgRunner {
       rec.reviseBaseline = undefined // changed content accepted; baseline consumed
       rec.reviseNote = undefined // lives and dies with the baseline
       rec.incompleteAttempts = 0 // stage completed: any later revise loop starts with a fresh retry budget
-      rec.status = pipelineStage.gate === "human" ? "awaiting_approval" : "completed"
+      // Autonomous runs hold every accepted deliverable at a deterministic evaluator boundary.
+      // This prevents a dependent stage from becoming ready in this same advance() call before
+      // the evaluator has approved the evidence. Non-auto behavior stays byte-compatible.
+      rec.status = s.auto === true || pipelineStage.gate === "human" ? "awaiting_approval" : "completed"
 
       // Budget checks run after cost is recorded but before the gate/completed/next decision
       // downstream reacts to. Hard ceiling takes precedence over the soft escalation gate.
@@ -612,6 +618,12 @@ export namespace OrgRunner {
     assertPipelineMatches(org, run)
     if (run.status === "halted") return { instruct: [], halted: { reason: run.haltReason ?? "run halted" } }
     if (run.status === "completed") return { instruct: [], done: true }
+    if (run.status === "paused") {
+      return {
+        instruct: [],
+        paused: run.pausedReason ?? { kind: "manual", stage: "none", detail: "run paused" },
+      }
+    }
 
     // A failed stage blocks the pipeline (run stays active so future recovery can resume it).
     const failed = org.pipeline.find(({ stage }) => run.stages[stage].status === "failed")
@@ -855,6 +867,203 @@ export namespace OrgRunner {
     return batch
   }
 
+  export type PlanStage = {
+    stage: string
+    objective: string
+    criteria: string[]
+    agents?: string[]
+  }
+
+  /**
+   * Persist the human-editable plan draft. `auto:false` is an intentional armed state: the next
+   * approval of the pipeline's first gate flips it to true, while a legacy run keeps auto absent.
+   */
+  export async function commitPlan(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    plan: PlanStage[],
+  ): Promise<OrgState.Run> {
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    if (run.status !== "active") throw new Error(`Cannot commit a plan for ${run.status} run ${runID}`)
+    const first = org.pipeline[0]
+    if (run.stages[first.stage].status !== "awaiting_approval") {
+      throw new Error(`Cannot commit plan: stage "${first.stage}" is not awaiting approval in run ${runID}`)
+    }
+    const seen = new Set<string>()
+    const authored = new Map(org.pipeline.map((entry) => [entry.stage, entry]))
+    for (const entry of plan) {
+      if (seen.has(entry.stage)) throw new Error(`Plan contains duplicate stage "${entry.stage}"`)
+      seen.add(entry.stage)
+      if (!authored.has(entry.stage)) throw new Error(`Plan contains unknown stage "${entry.stage}"`)
+      if (!entry.objective.trim()) throw new Error(`Plan stage "${entry.stage}" requires an objective`)
+      if (entry.criteria.length === 0 || entry.criteria.some((criterion) => !criterion.trim())) {
+        throw new Error(`Plan stage "${entry.stage}" requires non-empty acceptance criteria`)
+      }
+    }
+    if (plan.length !== org.pipeline.length) {
+      throw new Error(`Plan must contain exactly ${org.pipeline.length} stages; received ${plan.length}`)
+    }
+    for (const { stage } of org.pipeline) {
+      if (!seen.has(stage)) throw new Error(`Plan must contain exactly one entry for stage "${stage}"`)
+    }
+    const byStage = new Map(plan.map((entry) => [entry.stage, entry]))
+    const updated = await OrgState.update(projectDir, runID, (state) => {
+      for (const { stage } of org.pipeline) {
+        const entry = byStage.get(stage)!
+        state.stages[stage].objective = entry.objective.trim()
+        state.stages[stage].criteria = entry.criteria.map((criterion) => criterion.trim())
+      }
+      state.auto = false
+    })
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date().toISOString(),
+      stage: first.stage,
+      decision: "plan",
+      note: `committed ${plan.length} stage acceptance contracts`,
+    })
+    return updated
+  }
+
+  export type VerdictOutcome = "approved" | "revise" | "escalated" | "final_gate"
+
+  /** Apply one structured evaluator verdict at the held evaluator boundary. */
+  export async function applyVerdict(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    stage: string,
+    input: OrgEvaluator.Verdict,
+    now = Date.now(),
+  ): Promise<{ run: OrgState.Run; outcome: VerdictOutcome }> {
+    const verdict = OrgEvaluator.Verdict.parse(input)
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    if (run.status !== "active" || run.auto !== true) {
+      throw new Error(`Cannot apply evaluator verdict: run ${runID} is not actively autonomous`)
+    }
+    const pipelineStage = org.pipeline.find((entry) => entry.stage === stage)
+    if (!pipelineStage || run.stages[stage]?.status !== "awaiting_approval") {
+      throw new Error(`Cannot apply evaluator verdict: stage "${stage}" is not awaiting evaluation`)
+    }
+    const detail = verdict.reasons?.join("; ") ?? verdict.summary ?? "all acceptance criteria passed"
+    const nextIterations = (run.stages[stage].iterations ?? 0) + (verdict.pass ? 0 : 1)
+    const exhausted = !verdict.pass && nextIterations > OrgSchema.resolveLoop(org).maxIterations
+    const finalGate = verdict.pass && OrgState.isIrreversible(org, stage)
+    const reviseBaseline = !verdict.pass && !exhausted ? await deliverableHash(projectDir, runID, stage) : undefined
+    const deliverableHashForAudit = await deliverableHashOrUndefined(projectDir, runID, stage)
+    if (!verdict.pass && !exhausted) await OrgVersions.snapshot(projectDir, runID, stage).catch(() => undefined)
+
+    const updated = await OrgState.update(projectDir, runID, (state) => {
+      const record = state.stages[stage]
+      record.verdictHistory = [...(record.verdictHistory ?? []), { ...verdict, ts: now }]
+      if (!verdict.pass) record.iterations = nextIterations
+
+      if (finalGate) {
+        state.status = "paused"
+        state.pausedReason = { kind: "final_gate", stage, detail }
+        record.status = "awaiting_approval"
+        return
+      }
+      if (verdict.pass) {
+        record.status = "completed"
+        record.decision = "approve"
+        record.decisionNote = verdict.summary
+        record.escalationNote = undefined
+        return
+      }
+      if (exhausted) {
+        state.status = "paused"
+        state.pausedReason = { kind: "escalation", stage, detail }
+        record.status = "awaiting_approval"
+        record.escalationNote = detail
+        return
+      }
+
+      record.status = "running"
+      record.decision = "revise"
+      record.decisionNote = detail
+      record.reviseBaseline = reviseBaseline
+      record.reviseNote = detail
+      record.invalidatedDownstream = OrgGraph.impactRadius(org, stage)
+      record.completedAt = undefined
+      record.incompleteAttempts = 0
+      record.startedAt = new Date(now).toISOString()
+      record.escalationNote = undefined
+    })
+    const outcome: VerdictOutcome = finalGate
+      ? "final_gate"
+      : verdict.pass
+        ? "approved"
+        : exhausted
+          ? "escalated"
+          : "revise"
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date(now).toISOString(),
+      stage,
+      decision: `evaluator-${outcome}`,
+      note: detail,
+      deliverableHash: deliverableHashForAudit,
+    })
+    return { run: updated, outcome }
+  }
+
+  export async function pause(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    input: { kind: "manual" | "escalation" | "final_gate"; stage: string; detail: string },
+  ): Promise<OrgState.Run> {
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    if (run.status !== "active") throw new Error(`Cannot pause ${run.status} run ${runID}`)
+    if (input.stage !== "none" && !run.stages[input.stage]) throw new Error(`Unknown stage "${input.stage}"`)
+    const updated = await OrgState.update(projectDir, runID, (state) => {
+      state.status = "paused"
+      state.pausedReason = input
+      if (input.kind !== "manual" && state.stages[input.stage]) {
+        state.stages[input.stage].status = "awaiting_approval"
+      }
+    })
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date().toISOString(),
+      stage: input.stage,
+      decision: "pause",
+      note: input.detail,
+    })
+    return updated
+  }
+
+  export async function resume(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    note?: string,
+  ): Promise<OrgState.Run> {
+    const run = await OrgState.read(projectDir, runID)
+    assertPipelineMatches(org, run)
+    if (run.status !== "paused" || !run.pausedReason) throw new Error(`Run ${runID} is not paused`)
+    if (run.pausedReason.kind === "final_gate") {
+      throw new Error(`Run ${runID} requires an approve, revise, or no-go decision at its final gate`)
+    }
+    if (run.pausedReason.kind === "escalation") {
+      if (!note?.trim()) throw new Error(`Run ${runID} requires a steering note to resume its escalation`)
+      return decide(projectDir, org, runID, "revise", note.trim(), run.pausedReason.stage)
+    }
+    const updated = await OrgState.update(projectDir, runID, (state) => {
+      state.status = "active"
+      state.pausedReason = undefined
+    })
+    await OrgAudit.append(projectDir, runID, {
+      ts: new Date().toISOString(),
+      stage: run.pausedReason.stage,
+      decision: "resume",
+      note,
+    })
+    return updated
+  }
+
   export async function decide(
     projectDir: string,
     org: OrgSchema.Organization,
@@ -907,6 +1116,8 @@ export namespace OrgRunner {
       record.escalationNote = undefined
       if (decision === "approve") {
         record.status = "completed"
+        // `commitPlan` arms loop mode with auto:false; approving the first plan gate starts it.
+        if (s.auto === false && gated.stage === org.pipeline[0].stage) s.auto = true
       } else if (decision === "no-go") {
         record.status = "completed"
         s.status = "halted"
@@ -926,6 +1137,12 @@ export namespace OrgRunner {
         // against a stale start.
         record.startedAt = new Date().toISOString()
         // the costs map is left as-is: it reflects real spend so far; the session's own key is overwritten on next completion.
+      }
+      // Resolving a paused escalation/final gate is the explicit human transition back into the
+      // active state machine. no-go remains terminal and therefore does not take this branch.
+      if (s.status === "paused" && decision !== "no-go") {
+        s.status = "active"
+        s.pausedReason = undefined
       }
     })
     await OrgAudit.append(projectDir, runID, {
