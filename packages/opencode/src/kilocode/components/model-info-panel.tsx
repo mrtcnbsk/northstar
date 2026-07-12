@@ -4,7 +4,7 @@ import { createMemo, Show } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import type { Model } from "@kilocode/sdk/v2"
 import { FreeModelDisclosure } from "./free-model-disclosure"
-import { modelWarning } from "@/kilocode/provider/local-model-validation"
+import { localProviderModelWarning } from "@/kilocode/provider/local-provider"
 import {
   avgPrice,
   fmtAttemptCost,
@@ -60,7 +60,7 @@ export function ModelInfoPanel(props: Props) {
   // EPIC 5 Task 5.3 - visible warning when a local model's capabilities are unverified
   // (unconfirmed context window / tool-calling support). See
   // `@/kilocode/provider/local-model-validation.ts`.
-  const warning = () => modelWarning(m())
+  const warning = () => localProviderModelWarning(m().providerID ?? "", m())
 
   return (
     <box

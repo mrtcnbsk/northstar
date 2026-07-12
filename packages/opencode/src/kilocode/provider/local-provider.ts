@@ -22,6 +22,7 @@ import { Effect } from "effect"
 import type { Auth } from "@/auth"
 import type { ModelCache } from "@/provider/model-cache"
 import { normalizeLoopbackEndpoint } from "@/kilocode/anaconda-desktop/domain"
+import { modelWarning, type ResolvedModel } from "./local-model-validation"
 
 const log = Log.create({ service: "local-provider" })
 
@@ -36,6 +37,19 @@ export type LocalPresetID = keyof typeof LOCAL_PRESETS
 
 export function isLocalPreset(value: string): value is LocalPresetID {
   return Object.prototype.hasOwnProperty.call(LOCAL_PRESETS, value)
+}
+
+/**
+ * The visible unverified-capability warning (`@/kilocode/provider/local-model-validation.ts`),
+ * GATED to genuinely-local providers. The models.dev catalog legitimately ships
+ * `limit.context: 0` for some HOSTED, fully tool-capable cloud models, so applying the
+ * "unverified local model" warning on `context <= 0` alone false-flags them. Only a provider
+ * added via the "Add a local provider" wizard (its `providerID` is a `LOCAL_PRESETS` key —
+ * ollama / lmstudio / openai-compatible) can carry a genuinely-unverified aperture-synth model.
+ */
+export function localProviderModelWarning(providerID: string, model: ResolvedModel): string | undefined {
+  if (!isLocalPreset(providerID)) return undefined
+  return modelWarning(model)
 }
 
 const PRESET_LABELS: Record<LocalPresetID, string> = {

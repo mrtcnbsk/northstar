@@ -5,7 +5,7 @@ import { ProviderID } from "../../provider/schema"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
 import { effectCmd, fail } from "../effect-cmd"
 import { UI } from "../ui"
-import { modelWarning } from "@/kilocode/provider/local-model-validation" // kilocode_change - EPIC 5 Task 5.3
+import { localProviderModelWarning } from "@/kilocode/provider/local-provider" // kilocode_change - EPIC 5 Task 5.3
 
 export const ModelsCommand = effectCmd({
   command: "models [provider]",
@@ -43,7 +43,7 @@ export const ModelsCommand = effectCmd({
         // kilocode_change start - EPIC 5 Task 5.3: visible warning when a model's context
         // window / tool-calling support is unverified (see
         // `@/kilocode/provider/local-model-validation.ts`)
-        const warning = modelWarning({ limit: model.limit, capabilities: model.capabilities })
+        const warning = localProviderModelWarning(providerID, { limit: model.limit, capabilities: model.capabilities })
         if (warning) {
           process.stdout.write(`${UI.Style.TEXT_WARNING_BOLD}  ! ${warning}${UI.Style.TEXT_NORMAL}`)
           process.stdout.write(EOL)

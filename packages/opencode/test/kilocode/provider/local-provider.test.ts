@@ -18,7 +18,7 @@ import { Global } from "@opencode-ai/core/global"
 import type { Provider } from "@opencode-ai/core/models-dev"
 import { Auth } from "@/auth"
 import { ModelCache } from "@/provider/model-cache"
-import { addLocalProviders, LOCAL_PRESETS } from "@/kilocode/provider/local-provider"
+import { addLocalProviders, LOCAL_PRESETS, localProviderModelWarning } from "@/kilocode/provider/local-provider"
 import { provideTmpdirInstance } from "../../fixture/fixture"
 import { TestConfig } from "../../fixture/config"
 import { testEffect } from "../../lib/effect"
@@ -290,4 +290,41 @@ describe("addLocalProviders", () => {
       { config: {} },
     ),
   )
+})
+
+describe("localProviderModelWarning", () => {
+  test("does not warn on a hosted, tool-capable model with context:0 (false positive being fixed)", () => {
+    expect(
+      localProviderModelWarning("poe", { limit: { context: 0 }, capabilities: { toolcall: true } }),
+    ).toBeUndefined()
+  })
+
+  test("does not warn on a hosted provider that is not a local preset", () => {
+    expect(
+      localProviderModelWarning("vercel", { limit: { context: 0 }, capabilities: { toolcall: false } }),
+    ).toBeUndefined()
+  })
+
+  test("warns on an ollama model with unverified capabilities", () => {
+    const warning = localProviderModelWarning("ollama", {
+      limit: { context: 0 },
+      capabilities: { toolcall: false },
+    })
+    expect(warning).toBeTruthy()
+    expect(warning).toContain("unverified")
+  })
+
+  test("warns on a user-added openai-compatible endpoint with unverified capabilities", () => {
+    const warning = localProviderModelWarning("openai-compatible", {
+      limit: { context: 0 },
+      capabilities: { toolcall: true },
+    })
+    expect(warning).toBeTruthy()
+  })
+
+  test("does not warn on an ollama model with verified capabilities (real context)", () => {
+    expect(
+      localProviderModelWarning("ollama", { limit: { context: 8192 }, capabilities: { toolcall: true } }),
+    ).toBeUndefined()
+  })
 })
