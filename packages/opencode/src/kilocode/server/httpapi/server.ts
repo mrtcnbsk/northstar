@@ -22,6 +22,7 @@ import { kiloGatewayHandlers } from "./handlers/kilo-gateway"
 import { kilocodeHandlers } from "./handlers/kilocode"
 import { memoryHandlers } from "./handlers/memory"
 import { networkHandlers } from "./handlers/network"
+import { orgBuilderHandlers } from "./handlers/org-builder"
 import { orgRunsHandlers } from "./handlers/org-runs"
 import { remoteHandlers } from "./handlers/remote"
 import { sandboxHandlers } from "./handlers/sandbox"
@@ -45,6 +46,7 @@ export const provide = Layer.provide([
   kilocodeHandlers,
   memoryHandlers,
   networkHandlers,
+  orgBuilderHandlers,
   orgRunsHandlers,
   remoteHandlers,
   sandboxHandlers,

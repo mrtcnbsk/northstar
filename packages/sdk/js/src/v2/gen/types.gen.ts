@@ -9899,6 +9899,9 @@ export type AgentBuilderPreviewData = {
       [key: string]: unknown
     }
     prompt: string
+    subordinates?: Array<string>
+    capabilities?: Array<string>
+    preferredTypes?: Array<string>
   }
   path?: never
   query?: {
@@ -9945,6 +9948,9 @@ export type AgentBuilderSaveData = {
       [key: string]: unknown
     }
     prompt: string
+    subordinates?: Array<string>
+    capabilities?: Array<string>
+    preferredTypes?: Array<string>
   }
   path: {
     id: string
@@ -12050,6 +12056,40 @@ export type NetworkRejectResponses = {
 }
 
 export type NetworkRejectResponse = NetworkRejectResponses[keyof NetworkRejectResponses]
+
+export type OrgBuilderSaveData = {
+  body?: {
+    organization: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-builder"
+}
+
+export type OrgBuilderSaveErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type OrgBuilderSaveError = OrgBuilderSaveErrors[keyof OrgBuilderSaveErrors]
+
+export type OrgBuilderSaveResponses = {
+  /**
+   * Fail-closed organization.jsonc write result
+   */
+  200: {
+    ok: boolean
+    issues: Array<string>
+    path?: string
+  }
+}
+
+export type OrgBuilderSaveResponse = OrgBuilderSaveResponses[keyof OrgBuilderSaveResponses]
 
 export type OrgRunsListData = {
   body?: never

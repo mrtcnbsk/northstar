@@ -19,13 +19,22 @@ export type KiloClawRoute = {
 }
 // kilocode_change end
 
+// kilocode_change start
+export type BuilderRoute = {
+  type: "builder"
+  section?: "models" | "agents" | "organization"
+}
+// kilocode_change end
+
 export type PluginRoute = {
   type: "plugin"
   id: string
   data?: Record<string, unknown>
 }
 
-export type Route = HomeRoute | SessionRoute | PluginRoute | KiloClawRoute // kilocode_change
+// kilocode_change start
+export type Route = HomeRoute | SessionRoute | PluginRoute | KiloClawRoute | BuilderRoute
+// kilocode_change end
 
 export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
   name: "Route",

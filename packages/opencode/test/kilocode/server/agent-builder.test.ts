@@ -19,6 +19,10 @@ type Agent = {
   name: string
   mode: "primary" | "subagent" | "all"
   prompt: string
+  subordinates?: string[]
+  capabilities?: string[]
+  preferredTypes?: string[]
+  permission: Array<{ permission: string; pattern: string; action: "ask" | "allow" | "deny" }>
 }
 
 afterEach(async () => {
@@ -91,6 +95,59 @@ describe("agent builder routes", () => {
       mode: "subagent",
       prompt: "Review the current diff and report risks.",
     })
+  })
+
+  // Task 6.2 gap: the generated SDK client's `buildClientParams` body-key whitelist previously
+  // omitted subordinates/capabilities/preferredTypes, so the Agents editor (which calls
+  // `agentBuilder.preview`/`.save` through that client) could gather these fields but never
+  // actually send them. This exercises the REAL HTTP handler directly (bypassing the generated
+  // client) to prove the endpoint+writer path carries `subordinates` end-to-end, including its
+  // `permission.task` expansion — the same seam `test/kilocode/agent/builder-org-fields.test.ts`
+  // covers at the in-process `AgentBuilder` layer.
+  test("previews and saves subordinates, which survive to GET /agent with a permission.task expansion", async () => {
+    await using tmp = await tmpdir()
+    const body = {
+      id: "ceo",
+      scope: "project",
+      mode: "primary",
+      description: "Delegates to the org",
+      prompt: "# CEO\n\nDelegate tasks to your subordinates.",
+      subordinates: ["chief", "worker"],
+    }
+
+    const preview = await req(tmp.path, "/agent-builder/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+
+    expect(preview.status).toBe(200)
+    const draft = (await preview.json()) as Output
+    expect(draft.markdown).toContain("subordinates:")
+    expect(draft.markdown).toContain("chief")
+    expect(draft.markdown).toContain("worker")
+
+    const saved = await req(tmp.path, "/agent-builder/ceo", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+
+    expect(saved.status).toBe(200)
+    const output = (await saved.json()) as Output
+    expect(output.markdown).toContain("subordinates:")
+
+    const agents = (await (await req(tmp.path, "/agent")).json()) as Agent[]
+    const ceo = agents.find((item) => item.name === "ceo")
+    expect(ceo).toBeDefined()
+    expect(ceo?.subordinates).toEqual(["chief", "worker"])
+    expect(ceo?.permission).toEqual(
+      expect.arrayContaining([
+        { permission: "task", pattern: "*", action: "deny" },
+        { permission: "task", pattern: "chief", action: "allow" },
+        { permission: "task", pattern: "worker", action: "allow" },
+      ]),
+    )
   })
 
   test("saves without a duplicated body id", async () => {

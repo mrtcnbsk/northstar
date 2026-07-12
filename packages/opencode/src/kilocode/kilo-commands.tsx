@@ -46,6 +46,19 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
 
   useBindings(() => ({
     commands: [
+      // /builder command
+      {
+        name: "builder.open",
+        title: "Open Builder",
+        desc: "Open the Builder (Models / Agents / Organization)",
+        category: "Builder",
+        slashName: "builder",
+        run: () => {
+          route.navigate({ type: "builder" })
+          dialog.clear()
+        },
+      },
+
       // /kiloclaw command
       {
         name: "kilo.claw",

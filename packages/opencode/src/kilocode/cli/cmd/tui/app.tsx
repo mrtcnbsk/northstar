@@ -29,6 +29,7 @@ import { Session as SessionApi } from "@/session/session"
 
 // Re-export so upstream can render the route without importing directly
 export { KiloClawView } from "@/kilocode/claw/view"
+export { BuilderView } from "@/kilocode/builder/view"
 export { KiloTerminalTitle } from "./terminal-title"
 
 // Hot reload TUI-local settings (keybinds/theme/ui) when changed from the Kilo Console.
@@ -164,6 +165,14 @@ export function getTerminalTitle(input: {
   if (input.route.data.type === "kiloclaw") {
     return {
       title: KiloTerminalTitle.format({ base: input.base, title: "KiloClaw", indicator: "none", icon: input.icon }),
+      active: false,
+      indicator: "none",
+    }
+  }
+
+  if (input.route.data.type === "builder") {
+    return {
+      title: KiloTerminalTitle.format({ base: input.base, title: "Builder", indicator: "none", icon: input.icon }),
       active: false,
       indicator: "none",
     }
