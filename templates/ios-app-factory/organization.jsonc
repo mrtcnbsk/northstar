@@ -1,7 +1,8 @@
 // Organization chart + pipeline for the app-building organization.
-// Copy this whole template into your app project: cp -r org-template/. <project>/.kilo/
+// Scaffold this template into your app project: northstar org init --template ios-app-factory
 {
   "ceo": "ceo",
+  "toolpacks": ["apple-delivery"],
   "departments": {
     "evaluation": { "chief": "eval-chief", "workers": ["market-research", "competitor-analysis", "feasibility"] },
     "planning":   { "chief": "planning-chief", "workers": ["product-spec", "architect"] },

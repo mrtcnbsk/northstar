@@ -103,6 +103,16 @@ async function copyKiloConsole(input: string, outputDir: string) {
   console.log(`copied Kilo Console assets to ${target}`)
 }
 
+// kilocode_change start - bundle org templates so an installed binary can resolve them for `org init`
+async function copyOrgTemplates(outputDir: string) {
+  const source = path.resolve(dir, "../../templates")
+  const target = path.join(outputDir, "templates")
+  await fs.promises.rm(target, { recursive: true, force: true })
+  await fs.promises.cp(source, target, { recursive: true })
+  console.log(`copied org templates to ${target}`)
+}
+// kilocode_change end
+
 function smokeEnv(root: string) {
   const env = { ...process.env }
   delete env.KILO_MODELS_PATH
@@ -349,6 +359,7 @@ for (const item of targets) {
   // kilocode_change start
   await copyTreeSitterWasms(path.resolve(dir, `dist/${name}/bin`))
   await copyKiloConsole(kiloConsoleDist, path.resolve(dir, `dist/${name}/bin`))
+  await copyOrgTemplates(path.resolve(dir, `dist/${name}/bin`))
   await KiloSandboxWorker.copy(kiloSandboxWorker, path.resolve(dir, `dist/${name}/bin`))
 
   if (item.os === "linux") {

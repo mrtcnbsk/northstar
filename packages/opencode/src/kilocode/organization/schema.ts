@@ -257,7 +257,7 @@ export namespace OrgSchema {
       .catch((e: unknown) => {
         if ((e as NodeJS.ErrnoException)?.code === "ENOENT") {
           throw new Error(
-            `No organization found: expected ${file}. Copy org-template/ into your project's .kilo/ directory first.`,
+            `No organization found: expected ${file}. Run \`northstar org init --template <name>\` first.`,
           )
         }
         throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })

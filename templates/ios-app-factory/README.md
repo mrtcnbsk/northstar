@@ -7,8 +7,8 @@ pre-release approval).
 ## Install into an app project
 
 ```bash
-mkdir -p /path/to/your-app/.kilo
-cp -r org-template/. /path/to/your-app/.kilo/
+cd /path/to/your-app
+northstar org init --template ios-app-factory
 ```
 
 ## Run

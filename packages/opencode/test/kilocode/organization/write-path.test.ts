@@ -24,7 +24,7 @@ import { deriveSubagentSessionPermission } from "../../../src/agent/subagent-per
 import { KiloTask } from "../../../src/kilocode/tool/task"
 import type { Agent } from "../../../src/agent/agent"
 
-const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
+const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "templates", "ios-app-factory")
 
 // Defaults stand-in: mirrors baseDefaults in src/agent/agent.ts ("*": "allow" first rule).
 const DEFAULTS: Permission.Ruleset = Permission.fromConfig({ "*": "allow" })

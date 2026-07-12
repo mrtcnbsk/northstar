@@ -10,7 +10,7 @@ import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { tmpdir } from "../../fixture/fixture"
 
-const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
+const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "templates", "ios-app-factory")
 
 async function loadTemplate() {
   const text = await Bun.file(path.join(TEMPLATE, "organization.jsonc")).text()
