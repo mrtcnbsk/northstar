@@ -12,7 +12,7 @@ import { described } from "@/server/routes/instance/httpapi/groups/metadata"
 // Read-only view schemas over org RUN state (state.json + approvals.json). Kept independent of the
 // zod OrgState/OrgAudit schemas so the API surface is decoupled from internal storage details.
 
-const OrgRunStatus = Schema.Literals(["active", "halted", "completed"])
+const OrgRunStatus = Schema.Literals(["active", "paused", "halted", "completed"])
 const StageStatus = Schema.Literals(["pending", "running", "awaiting_approval", "completed", "skipped", "failed"])
 
 const OrgRunSummary = Schema.Struct({

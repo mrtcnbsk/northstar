@@ -218,6 +218,40 @@ describe("OrgSchema.resolveBudget", () => {
   })
 })
 
+describe("OrgSchema autonomous loop authoring", () => {
+  test("round-trips stage criteria, irreversible flags, and loop config", () => {
+    const org = OrgSchema.parse({
+      ...VALID,
+      pipeline: [
+        { ...VALID.pipeline[0], criteria: ["Market evidence is cited"] },
+        { ...VALID.pipeline[1], irreversible: true, criteria: ["Release checklist passes"] },
+      ],
+      loop: { maxIterations: 7, evaluatorModel: "claude-haiku" },
+    })
+
+    expect(org.pipeline[0].criteria).toEqual(["Market evidence is cited"])
+    expect(org.pipeline[1].irreversible).toBe(true)
+    expect(OrgSchema.resolveLoop(org)).toEqual({ maxIterations: 7, evaluatorModel: "claude-haiku" })
+  })
+
+  test("fills autonomous loop defaults without changing the parsed legacy org", () => {
+    const org = OrgSchema.parse(VALID)
+    expect(org.loop).toBeUndefined()
+    expect(OrgSchema.resolveLoop(org)).toEqual({ maxIterations: 4, evaluatorModel: "haiku" })
+  })
+
+  test("rejects empty criteria, blank evaluator models, and non-positive iteration limits", () => {
+    expect(() =>
+      OrgSchema.parse({
+        ...VALID,
+        pipeline: [{ ...VALID.pipeline[0], criteria: [] }, VALID.pipeline[1]],
+      }),
+    ).toThrow()
+    expect(() => OrgSchema.parse({ ...VALID, loop: { evaluatorModel: "" } })).toThrow()
+    expect(() => OrgSchema.parse({ ...VALID, loop: { maxIterations: 0 } })).toThrow()
+  })
+})
+
 describe("OrgSchema.budgetWarnings", () => {
   test("returns [] for a sane budget (or no budget at all)", () => {
     const org = OrgSchema.parse(VALID)

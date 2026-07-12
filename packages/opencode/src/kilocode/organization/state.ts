@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import z from "zod"
 import { Filesystem } from "../../util/filesystem"
 import { OrgSchema } from "./schema"
+import { OrgIrreversible } from "./irreversible"
 
 export namespace OrgState {
   export const StageStatus = z.enum([
@@ -51,6 +52,22 @@ export namespace OrgState {
     escalationNote: z.string().optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
+    /** Human-approved, per-run snapshot used by the autonomous evaluator. */
+    criteria: z.array(z.string().min(1)).optional(),
+    /** Human-approved objective supplied by the one-shot plan. */
+    objective: z.string().min(1).optional(),
+    /** Number of evaluator revise verdicts applied to this stage. */
+    iterations: z.number().int().nonnegative().optional(),
+    verdictHistory: z
+      .array(
+        z.object({
+          pass: z.boolean(),
+          reasons: z.array(z.string().min(1)).optional(),
+          summary: z.string().min(1).optional(),
+          ts: z.number(),
+        }),
+      )
+      .optional(),
   })
   export type Stage = z.output<typeof Stage>
 
@@ -76,8 +93,16 @@ export namespace OrgState {
     runID: z.string(),
     idea: z.string(),
     createdAt: z.string(),
-    status: z.enum(["active", "halted", "completed"]),
+    status: z.enum(["active", "paused", "halted", "completed"]),
     haltReason: z.string().optional(),
+    auto: z.boolean().optional(),
+    pausedReason: z
+      .object({
+        kind: z.enum(["escalation", "final_gate"]),
+        stage: z.string(),
+        detail: z.string(),
+      })
+      .optional(),
     stages: z.record(z.string(), Stage),
     /** Set once the soft cost-escalation gate has fired for this run; prevents it from firing again. */
     escalated: z.boolean().optional(),
@@ -161,6 +186,17 @@ export namespace OrgState {
       .map((p) => p.stage)
   }
 
+  /** Whether the authored stage itself requires the final human gate. Tool-use checks are separate. */
+  export function isIrreversible(org: OrgSchema.Organization, stage: string): boolean {
+    const authored = org.pipeline.find((entry) => entry.stage === stage)
+    return authored ? OrgIrreversible.stage(authored) : false
+  }
+
+  /** Pure filter used by driver recovery and observability callers. */
+  export function pausedRuns(runs: readonly Run[]): Run[] {
+    return runs.filter((run) => run.status === "paused")
+  }
+
   export function runsDir(projectDir: string): string {
     return path.join(projectDir, ".kilo", "org", "runs")
   }
@@ -207,7 +243,16 @@ export namespace OrgState {
       idea,
       createdAt: now.toISOString(),
       status: "active",
-      stages: Object.fromEntries(org.pipeline.map((s) => [s.stage, { status: "pending" as const, attempts: 0 }])),
+      stages: Object.fromEntries(
+        org.pipeline.map((s) => [
+          s.stage,
+          {
+            status: "pending" as const,
+            attempts: 0,
+            ...(s.criteria ? { criteria: [...s.criteria] } : {}),
+          },
+        ]),
+      ),
       mode,
     }
     await write(projectDir, run)

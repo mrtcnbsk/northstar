@@ -19,6 +19,10 @@ export namespace OrgSchema {
   export const Stage = z.object({
     stage: z.string().min(1),
     gate: z.enum(["human"]).optional(),
+    /** Measurable acceptance criteria evaluated in autonomous loop mode. */
+    criteria: z.array(z.string().trim().min(1)).min(1).optional(),
+    /** Explicit external/irreversible boundary; always requires a final human gate. */
+    irreversible: z.boolean().optional(),
     haltOn: z.enum(["no-go"]).optional(),
     /** Per-stage budget ceiling override (USD), falls back to the org's resolved stage budget. */
     budget: z.number().nonnegative().optional(),
@@ -38,12 +42,18 @@ export namespace OrgSchema {
     retries: z.number().int().nonnegative().optional(),
   })
 
+  export const Loop = z.object({
+    maxIterations: z.number().int().positive().optional(),
+    evaluatorModel: z.string().trim().min(1).optional(),
+  })
+
   export const Organization = z.object({
     ceo: z.string().min(1),
     departments: z.record(z.string(), Department),
     shared: z.array(z.string().min(1)).default([]),
     pipeline: z.array(Stage).min(1),
     budget: Budget.optional(),
+    loop: Loop.optional(),
     /** Max stages the runner will run concurrently per advance() batch. Default 1 (sequential, current behavior). */
     maxConcurrency: z.number().int().positive().optional(),
     /** Opt-in toolpacks (see `kilocode/tool/toolpacks.ts`) whose tools become visible to every
@@ -59,12 +69,22 @@ export namespace OrgSchema {
     retries: number
   }
 
+  export type ResolvedLoop = {
+    maxIterations: number
+    evaluatorModel: string
+  }
+
   /** Owner-approved defaults (USD; retries is an integer count). */
   const BUDGET_DEFAULTS: ResolvedBudget = {
     run: 50,
     stage: 15,
     escalationThreshold: 10,
     retries: 2,
+  }
+
+  const LOOP_DEFAULTS: ResolvedLoop = {
+    maxIterations: 4,
+    evaluatorModel: "haiku",
   }
 
   export function parse(input: unknown): Organization {
@@ -78,6 +98,14 @@ export namespace OrgSchema {
       stage: org.budget?.stage ?? BUDGET_DEFAULTS.stage,
       escalationThreshold: org.budget?.escalationThreshold ?? BUDGET_DEFAULTS.escalationThreshold,
       retries: org.budget?.retries ?? BUDGET_DEFAULTS.retries,
+    }
+  }
+
+  /** Fills absent loop settings without materializing a loop block on legacy organizations. */
+  export function resolveLoop(org: Organization): ResolvedLoop {
+    return {
+      maxIterations: org.loop?.maxIterations ?? LOOP_DEFAULTS.maxIterations,
+      evaluatorModel: org.loop?.evaluatorModel ?? LOOP_DEFAULTS.evaluatorModel,
     }
   }
 

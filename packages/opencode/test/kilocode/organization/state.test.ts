@@ -94,6 +94,57 @@ describe("OrgState", () => {
     const ids = await OrgState.list(tmp.path)
     expect(ids).toEqual([])
   })
+
+  test("snapshots authored criteria into a newly-created run", async () => {
+    await using tmp = await tmpdir()
+    const org = OrgSchema.parse({
+      ...ORG,
+      pipeline: [
+        { ...ORG.pipeline[0], criteria: ["Evidence is cited"] },
+        { ...ORG.pipeline[1], criteria: ["Plan is executable", "Risks are bounded"] },
+      ],
+    })
+    const run = await OrgState.create(tmp.path, org, "criteria snapshot")
+    expect(run.stages.evaluation.criteria).toEqual(["Evidence is cited"])
+    expect(run.stages.planning.criteria).toEqual(["Plan is executable", "Risks are bounded"])
+  })
+
+  test("parses legacy run state with every autonomous field absent", () => {
+    const legacy = {
+      runID: "legacy-run",
+      idea: "old state",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      status: "active",
+      stages: { evaluation: { status: "pending", attempts: 0 } },
+    } as const
+    expect(OrgState.Run.parse(legacy)).toEqual(legacy)
+  })
+
+  test("round-trips paused autonomous state and evaluator history", () => {
+    const run = OrgState.Run.parse({
+      runID: "paused-run",
+      idea: "loop state",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      status: "paused",
+      auto: true,
+      pausedReason: { kind: "escalation", stage: "planning", detail: "criterion missing" },
+      stages: {
+        planning: {
+          status: "awaiting_approval",
+          attempts: 2,
+          criteria: ["All tests pass"],
+          iterations: 2,
+          verdictHistory: [
+            { pass: false, reasons: ["test output missing"], summary: "revise", ts: 1234 },
+          ],
+        },
+      },
+    })
+    expect(run.status).toBe("paused")
+    expect(run.auto).toBe(true)
+    expect(run.pausedReason?.kind).toBe("escalation")
+    expect(run.stages.planning.verdictHistory?.[0].pass).toBe(false)
+  })
 })
 
 describe("OrgState.stageCost", () => {
@@ -289,5 +340,36 @@ describe("OrgState readiness selectors", () => {
       expect(OrgState.runningStages(LINEAR, run)).toEqual([])
       expect(OrgState.awaitingStages(LINEAR, run)).toEqual([])
     })
+  })
+})
+
+describe("OrgState autonomous selectors", () => {
+  test("isIrreversible recognizes author flags and human gates", () => {
+    const org = OrgSchema.parse({
+      ...ORG,
+      pipeline: [
+        { ...ORG.pipeline[0], gate: undefined },
+        { ...ORG.pipeline[1], irreversible: true },
+      ],
+    })
+    expect(OrgState.isIrreversible(org, "evaluation")).toBe(false)
+    expect(OrgState.isIrreversible(org, "planning")).toBe(true)
+    expect(OrgState.isIrreversible(ORG, "evaluation")).toBe(true)
+    expect(OrgState.isIrreversible(org, "missing")).toBe(false)
+  })
+
+  test("pausedRuns selects only paused records in input order", () => {
+    const base = {
+      idea: "idea",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      stages: {},
+    }
+    const runs = [
+      OrgState.Run.parse({ ...base, runID: "active", status: "active" }),
+      OrgState.Run.parse({ ...base, runID: "paused-a", status: "paused" }),
+      OrgState.Run.parse({ ...base, runID: "done", status: "completed" }),
+      OrgState.Run.parse({ ...base, runID: "paused-b", status: "paused" }),
+    ]
+    expect(OrgState.pausedRuns(runs).map((run) => run.runID)).toEqual(["paused-a", "paused-b"])
   })
 })
