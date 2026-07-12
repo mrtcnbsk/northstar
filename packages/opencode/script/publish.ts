@@ -25,7 +25,10 @@ async function publish(dir: string, name: string, version: string) {
   await NpmPublish.retry({
     name,
     version,
-    run: () => $`npm publish *.tgz --access public --tag ${Script.channel} --provenance`.cwd(dir),
+    // kilocode_change - dropped --provenance for the FIRST publish: npm provenance tries to verify a
+    // repo/package link that does not exist yet for a brand-new package and returns E404. Re-add
+    // `--provenance` (supply-chain attestation) once @ilura/northstar exists on npm.
+    run: () => $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir),
     exists: () => published(name, version),
   })
   // kilocode_change end
