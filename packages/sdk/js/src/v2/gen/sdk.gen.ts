@@ -251,6 +251,8 @@ import type {
   NotebookFailure,
   NotebookRequestId,
   NotebookResult,
+  OrgBuilderSaveErrors,
+  OrgBuilderSaveResponses,
   OrgRunsDetailErrors,
   OrgRunsDetailResponses,
   OrgRunsListErrors,
@@ -8255,6 +8257,45 @@ export class Network extends HeyApiClient {
   }
 }
 
+export class OrgBuilder extends HeyApiClient {
+  /**
+   * Save organization.jsonc
+   *
+   * Validate a serialized organization (JSONC syntax + structural validate + agent cross-check) and write it to .kilo/organization.jsonc only when clean — fails closed (no write) otherwise.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      organization?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "organization" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<OrgBuilderSaveResponses, OrgBuilderSaveErrors, ThrowOnError>({
+      url: "/org-builder",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class OrgRuns extends HeyApiClient {
   /**
    * List org runs
@@ -9244,6 +9285,11 @@ export class KiloClient extends HeyApiClient {
   private _network?: Network
   get network(): Network {
     return (this._network ??= new Network({ client: this.client }))
+  }
+
+  private _orgBuilder?: OrgBuilder
+  get orgBuilder(): OrgBuilder {
+    return (this._orgBuilder ??= new OrgBuilder({ client: this.client }))
   }
 
   private _orgRuns?: OrgRuns

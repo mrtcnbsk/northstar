@@ -7,24 +7,21 @@
 // workers}). Right: a pipeline editor (add / move ± 1 / toggle-gate) over an in-memory draft, plus
 // a live validation panel.
 //
-// READ/WRITE PATH NOTE (Task 6.3 Step 3, investigated — see the task report for the full writeup):
-// Unlike Agents (Task 6.2, `agentBuilder` HttpApi group + generated SDK client), there is NO
-// org-specific HttpApi group/SDK method for organization.jsonc — `OrgSchema.loadOrganization` /
-// `writeOrganization` (schema.ts) are server-side fs functions with no client-callable counterpart.
+// READ/WRITE PATH NOTE (Task 6.3 gap closed — see `org-builder` HttpApi group):
 //   - READ: this screen reuses the EXISTING, generic, non-org-specific `/file/content` endpoint
 //     (`sdk.client.file.read`, already used elsewhere for arbitrary project files, e.g.
 //     `dialog-tag.tsx`'s `find.files`) to fetch `.kilo/organization.jsonc` as text, then parses it
 //     client-side with the same `jsonc-parser` + `OrgSchema.parse` the server uses. This is NOT a
 //     new endpoint — `/file/content` already reads any project-relative path.
-//   - WRITE: no generic write endpoint exists (`File` HttpApi group is read-only: list/content/
-//     status), and no org-specific one exists either. Per the Task 6.3 brief this screen must NOT
-//     invent one. Save is therefore left un-wired: it surfaces a toast explaining the gap instead
-//     of silently doing nothing or fabricating a network call. The mandatory, testable core
-//     (`OrgSchema.serialize`/`writeOrganization`, Step 1-2) is already correct and
-//     server-importable — a follow-up (an `org-builder` HttpApi group mirroring `agent-builder`)
-//     is what would close this loop.
+//   - WRITE: `sdk.client.orgBuilder.save` (mirrors the `agentBuilder` HttpApi group/SDK client from
+//     Task 6.2) serializes the draft (`OrgSchema.serialize`), sends it as JSONC text, and the
+//     server re-validates it end-to-end (JSONC syntax -> `OrgSchema.validate` -> agent cross-check
+//     via `ConfigAgent.load`) before writing — fail-closed: any issue at all blocks the write and
+//     is reported back as `{ok:false, issues}` instead of a thrown error. `ok:true` disposes the
+//     instance and re-bootstraps sync, same hot-reload as the Agents editor's save.
 // `OrgSchema.validate`/`crossCheck` are pure (no I/O) and imported directly for live validation of
-// the in-memory draft — that part needs no server round-trip at all.
+// the in-memory draft — that part needs no server round-trip at all (it's the pre-save UX; the
+// server repeats the same checks authoritatively at save time).
 
 import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -92,6 +89,8 @@ export function OrganizationScreen() {
 
   const [draft, setDraft] = createStore<OrgSchema.Organization>(blankSkeleton())
   const [status, setStatus] = createSignal<FileStatus>({ kind: "loading" })
+  const [saving, setSaving] = createSignal(false)
+  const [saveIssues, setSaveIssues] = createSignal<string[]>([])
 
   const [orgFile, { refetch }] = createResource(async () => {
     return sdk.client.file.read({ path: ORG_RELATIVE_PATH, workspace: project.workspace.current() })
@@ -122,7 +121,17 @@ export function OrganizationScreen() {
     Object.fromEntries(sync.data.agent.map((agent) => [agent.name, { mode: agent.mode, subordinates: agent.subordinates }])),
   )
 
-  const issues = createMemo(() => [...OrgSchema.validate(draft), ...OrgSchema.crossCheck(draft, agentsView())])
+  const liveIssues = createMemo(() => [...OrgSchema.validate(draft), ...OrgSchema.crossCheck(draft, agentsView())])
+  // Merges the always-on live (pre-save) validation with whatever the server rejected on the last
+  // save attempt — the server is authoritative (it re-checks against `.kilo/agent/*.md` on disk,
+  // which can differ from the TUI's in-memory `sync.data.agent` snapshot) so a save-time issue not
+  // already covered by `liveIssues` still needs to surface here rather than get silently dropped.
+  const issues = createMemo(() => {
+    const live = liveIssues()
+    const fromSave = saveIssues()
+    if (!fromSave.length) return live
+    return [...new Set([...live, ...fromSave])]
+  })
 
   function seed(org: OrgSchema.Organization) {
     setDraft(reconcile(org))
@@ -165,13 +174,44 @@ export function OrganizationScreen() {
     ))
   }
 
-  function save() {
-    toast.show({
-      variant: "warning",
-      message:
-        'Saving isn\'t wired yet: there is no write endpoint for organization.jsonc from the TUI (only the read-only "/file/content" route exists). Edit .kilo/organization.jsonc directly or use `northstar org init` from the CLI for now.',
-      duration: 8000,
-    })
+  async function save() {
+    if (saving()) return
+    setSaving(true)
+    setSaveIssues([])
+    try {
+      const serialized = OrgSchema.serialize(draft)
+      const result = await sdk.client.orgBuilder.save(
+        { organization: serialized, workspace: project.workspace.current() },
+        { throwOnError: true },
+      )
+      const output = result.data
+      if (!output?.ok) {
+        // Fail-closed: the server did NOT write the file. Surface its issues in the validation
+        // panel (merged via `issues`, above) and stay on this screen — do NOT navigate away or
+        // pretend anything was saved.
+        setSaveIssues(output?.issues ?? [])
+        toast.show({
+          variant: "error",
+          message: "Organization is invalid — see the validation panel below.",
+          duration: 5000,
+        })
+        return
+      }
+
+      // Mirrors the Agents editor's post-save hot-reload (agents-screen.tsx `save()`).
+      await sdk.client.instance.dispose()
+      await sync.bootstrap()
+      setStatus({ kind: "loaded" })
+      toast.show({ variant: "success", message: "Saved .kilo/organization.jsonc.", duration: 3000 })
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Failed to save organization.",
+        duration: 5000,
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   function statusLine() {
@@ -270,8 +310,10 @@ export function OrganizationScreen() {
           </Show>
         </box>
 
-        <box paddingLeft={1} paddingTop={1} onMouseUp={save}>
-          <text fg={theme.textMuted}>Save (not wired — see status line above)</text>
+        <box paddingLeft={1} paddingTop={1} onMouseUp={() => void save()}>
+          <text fg={saving() ? theme.textMuted : theme.accent}>
+            {saving() ? "Saving..." : "Save to .kilo/organization.jsonc"}
+          </text>
         </box>
       </box>
     </box>
