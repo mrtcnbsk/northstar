@@ -47,6 +47,85 @@ const edit = {
 
 export const kiloScenarios: Scenario[] = [
   ...anacondaDesktopScenarios,
+  http.protected.get("/org-runs", "orgRuns.list").json(200, (body) => {
+    object(body)
+    array(body.runs)
+    check(body.runs.length === 0, "a fresh workspace should have no org runs")
+  }),
+  http.protected
+    .get("/org-runs/{runID}", "orgRuns.detail")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .status(404),
+  http.protected
+    .post("/org-runs/{runID}/plan", "orgRuns.plan.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/plan", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: {},
+    }))
+    .status(400),
+  http.protected
+    .post("/org-runs/{runID}/decision", "orgRuns.decision.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/decision", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: {},
+    }))
+    .status(400),
+  http.protected
+    .post("/org-runs/{runID}/note", "orgRuns.note.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/note", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: {},
+    }))
+    .status(400),
+  http.protected
+    .post("/org-runs/{runID}/stop", "orgRuns.stop.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/stop", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: {},
+    }))
+    .status(400),
+  http.protected
+    .post("/org-runs/{runID}/pause", "orgRuns.pause.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/pause", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: {},
+    }))
+    .status(400),
+  http.protected
+    .post("/org-runs/{runID}/resume", "orgRuns.resume.invalid")
+    .at((ctx) => ({
+      path: route("/org-runs/{runID}/resume", { runID: "run_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: { note: 1 },
+    }))
+    .status(400),
+  http.protected
+    .put("/org-builder", "orgBuilder.save.invalid")
+    .at((ctx) => ({
+      path: "/org-builder",
+      headers: ctx.headers(),
+      body: { organization: "{" },
+    }))
+    .json(200, (body) => {
+      object(body)
+      check(body.ok === false, "invalid organization JSONC should fail closed")
+      array(body.issues)
+      check(body.issues.length > 0, "invalid organization JSONC should report validation issues")
+      check(body.path === undefined, "a rejected organization should not report a written path")
+    }),
+  http.protected.get("/agents", "agents.list").json(200, (body) => {
+    object(body)
+    array(body.agents)
+    check(body.agents.length === 0, "a fresh workspace should have no agent metrics")
+  }),
   http.protected.get("/background-process", "backgroundProcess.list").json(200, array),
   http.protected
     .get("/background-process/{processID}", "backgroundProcess.get")
