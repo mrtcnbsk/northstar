@@ -199,9 +199,36 @@ export namespace OrgRunner {
   }
 
   /**
+   * The notes (Task 7.3, EPIC 7) whose `target` matches `stage`'s roster and that haven't yet been
+   * surfaced anywhere. Roster = the stage's chief + workers; `target === "*"` or `target ===
+   * org.ceo` always matches (a broadcast — the CEO itself never gets a `stagePromptFor` prompt of
+   * its own, so a ceo-addressed note is treated as "surface it to whatever stage runs next", same
+   * as a wildcard). Pure - no I/O.
+   */
+  function matchingNotes(org: OrgSchema.Organization, run: OrgState.Run, stage: string): OrgState.Note[] {
+    const dept = org.departments[stage]
+    const roster = new Set([dept.chief, ...dept.workers])
+    return (run.notes ?? []).filter(
+      (note) =>
+        !note.consumedByStage &&
+        (note.target === "*" || note.target === org.ceo || roster.has(note.target)),
+    )
+  }
+
+  /**
    * The single stage-prompt builder: `instruct` delegates here, and the `incomplete` path uses
    * it (with the stage's persisted reviseNote) to brief a fresh chief session when the
    * resumeTaskID turns out unresumable.
+   *
+   * kilocode_change start - Task 7.3 (EPIC 7): side-channel notes are surfaced HERE, and ONLY
+   * here - the single place every stage prompt (instruct, revise re-instruct, incomplete
+   * resume-briefing) is built. Matched notes are rendered into the prompt, then marked
+   * `consumedByStage` via ONE standalone `OrgState.update` that touches ONLY `run.notes` - it is
+   * NOT part of (and runs strictly after/independent of) the atomic cost+ceiling+escalation
+   * `OrgState.update` in `settleRunningStage`, so it can never affect status/cost/gate/readiness.
+   * This is the CRITICAL INVARIANT the whole feature rests on: notes are read-only at instruct
+   * time and cannot perturb the deterministic runner state machine (see org-note.test.ts's
+   * determinism pin). When nothing matches, this is a pure no-op - no extra write, no extra I/O.
    */
   async function stagePromptFor(
     projectDir: string,
@@ -211,7 +238,8 @@ export namespace OrgRunner {
     reviseNote?: string,
   ): Promise<string> {
     const dept = org.departments[stage]
-    return OrgPrompts.stagePrompt({
+    const matched = matchingNotes(org, run, stage)
+    const prompt = OrgPrompts.stagePrompt({
       stage,
       idea: run.idea,
       deliverablePath: OrgArtifacts.deliverablePath(projectDir, run.runID, stage),
@@ -220,8 +248,19 @@ export namespace OrgRunner {
       priorDeliverables: priorDeliverables(projectDir, org, run, stage),
       reviseNote,
       workerCapabilities: await workerCapabilitiesFor(projectDir, dept.workers),
+      notes: matched.length > 0 ? matched.map((n) => ({ target: n.target, text: n.text, from: n.from })) : undefined,
     })
+    if (matched.length > 0) {
+      const ids = new Set(matched.map((n) => n.id))
+      await OrgState.update(projectDir, run.runID, (s) => {
+        for (const note of s.notes ?? []) {
+          if (ids.has(note.id) && !note.consumedByStage) note.consumedByStage = stage
+        }
+      })
+    }
+    return prompt
   }
+  // kilocode_change end
 
   async function instruct(
     projectDir: string,

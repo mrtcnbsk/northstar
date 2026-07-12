@@ -322,7 +322,7 @@ describe("kilocode tool registry indexing", () => {
     ),
   )
 
-  const orgIDs = ["org_start", "org_advance", "org_decision", "org_status", "org_stop", "org_route"]
+  const orgIDs = ["org_start", "org_advance", "org_decision", "org_status", "org_stop", "org_note", "org_route"]
 
   it.live("hides org tools when the project has no organization config", () =>
     provideTmpdirInstance(
@@ -426,6 +426,7 @@ describe("kilocode tool registry indexing", () => {
       orgDecision: def("org_decision"),
       orgStatus: def("org_status"),
       orgStop: def("org_stop"),
+      orgNote: def("org_note"),
       orgMemorySave: def("org_memory_save"),
       orgRecall: def("org_recall"),
       orgSearch: def("org_search"),
@@ -440,6 +441,7 @@ describe("kilocode tool registry indexing", () => {
       "org_decision",
       "org_status",
       "org_stop",
+      "org_note",
       "org_memory_save",
       "org_recall",
       "org_search",

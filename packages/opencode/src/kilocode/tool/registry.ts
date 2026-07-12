@@ -26,6 +26,7 @@ import {
   OrgDecisionTool,
   OrgStatusTool,
   OrgStopTool,
+  OrgNoteTool,
 } from "@/kilocode/organization/tools"
 import { OrgMemorySaveTool } from "./org-memory-save"
 import { OrgRecallTool } from "./org-recall"
@@ -104,6 +105,7 @@ export namespace KiloToolRegistry {
       const orgDecision = yield* OrgDecisionTool
       const orgStatus = yield* OrgStatusTool
       const orgStop = yield* OrgStopTool
+      const orgNote = yield* OrgNoteTool
       const orgMemorySave = yield* OrgMemorySaveTool
       const orgRecall = yield* OrgRecallTool
       const orgSearch = yield* OrgSearchTool
@@ -135,6 +137,7 @@ export namespace KiloToolRegistry {
           orgDecision,
           orgStatus,
           orgStop,
+          orgNote,
           orgMemorySave,
           orgRecall,
           orgSearch,
@@ -171,6 +174,7 @@ export namespace KiloToolRegistry {
         orgDecision,
         orgStatus,
         orgStop,
+        orgNote,
         orgMemorySave,
         orgRecall,
         orgSearch,
@@ -209,6 +213,7 @@ export namespace KiloToolRegistry {
       orgDecision: Tool.Info
       orgStatus: Tool.Info
       orgStop: Tool.Info
+      orgNote: Tool.Info
       orgMemorySave: Tool.Info
       orgRecall: Tool.Info
       orgSearch: Tool.Info
@@ -246,6 +251,7 @@ export namespace KiloToolRegistry {
         orgDecision: Tool.init(tools.orgDecision),
         orgStatus: Tool.init(tools.orgStatus),
         orgStop: Tool.init(tools.orgStop),
+        orgNote: Tool.init(tools.orgNote),
         orgMemorySave: Tool.init(tools.orgMemorySave),
         orgRecall: Tool.init(tools.orgRecall),
         orgSearch: Tool.init(tools.orgSearch),
@@ -338,6 +344,7 @@ export namespace KiloToolRegistry {
       orgDecision: Tool.Def
       orgStatus: Tool.Def
       orgStop: Tool.Def
+      orgNote: Tool.Def
       orgMemorySave: Tool.Def
       orgRecall: Tool.Def
       orgSearch: Tool.Def
@@ -385,6 +392,7 @@ export namespace KiloToolRegistry {
       tools.orgDecision,
       tools.orgStatus,
       tools.orgStop,
+      tools.orgNote,
       tools.orgMemorySave,
       tools.orgRecall,
       tools.orgSearch,

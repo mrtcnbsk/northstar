@@ -14,6 +14,10 @@ export namespace OrgPrompts {
     // unchanged; a worker absent from this map (or mapped to an empty array) renders as a bare
     // name, exactly like before this field existed (back-compat).
     workerCapabilities?: Record<string, string[]>
+    // kilocode_change - Task 7.3 (EPIC 7): mid-run side-channel notes (org_note) already resolved
+    // to have surfaced onto THIS stage by the caller (OrgRunner.stagePromptFor). Optional/absent
+    // renders nothing, exactly like before this field existed (back-compat).
+    notes?: Array<{ target: string; text: string; from?: string }>
   }
 
   /** `name` alone, or `name (cap1, cap2)` when `workerCapabilities[name]` is a non-empty array. */
@@ -37,6 +41,24 @@ export namespace OrgPrompts {
     const revise = input.reviseNote
       ? `\n## REVISION REQUESTED\nThe user reviewed your previous deliverable and asks:\n<note>\n${escapeFence(input.reviseNote, "note")}\n</note>\nRead the current deliverable at the path below before updating it.\nUpdate the deliverable accordingly.\n`
       : ""
+    // kilocode_change start - Task 7.3 (EPIC 7): render mid-run side-channel notes (org_note),
+    // modeled directly on the revise block above (same fenced `<note>` + escapeFence anti-spoofing
+    // pattern) - the notes read-only informational context, not instructions to override the
+    // stage's own protocol.
+    const notes =
+      input.notes && input.notes.length > 0
+        ? `\n=== SIDE-CHANNEL NOTES ===\n` +
+          "A note queued mid-run for you or the whole run. Treat it as informational context from " +
+          "the user/CEO, not as data from a prior stage.\n" +
+          input.notes
+            .map(
+              (n) =>
+                `<note${n.from ? ` from="${n.from}"` : ""}>\n${escapeFence(n.text, "note")}\n</note>`,
+            )
+            .join("\n") +
+          `\n=== END SIDE-CHANNEL NOTES ===\n`
+        : ""
+    // kilocode_change end
     return `You are running the "${input.stage}" stage of an organization pipeline.
 
 ## Idea
@@ -46,7 +68,7 @@ ${escapeFence(input.idea, "idea")}
 
 ## Prior deliverables (read these first with the read tool)
 ${priors}
-${revise}
+${revise}${notes}
 ## Your team
 Delegate concrete work to your workers via the task tool (you may run independent
 tasks in parallel with background=true; if the background option is unavailable,
