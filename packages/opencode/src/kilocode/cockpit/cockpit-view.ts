@@ -238,6 +238,17 @@ export function loopGauge(detail: LoopDetailView, now: number = Date.now()): Loo
 }
 // kilocode_change end
 
+// kilocode_change start - SP2 Task 2: timeline annotations.
+export type StageAnnotationInput = { iterations?: number; maxIterations: number; isFinalGate: boolean }
+
+export function stageAnnotation(input: StageAnnotationInput): string | undefined {
+  if (input.isFinalGate) return "⏸ final kapı"
+  const iterations = input.iterations ?? 0
+  if (iterations > 0) return `↻ revize ${iterations}/${input.maxIterations}`
+  return undefined
+}
+// kilocode_change end
+
 /** The SDK guards NaN/Infinity over the wire by widening numeric fields to include the string
  * sentinels "NaN"/"Infinity"/"-Infinity". Coerces back to a plain finite number (default 0) so
  * downstream pure view helpers (`stageTimeline`, `budgetFromRun`) never have to think about it. */
@@ -264,6 +275,8 @@ export type StageTimelineItem = {
   completedAt: string
   decision: OrgRunStageView["decision"] | undefined
   badgeVariant: BadgeVariant
+  // kilocode_change - SP2 Task 2: bounded-loop / final-gate status beside the stage.
+  annotation?: string
 }
 
 const stageBadgeVariants: Record<StageStatus, BadgeVariant> = {
@@ -281,6 +294,12 @@ export function stageBadge(status: StageStatus): BadgeVariant {
 
 export function stageTimeline(detail: OrgRunDetailResponse | undefined): StageTimelineItem[] {
   if (!detail) return []
+  // kilocode_change start - SP2 Task 2: annotate loop revisions and the active final gate.
+  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
+  const finalGateStage =
+    detail.run.status === "paused" && detail.run.pausedReason?.kind === "final_gate"
+      ? detail.run.pausedReason.stage
+      : undefined
   return detail.stages.map((item) => ({
     stage: item.stage,
     status: item.status,
@@ -289,7 +308,13 @@ export function stageTimeline(detail: OrgRunDetailResponse | undefined): StageTi
     completedAt: item.completedAt,
     decision: item.decision,
     badgeVariant: stageBadge(item.status),
+    annotation: stageAnnotation({
+      iterations: number(item.iterations),
+      maxIterations,
+      isFinalGate: item.stage === finalGateStage,
+    }),
   }))
+  // kilocode_change end
 }
 
 export function auditTrail(detail: OrgRunDetailResponse | undefined): OrgAuditEntry[] {
