@@ -1,6 +1,6 @@
 // kilocode_change - new file
-import type { OrgSchema } from "@/kilocode/organization/schema"
-import type { OrgAuditEntry, OrgRunBudget, OrgRunDetailResponse, OrgRunStageView } from "@kilocode/sdk/v2/client"
+import { OrgSchema } from "@/kilocode/organization/schema" // kilocode_change - Task 8.3: value import (dryRunReport calls OrgSchema.validate/crossCheck)
+import type { OrgAuditEntry, OrgRunBudget, OrgRunDetailResponse, OrgRunStageView, OrgRunSummary } from "@kilocode/sdk/v2/client"
 
 /**
  * Pure, org-free-of-side-effects view builders for the TUI Cockpit dashboard (Task 8.1a, EPIC 8).
@@ -180,3 +180,74 @@ export function badgeToThemeKey(variant: BadgeVariant): "text" | "textMuted" | "
       return "textMuted"
   }
 }
+
+// kilocode_change start - Task 8.3 (EPIC 8): run-list home + --dry-run preflight
+
+/** Ported straight from `org-runs-view.ts`'s `runStatusBadge` (badges the org-RUN, not a per-stage
+ * status — see `stageBadge` above for that). Same cross-package-copy rationale as the rest of this
+ * file's ports (see the module doc comment). */
+export function runStatusBadge(status: string): BadgeVariant {
+  if (status === "active") return "secondary"
+  if (status === "halted") return "destructive"
+  if (status === "completed") return "default"
+  return "outline"
+}
+
+export type RunListRow = {
+  runID: string
+  idea: string
+  status: string
+  totalCost: number
+  currentStage: string | null
+  awaitingGate: boolean
+  badge: BadgeVariant
+}
+
+/**
+ * Maps `orgRuns.list` summaries (already newest-first over the wire, see OrgRunsView.list) to the
+ * Cockpit run-list home's row view-model (Task 8.3, `view.tsx` renders this when `route.data.runID`
+ * is absent). A straight `.map` preserves that newest-first order — nothing here re-sorts.
+ */
+export function buildRunList(summaries: readonly OrgRunSummary[]): RunListRow[] {
+  return summaries.map((s) => ({
+    runID: s.runID,
+    idea: s.idea,
+    status: s.status,
+    totalCost: number(s.totalCost),
+    currentStage: s.currentStage,
+    awaitingGate: s.awaitingGate,
+    badge: runStatusBadge(s.status),
+  }))
+}
+
+export type DryRunReport = {
+  ok: boolean
+  departments: number
+  stages: number
+  agentCount: number
+  issues: string[]
+}
+
+/**
+ * Pure `--dry-run` preflight (Task 8.3): mirrors `handleInit`'s load -> validate -> crossCheck
+ * sequence (`cli/cmd/org.ts`) but takes an already-loaded org + agents map instead of doing its own
+ * I/O, so it can be unit-tested with in-memory fixtures. Callers load `org` via
+ * `OrgSchema.loadOrganization` (which already throws on structural/validate errors before returning
+ * -- see schema.ts) and `agents` via `ConfigAgent.load`; re-running `validate` here is what lets this
+ * stay a general, pure function testable independent of that load path (e.g. with a hand-built
+ * invalid org, as `test/kilocode/cockpit/run-list.test.ts` does).
+ */
+export function dryRunReport(
+  org: OrgSchema.Organization,
+  agents: Record<string, { mode?: string; subordinates?: readonly string[] }>,
+): DryRunReport {
+  const issues = [...OrgSchema.validate(org), ...OrgSchema.crossCheck(org, agents)]
+  return {
+    ok: issues.length === 0,
+    departments: Object.keys(org.departments).length,
+    stages: org.pipeline.length,
+    agentCount: Object.keys(agents).length,
+    issues,
+  }
+}
+// kilocode_change end

@@ -27,6 +27,7 @@ import { TextAttributes } from "@opentui/core"
 import { useRoute } from "@tui/context/route"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogPrompt } from "@tui/ui/dialog-prompt"
+import { DialogSelect } from "@tui/ui/dialog-select" // kilocode_change - Task 8.3: run-list home
 import { useToast } from "@tui/ui/toast"
 import { useTheme } from "@tui/context/theme"
 import { useBindings } from "@tui/keymap"
@@ -35,7 +36,17 @@ import { useProject } from "@tui/context/project"
 import { PartID } from "@/session/schema"
 import { OrgSchema } from "@/kilocode/organization/schema"
 import type { OrgRunDetailResponse } from "@kilocode/sdk/v2/client"
-import { auditTrail, badgeToThemeKey, budgetFromRun, budgetGauge, buildAgentTree, formatCost, stageTimeline, type BudgetGauge } from "./cockpit-view"
+import {
+  auditTrail,
+  badgeToThemeKey,
+  budgetFromRun,
+  budgetGauge,
+  buildAgentTree,
+  buildRunList, // kilocode_change - Task 8.3: run-list home
+  formatCost,
+  stageTimeline,
+  type BudgetGauge,
+} from "./cockpit-view"
 // kilocode_change - Task 8.2: hard stop goes via the SAME CEO-instruction-message convention as
 // the 7.4 gate card (gate-card.tsx's `send`) — never a direct `OrgRunner.stop` (the cockpit stays
 // READ-ONLY over run state; see the EPIC 8 plan's determinism/security invariants).
@@ -118,6 +129,20 @@ export function CockpitView() {
       return undefined
     }
   })
+
+  // kilocode_change start - Task 8.3: run-list home. Fetches ONLY when the Cockpit was opened
+  // without a runID (the run picker below) -- once a run is selected, `detail` above takes over and
+  // this resource goes idle (createResource's source returns undefined whenever runID() is set).
+  const [runsList] = createResource(
+    () => (runID() ? undefined : true),
+    async () => {
+      const result = await sdk.client.orgRuns.list({ workspace: project.workspace.current() })
+      if (result.error || !result.data) return []
+      return result.data.runs
+    },
+  )
+  const runRows = createMemo(() => buildRunList(runsList() ?? []))
+  // kilocode_change end
 
   const stages = createMemo(() => stageTimeline(detail()))
   const audit = createMemo(() => [...auditTrail(detail())].reverse())
@@ -236,11 +261,32 @@ export function CockpitView() {
         Cockpit
       </text>
 
+      {/* kilocode_change start - Task 8.3: run-list home (no runID -> pick a run) */}
       <Show when={!runID()}>
-        <text fg={theme.textMuted}>
-          No run selected. Open the Cockpit with a runID once the run list lands (Task 8.3).
-        </text>
+        <Show when={runsList.loading && !runsList()}>
+          <text fg={theme.textMuted}>Loading org runs...</text>
+        </Show>
+        <Show when={!runsList.loading && runsList() && runRows().length === 0}>
+          <text fg={theme.textMuted}>No org runs yet. Start one from a shell: northstar run --auto "your idea"</text>
+        </Show>
+        <Show when={runRows().length > 0}>
+          <DialogSelect
+            title="Org Runs"
+            skipFilter={true}
+            renderFilter={false}
+            options={runRows().map((row) => ({
+              title: row.idea || row.runID,
+              description: `${row.status}${row.awaitingGate ? " · awaiting gate" : ""}`,
+              footer: formatCost(row.totalCost),
+              value: row.runID,
+            }))}
+            onSelect={(option) => {
+              route.navigate({ type: "cockpit", runID: option.value, sessionID: sessionID() })
+            }}
+          />
+        </Show>
       </Show>
+      {/* kilocode_change end */}
 
       <Show when={runID() && detail.loading && !detail()}>
         <text fg={theme.textMuted}>Loading run {runID()}...</text>
