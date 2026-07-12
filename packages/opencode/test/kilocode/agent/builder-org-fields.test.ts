@@ -69,6 +69,46 @@ describe("AgentBuilder org fields", () => {
     })
   })
 
+  test("rejects an integer-like agent id (would break permission.task ordering)", async () => {
+    await using tmp = await tmpdir()
+    await expect(
+      AgentBuilder.preview(
+        { directory: tmp.path },
+        { id: "123", scope: "project", mode: "subagent", description: "d", prompt: "# Role" },
+      ),
+    ).rejects.toThrow(/integer-like/)
+  })
+
+  test("rejects an integer-like subordinate name (silently denied delegation otherwise)", async () => {
+    await using tmp = await tmpdir()
+    await expect(
+      AgentBuilder.preview(
+        { directory: tmp.path },
+        { id: "boss", scope: "project", mode: "primary", description: "d", prompt: "# Role", subordinates: ["123"] },
+      ),
+    ).rejects.toThrow(/integer-like/)
+  })
+
+  test("rejects a '*' subordinate name (wildcard collision)", async () => {
+    await using tmp = await tmpdir()
+    await expect(
+      AgentBuilder.preview(
+        { directory: tmp.path },
+        { id: "boss", scope: "project", mode: "primary", description: "d", prompt: "# Role", subordinates: ["*"] },
+      ),
+    ).rejects.toThrow(/wildcard/)
+  })
+
+  test("allows a name that merely ends in a digit (not purely integer-like)", async () => {
+    await using tmp = await tmpdir()
+    const output = await AgentBuilder.preview(
+      { directory: tmp.path },
+      { id: "swiftui-dev-1", scope: "project", mode: "subagent", description: "d", prompt: "# Role", subordinates: ["worker-2"] },
+    )
+    expect(output.id).toBe("swiftui-dev-1")
+    expect(output.markdown).toContain("worker-2")
+  })
+
   test("byte-identical regression: omitting the new fields serializes no subordinates/capabilities/preferredTypes keys", async () => {
     await using tmp = await tmpdir()
     const output = await AgentBuilder.preview(

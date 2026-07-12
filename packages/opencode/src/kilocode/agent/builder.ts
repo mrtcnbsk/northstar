@@ -62,7 +62,22 @@ export namespace AgentBuilder {
     worktree?: string
   }
 
+  // An agent name that is integer-like ("123") or the "*" wildcard breaks permission-rule
+  // ordering: the loader's `normalize` (src/config/agent.ts) expands `subordinates` into
+  // `permission.task = { "*": "deny", <name>: "allow", ... }` relying on insertion order so the
+  // wildcard deny is written first and later specific allows win under last-match-wins. But JS
+  // hoists integer-like string keys ahead of "*", flipping the order so the deny wins and the
+  // declared subordinate is silently DENIED. `OrgSchema.invalidName` already rejects such names
+  // for org departments/ceo/shared; this guards the agent write path the Agents editor uses.
+  function assertSafeName(kind: string, name: string) {
+    if (name === "*") throw new Error(`${kind} "*" is not allowed (wildcard collides with permission patterns)`)
+    if (/^\d+$/.test(name))
+      throw new Error(`${kind} "${name}" is not allowed (integer-like names break permission rule ordering)`)
+  }
+
   export async function preview(ctx: Ctx, input: Input): Promise<Output> {
+    assertSafeName("agent id", input.id)
+    for (const name of input.subordinates ?? []) assertSafeName("subordinate name", name)
     return {
       id: input.id,
       scope: input.scope,

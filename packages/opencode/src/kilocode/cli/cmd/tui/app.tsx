@@ -169,6 +169,14 @@ export function getTerminalTitle(input: {
       indicator: "none",
     }
   }
+
+  if (input.route.data.type === "builder") {
+    return {
+      title: KiloTerminalTitle.format({ base: input.base, title: "Builder", indicator: "none", icon: input.icon }),
+      active: false,
+      indicator: "none",
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
