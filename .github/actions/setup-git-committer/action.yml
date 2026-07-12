@@ -1,45 +1,35 @@
 name: "Setup Git Committer"
-description: "Create app token and configure git user"
+description: "Configure git user + remote auth using the workflow GITHUB_TOKEN"
+# kilocode_change - this fork has no Kilo Maintainer GitHub App, so create-github-app-token
+# fails ("appId option is required"). Use the workflow's built-in GITHUB_TOKEN (which has
+# `contents: write` per the publish workflow's permissions) with the standard github-actions[bot]
+# committer identity. The `kilo-maintainer-app-*` inputs are accepted but ignored.
 inputs:
-  # kilocode_change start
   kilo-maintainer-app-id:
-    description: "Kilo Maintainer GitHub App ID"
-    required: true
+    description: "(unused on this fork) Kilo Maintainer GitHub App ID"
+    required: false
   kilo-maintainer-app-secret:
-    description: "Kilo Maintainer GitHub App private key"
-    required: true
-  # kilocode_change end
+    description: "(unused on this fork) Kilo Maintainer GitHub App private key"
+    required: false
 outputs:
   token:
-    description: "GitHub App token"
-    value: ${{ steps.apptoken.outputs.token }}
+    description: "GitHub token used for git push + gh operations"
+    value: ${{ github.token }}
   app-slug:
-    description: "GitHub App slug"
-    value: ${{ steps.apptoken.outputs.app-slug }}
+    description: "committer slug"
+    value: "github-actions"
 runs:
   using: "composite"
   steps:
-    - name: Create app token
-      id: apptoken
-      uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-      with:
-        # kilocode_change start
-        app-id: ${{ inputs['kilo-maintainer-app-id'] }}
-        private-key: ${{ inputs['kilo-maintainer-app-secret'] }}
-        # kilocode_change end
-        owner: ${{ github.repository_owner }}
-
     - name: Configure git user
       run: |
-        slug="${{ steps.apptoken.outputs.app-slug }}"
-        git config --global user.name "${slug}[bot]"
-        git config --global user.email "${slug}[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
       shell: bash
 
     - name: Clear checkout auth
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
-        # kilocode_change start
         keys="$(git config --local --name-only --get-regexp '^includeIf\.gitdir:' || true)"
         for key in $keys; do
           path="$(git config --local --get "$key" || true)"
@@ -47,10 +37,9 @@ runs:
             *git-credentials-*.config) git config --local --unset-all "$key" || true ;;
           esac
         done
-        # kilocode_change end
       shell: bash
 
     - name: Configure git remote
       run: |
-        git remote set-url origin https://x-access-token:${{ steps.apptoken.outputs.token }}@github.com/${{ github.repository }}
+        git remote set-url origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
       shell: bash
