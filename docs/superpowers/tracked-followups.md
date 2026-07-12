@@ -722,6 +722,23 @@ settled olmuş fakat conductor'a henüz raporlanmamış child-session sonucu iç
 process-içi ve state/audit kalıcı, fakat bu dar crash penceresinde operatör resume/steer gerekebilir. Cross-process run lock da mevcut
 process-local `withRunLock` sınırının dışında kalır.
 
+## SP2 Mission Control TUI (2026-07-12)
+
+SP2, EPIC-8 Cockpit'i autonomous run'ların birincil **Mission Control** yüzeyine dönüştürür. Saf view-model katmanı evaluator
+kriterlerini, iterasyon/red bilgisini, loop süre/model göstergesini ve timeline annotation'larını üretir. Props-only panel ve
+conversation strip bileşenleri SDK'dan bağımsızdır; tüm plan/decision/note/pause/stop mutasyonları `CockpitView` içindeki production
+keymap üzerinden generated `sdk.client.orgRuns.*` HTTP client'ına gider. `/mission` birincil komuttur; `/cockpit` uyumluluk alias'ı
+olarak aynı route'u açar.
+
+Plan kriterleri `[e]` ile yerel olarak düzenlenip `[a]` ile önce plan, sonra approval endpoint'ine gönderilir. Escalation kartında `s`
+yalnız steer composer'ı açar; composer odaktayken `p`/`s` dahil view-level kısayollar devre dışı kalır. Conversation strip ve bütçe
+30 satırlık terminalde `flexShrink=0` ile görünür kalır, gözlemsel paneller tek scroll alanında akar. HTTP başarı etiketi yalnız SDK
+yanıtı başarılı olduktan sonra gösterilir; resolved `{error}` sonuçları da hata kabul edilir.
+
+**SP2 doğrulama:** Cockpit 63/63, organization 572/572, org HTTP 23/23, görünür marka 11/11, opencode + generated SDK typecheck,
+lint 0 error. Sistem yükünü sınırlamak için full corpus `--concurrency 1` batch'lerine bölündü: normal 686 dosyalık kapsamın tamamı
+ve normalde skipped olan OAuth browser dosyası dahil **687/687 dosya geçti, 0 flaky**.
+
 ## Release prep (2026-07-12) — npm publish hazırlığı
 Kullanıcı npm publish setup'ı istedi (token'ı chat'e yapıştırdı → **compromised, revoke edilmeli; asistan token'ı KULLANMADI/kullanamaz** — credential/publish prohibited). Repo tarafı hazırlandı:
 - **`@kilocode/sdk` + `@kilocode/plugin` root `script/publish.ts` publish path'inden ÇIKARILDI** (`33ad50746a` sonrası). Kök neden: bu scope Ilura'nın DEĞİL → gerçek CI publish CLI'ı yayınlar sonra bu iki pakette 403 alıp job'ı öldürür (kısmi release). CLI self-contained (`@ilura/northstar` dist package.json'ı yalnız platform-binary optionalDependencies taşır, @kilocode/sdk'ye runtime-bağımlı DEĞİL); sdk/plugin hâlâ BUILD ediliyor (CLI build'i için) ama publish edilmiyor. **EPIC 2 DEFERRED/RISK (a) ÇÖZÜLDÜ.** İleride @ilura/* rename ile publish açılabilir.

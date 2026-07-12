@@ -5,7 +5,7 @@ import type { KeyEvent, TextareaRenderable } from "@opentui/core"
 import { useTheme } from "@tui/context/theme"
 import type { ConversationCard } from "./conversation"
 
-export type StripMode = "idle" | "note" | "revise-note" | "sent"
+export type StripMode = "idle" | "note" | "revise-note" | "plan-edit" | "sent"
 
 export function MissionStrip(props: {
   card: ConversationCard
@@ -18,7 +18,7 @@ export function MissionStrip(props: {
   let textarea: TextareaRenderable | undefined
 
   return (
-    <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1} gap={1}>
+    <box flexDirection="column" flexShrink={0} border={["top"]} borderColor={theme.border} paddingTop={1} gap={1}>
       <Show when={props.card.kind === "plan"}>
         {(() => {
           const card = props.card as Extract<ConversationCard, { kind: "plan" }>
@@ -60,12 +60,14 @@ export function MissionStrip(props: {
         <text fg={theme.textMuted}>[m] message an agent (prefix @name to target one)</text>
       </Show>
 
-      <Show when={props.mode === "note" || props.mode === "revise-note"}>
+      <Show when={props.mode === "note" || props.mode === "revise-note" || props.mode === "plan-edit"}>
         <box flexDirection="column" gap={1}>
           <text fg={theme.textMuted}>
             {props.mode === "revise-note"
               ? "What should change? (enter send, esc cancel)"
-              : "Message (@name to target; enter send, esc cancel)"}
+              : props.mode === "plan-edit"
+                ? "Edit criteria (separate with ; then enter)"
+                : "Message (@name to target; enter send, esc cancel)"}
           </text>
           <textarea
             ref={(value: TextareaRenderable) => {

@@ -2,7 +2,6 @@
 // kilocode_change - new file
 import { afterEach, expect, test } from "bun:test"
 import { mkdir } from "node:fs/promises"
-import path from "node:path"
 import { testRender } from "@opentui/solid"
 import { tmpdir } from "../../fixture/fixture"
 
@@ -75,13 +74,11 @@ function stubFetch(state: { detailCalls: number; failAfter: number }): typeof fe
   }) as typeof fetch
 }
 
-export async function mount(root: string, fetchStub: typeof fetch) {
+export async function mount(_root: string, fetchStub: typeof fetch) {
   const { Global } = await import("@opencode-ai/core/global")
-  Global.Path.config = path.join(root, "config")
-  Global.Path.state = path.join(root, "state")
   await mkdir(Global.Path.config, { recursive: true })
   await mkdir(Global.Path.state, { recursive: true })
-  await Bun.write(path.join(Global.Path.state, "kv.json"), "{}")
+  await Bun.write(`${Global.Path.state}/kv.json`, "{}")
 
   const [
     { RouteProvider },
@@ -141,7 +138,7 @@ export async function mount(root: string, fetchStub: typeof fetch) {
     )
   }
 
-  return testRender(() => <Harness />, { width: 80, height: 70 })
+  return testRender(() => <Harness />, { width: 80, height: 30 })
 }
 
 test("Mission Control renders evaluator + loop panels from a paused run", async () => {
@@ -154,6 +151,7 @@ test("Mission Control renders evaluator + loop panels from a paused run", async 
   const out = setup.captureCharFrame()
   expect(out).toContain("Mission Control")
   expect(out).toContain("eval: haiku")
+  expect(out).toContain("Final gate: build")
 })
 
 test("a transient paused-run poll failure keeps the last-good surface", async () => {
@@ -172,6 +170,19 @@ test("a transient paused-run poll failure keeps the last-good surface", async ()
 function escalationDetail() {
   const detail = pausedDetail()
   detail.run.pausedReason = { kind: "escalation", stage: "build", detail: "over budget" }
+  return detail
+}
+
+function planDetail() {
+  const detail: any = pausedDetail()
+  detail.run.status = "active"
+  detail.run.auto = false
+  detail.run.pausedReason = null
+  detail.stages[0].stage = "plan"
+  detail.stages[0].status = "awaiting_approval"
+  detail.stages[0].objective = "Approve the delivery plan"
+  detail.stages[0].criteria = ["original criterion"]
+  detail.stages[0].verdictHistory = []
   return detail
 }
 
@@ -197,6 +208,14 @@ function recordingFetch(detailFactory: () => unknown, posted: string[]): typeof 
   }) as typeof fetch
 }
 
+async function waitFor(check: () => boolean, timeout = 1_000) {
+  const deadline = Date.now() + timeout
+  while (!check()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Mission Control action")
+    await Bun.sleep(20)
+  }
+}
+
 test("[p] pause posts orgRuns.pause through the production keymap", async () => {
   await using tmp = await tmpdir()
   const posted: string[] = []
@@ -204,7 +223,7 @@ test("[p] pause posts orgRuns.pause through the production keymap", async () => 
   await setup.renderOnce()
   await Bun.sleep(80)
   setup.mockInput.pressKey("p")
-  await Bun.sleep(50)
+  await waitFor(() => posted.includes("pause"))
   expect(posted).toContain("pause")
 })
 
@@ -215,7 +234,7 @@ test("[a] approve on a final gate posts orgRuns.decision", async () => {
   await setup.renderOnce()
   await Bun.sleep(80)
   setup.mockInput.pressKey("a")
-  await Bun.sleep(50)
+  await waitFor(() => posted.includes("decision"))
   expect(posted).toContain("decision")
 })
 
@@ -226,7 +245,7 @@ test("[n] no-go on an escalation posts orgRuns.decision", async () => {
   await setup.renderOnce()
   await Bun.sleep(80)
   setup.mockInput.pressKey("n")
-  await Bun.sleep(50)
+  await waitFor(() => posted.includes("decision"))
   expect(posted).toContain("decision")
 })
 
@@ -241,4 +260,25 @@ test("[s] on an escalation opens steer composer and never hard-stops", async () 
   await setup.renderOnce()
   expect(posted).not.toContain("stop")
   expect(setup.captureCharFrame()).toContain("enter send, esc cancel")
+})
+
+test("[e] edits plan criteria locally; [a] posts plan then decision without a steering note", async () => {
+  await using tmp = await tmpdir()
+  const posted: string[] = []
+  setup = await mount(tmp.path, recordingFetch(planDetail, posted))
+  await setup.renderOnce()
+  await Bun.sleep(80)
+  setup.mockInput.pressKey("e")
+  await Bun.sleep(30)
+  await setup.renderOnce()
+  expect(setup.captureCharFrame()).toContain("separate with ;")
+  await setup.mockInput.typeText("focused tests pass; docs are complete")
+  setup.mockInput.pressEnter()
+  await Bun.sleep(40)
+  setup.mockInput.pressKey("a")
+  await waitFor(() => posted.includes("decision"))
+  expect(posted).not.toContain("note")
+  expect(posted).toContain("plan")
+  expect(posted).toContain("decision")
+  expect(posted.indexOf("plan")).toBeLessThan(posted.indexOf("decision"))
 })

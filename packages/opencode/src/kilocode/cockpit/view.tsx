@@ -263,21 +263,43 @@ export function CockpitView() {
   // kilocode_change start - SP2 Task 5: view-owned conversation state and HTTP-only dispatch.
   const [stripMode, setStripMode] = createSignal<StripMode>("idle")
   const [stripSent, setStripSent] = createSignal<string>()
-  const dispatch = (request: Promise<unknown>) => {
-    void request.then(() => void refetch()).catch(() => {
-      toast.show({ message: "Mission Control request failed.", variant: "error" })
-    })
+  const [planCriteria, setPlanCriteria] = createSignal<string[]>()
+  let planCardKey: string | undefined
+  createEffect(() => {
+    const current = card()
+    const next = current.kind === "plan" ? `${runID() ?? ""}:${current.stage}` : undefined
+    if (next === planCardKey) return
+    planCardKey = next
+    setPlanCriteria(undefined)
+  })
+  const presentedCard = createMemo(() => {
+    const current = card()
+    const edited = planCriteria()
+    return current.kind === "plan" && edited ? { ...current, criteria: edited } : current
+  })
+  const dispatch = (request: Promise<unknown>, onSuccess?: () => void) => {
+    void request
+      .then((result) => {
+        if (result && typeof result === "object" && "error" in result && result.error) {
+          throw new Error("Mission Control request returned an error")
+        }
+        onSuccess?.()
+        void refetch()
+      })
+      .catch(() => {
+        toast.show({ message: "Mission Control request failed.", variant: "error" })
+      })
   }
   const stripDone = (label: string) => {
     setStripSent(label)
     setStripMode("sent")
   }
   const cardStage = () => {
-    const current = card()
+    const current = presentedCard()
     return current.kind === "none" ? undefined : current.stage
   }
 
-  function decide(decision: "approve" | "no-go" | "revise", note?: string) {
+  function decide(decision: "approve" | "no-go" | "revise", note?: string, confirmation?: string) {
     const id = runID()
     if (!id) return
     dispatch(
@@ -288,6 +310,7 @@ export function CockpitView() {
         decision,
         note,
       }),
+      confirmation ? () => stripDone(confirmation) : undefined,
     )
   }
 
@@ -303,63 +326,67 @@ export function CockpitView() {
         target_agent: target,
         text,
       }),
+      () => stripDone(`Note sent to ${target}`),
     )
-    stripDone(`Note sent to ${target}`)
   }
 
   function approvePlan() {
     const id = runID()
-    const current = card()
+    const current = presentedCard()
     const run = detail()
     if (!id || current.kind !== "plan" || !run) return
     const stages = run.stages.map((stage) => ({
       stage: stage.stage,
       objective: stage.objective?.trim() || `Complete ${stage.stage}`,
-      criteria: stage.criteria ?? [],
+      criteria: stage.stage === current.stage ? current.criteria : (stage.criteria ?? []),
     }))
     dispatch(
-      sdk.client.orgRuns
-        .plan({ runID: id, workspace: project.workspace.current(), stages })
-        .then(async (result) => {
-          if (result.error) throw new Error("Plan update failed")
-          return sdk.client.orgRuns.decision({
-            runID: id,
-            workspace: project.workspace.current(),
-            stage: current.stage,
-            decision: "approve",
-          })
-        }),
+      sdk.client.orgRuns.plan({ runID: id, workspace: project.workspace.current(), stages }).then(async (result) => {
+        if (result.error) throw new Error("Plan update failed")
+        return sdk.client.orgRuns.decision({
+          runID: id,
+          workspace: project.workspace.current(),
+          stage: current.stage,
+          decision: "approve",
+        })
+      }),
+      () => stripDone("Plan approved — run is now autonomous"),
     )
-    stripDone("Plan approved — run is now autonomous")
   }
 
   function submitNote(text: string) {
+    if (stripMode() === "plan-edit") {
+      const criteria = text
+        .split(/[;\n]/)
+        .map((criterion) => criterion.trim())
+        .filter(Boolean)
+      if (criteria.length === 0) return
+      setPlanCriteria(criteria)
+      stripDone("Plan criteria updated — press a to approve")
+      return
+    }
     if (stripMode() === "revise-note") {
-      decide("revise", text)
-      stripDone(`Revision requested: ${text}`)
+      decide("revise", text, `Revision requested: ${text}`)
       return
     }
     sendNote(text)
   }
 
   function cardApprove() {
-    const current = card()
+    const current = presentedCard()
     if (current.kind === "plan") return approvePlan()
     if (current.kind !== "final_gate") return
-    decide("approve")
-    stripDone("Approved")
+    decide("approve", undefined, "Approved")
   }
 
   function cardNoGo() {
     if (card().kind !== "escalation") return
-    decide("no-go")
-    stripDone("No-go sent")
+    decide("no-go", undefined, "No-go sent")
   }
 
   function cardCancel() {
     if (card().kind !== "final_gate") return
-    decide("no-go")
-    stripDone("Cancelled")
+    decide("no-go", undefined, "Cancelled")
   }
 
   async function hardStop() {
@@ -391,14 +418,14 @@ export function CockpitView() {
   // kilocode_change end
 
   useBindings(() => {
-    const current = card()
-    const composing = stripMode() === "note" || stripMode() === "revise-note"
+    const current = presentedCard()
+    const composing = stripMode() === "note" || stripMode() === "revise-note" || stripMode() === "plan-edit"
     const hasRun = !!runID()
     const cardBindings: { key: string; cmd: string }[] = []
     if (hasRun && !composing) {
       if (current.kind === "plan") {
         cardBindings.push({ key: "a", cmd: "cockpit.card.approve" })
-        cardBindings.push({ key: "e", cmd: "cockpit.card.message" })
+        cardBindings.push({ key: "e", cmd: "cockpit.card.edit" })
       } else if (current.kind === "escalation") {
         cardBindings.push({ key: "s", cmd: "cockpit.card.steer" })
         cardBindings.push({ key: "n", cmd: "cockpit.card.nogo" })
@@ -412,95 +439,108 @@ export function CockpitView() {
     const escalationClaimsS = hasRun && !composing && current.kind === "escalation"
     return {
       commands: [
-      {
-        namespace: "palette",
-        name: "cockpit.back",
-        title: "Back",
-        desc: "Return to the previous view",
-        category: "Cockpit",
-        run: () => {
-          dialog.clear()
-          route.back()
+        {
+          namespace: "palette",
+          name: "cockpit.back",
+          title: "Back",
+          desc: "Return to the previous view",
+          category: "Cockpit",
+          run: () => {
+            dialog.clear()
+            route.back()
+          },
         },
-      },
-      // kilocode_change - Task 8.2: hard stop keybinding
-      {
-        namespace: "palette",
-        name: "cockpit.stop",
-        title: "Stop run",
-        desc: "Stop the current run server-side",
-        category: "Cockpit",
-        run: () => void hardStop(),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.pause",
-        title: "Pause run",
-        desc: "Pause the autonomous loop",
-        category: "Cockpit",
-        run: () => pauseRun(),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.approve",
-        title: "Approve",
-        desc: "Approve the active plan or final gate",
-        category: "Cockpit",
-        hidden: true,
-        run: () => cardApprove(),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.nogo",
-        title: "No-go",
-        desc: "Reject the active escalation",
-        category: "Cockpit",
-        hidden: true,
-        run: () => cardNoGo(),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.revise",
-        title: "Request revision",
-        desc: "Ask for final-gate changes",
-        category: "Cockpit",
-        hidden: true,
-        run: () => setStripMode("revise-note"),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.cancel",
-        title: "Cancel run",
-        desc: "Cancel at the final gate",
-        category: "Cockpit",
-        hidden: true,
-        run: () => cardCancel(),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.steer",
-        title: "Steer",
-        desc: "Compose an escalation steering note",
-        category: "Cockpit",
-        hidden: true,
-        run: () => setStripMode("note"),
-      },
-      {
-        namespace: "palette",
-        name: "cockpit.card.message",
-        title: "Message an agent",
-        desc: "Compose a steering note",
-        category: "Cockpit",
-        hidden: true,
-        run: () => setStripMode("note"),
-      },
+        // kilocode_change - Task 8.2: hard stop keybinding
+        {
+          namespace: "palette",
+          name: "cockpit.stop",
+          title: "Stop run",
+          desc: "Stop the current run server-side",
+          category: "Cockpit",
+          run: () => void hardStop(),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.pause",
+          title: "Pause run",
+          desc: "Pause the autonomous loop",
+          category: "Cockpit",
+          run: () => pauseRun(),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.approve",
+          title: "Approve",
+          desc: "Approve the active plan or final gate",
+          category: "Cockpit",
+          hidden: true,
+          run: () => cardApprove(),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.nogo",
+          title: "No-go",
+          desc: "Reject the active escalation",
+          category: "Cockpit",
+          hidden: true,
+          run: () => cardNoGo(),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.revise",
+          title: "Request revision",
+          desc: "Ask for final-gate changes",
+          category: "Cockpit",
+          hidden: true,
+          run: () => setStripMode("revise-note"),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.cancel",
+          title: "Cancel run",
+          desc: "Cancel at the final gate",
+          category: "Cockpit",
+          hidden: true,
+          run: () => cardCancel(),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.steer",
+          title: "Steer",
+          desc: "Compose an escalation steering note",
+          category: "Cockpit",
+          hidden: true,
+          run: () => setStripMode("note"),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.edit",
+          title: "Edit plan criteria",
+          desc: "Replace the active plan stage criteria",
+          category: "Cockpit",
+          hidden: true,
+          run: () => setStripMode("plan-edit"),
+        },
+        {
+          namespace: "palette",
+          name: "cockpit.card.message",
+          title: "Message an agent",
+          desc: "Compose a steering note",
+          category: "Cockpit",
+          hidden: true,
+          run: () => setStripMode("note"),
+        },
       ],
-      bindings: [
-        { key: "escape", cmd: "cockpit.back" },
-        { key: "p", cmd: "cockpit.pause" },
-        ...(escalationClaimsS ? [] : [{ key: "s", cmd: "cockpit.stop" }]),
-        ...cardBindings,
-      ],
+      // kilocode_change - SP2 wave-close: while a textarea owns focus, plain letters (notably p/s)
+      // must reach it instead of firing pause/stop; the composer itself owns escape and submit.
+      bindings: composing
+        ? []
+        : [
+            { key: "escape", cmd: "cockpit.back" },
+            { key: "p", cmd: "cockpit.pause" },
+            ...(escalationClaimsS ? [] : [{ key: "s", cmd: "cockpit.stop" }]),
+            ...cardBindings,
+          ],
     }
   })
 
@@ -552,7 +592,7 @@ export function CockpitView() {
 
       <Show when={detail()}>
         <box flexDirection="column" flexGrow={1} minHeight={0} gap={1}>
-          <box flexDirection="row" gap={2}>
+          <box flexDirection="row" flexShrink={0} gap={2}>
             <text fg={theme.text}>{detail()!.run.idea}</text>
             <text fg={theme.textMuted}>{detail()!.run.status}</text>
             <text fg={theme.textMuted}>
@@ -562,10 +602,21 @@ export function CockpitView() {
             <text fg={theme.textMuted}>p: pause · s: stop</text>
           </box>
 
+          {/* kilocode_change start - SP2 wave-close: keep the action strip visible at normal
+              terminal heights; only the observational dashboard below it scrolls. */}
+          <MissionStrip
+            card={presentedCard()}
+            mode={stripMode()}
+            sent={stripSent()}
+            onSubmitNote={submitNote}
+            onCancelNote={() => setStripMode("idle")}
+          />
+          {/* kilocode_change end */}
+
           {/* kilocode_change - Task 8.2: budget gauge moved into the header (right under the run
               summary row, above Pipeline/Agent-tree/Activity) so it's always visible without
               scrolling, per the EPIC 8 plan's "always-visible budget" requirement. */}
-          <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
+          <box flexDirection="column" flexShrink={0} border={["top"]} borderColor={theme.border} paddingTop={1}>
             <text attributes={TextAttributes.BOLD} fg={theme.text}>
               Budget
             </text>
@@ -586,91 +637,83 @@ export function CockpitView() {
             </Show>
           </box>
 
-          {/* kilocode_change start - SP2 Task 3: Mission Control panels */}
-          <Show when={loop()}>{(value) => <MissionLoopGauge gauge={value()} />}</Show>
-          <Show when={evaluator()}>{(value) => <MissionEvaluatorPanel panel={value()} />}</Show>
-          {/* kilocode_change end */}
+          <scrollbox flexGrow={1} minHeight={0} scrollbarOptions={{ visible: false }}>
+            <box flexDirection="column" gap={1}>
+              {/* kilocode_change start - SP2 Task 3: Mission Control panels */}
+              <Show when={loop()}>{(value) => <MissionLoopGauge gauge={value()} />}</Show>
+              <Show when={evaluator()}>{(value) => <MissionEvaluatorPanel panel={value()} />}</Show>
+              {/* kilocode_change end */}
 
-          {/* Pipeline */}
-          <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
-            <text attributes={TextAttributes.BOLD} fg={theme.text}>
-              Pipeline
-            </text>
-            <Show when={stages().length === 0}>
-              <text fg={theme.textMuted}>No stages recorded yet.</text>
-            </Show>
-            <For each={stages()}>
-              {(stage) => (
-                <box flexDirection="row" gap={2}>
-                  <text fg={theme.text} width={16}>
-                    {stage.stage}
-                  </text>
-                  <text fg={theme[badgeToThemeKey(stage.badgeVariant)]} width={16}>
-                    {stage.status.replace(/_/g, " ")}
-                  </text>
-                  <text fg={theme.textMuted}>{formatCost(stage.cost)}</text>
-                  <Show when={stage.annotation}>
-                    <text fg={theme.warning}>{stage.annotation}</text>
-                  </Show>
-                </box>
-              )}
-            </For>
-          </box>
-
-          {/* Agent tree */}
-          <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
-            <text attributes={TextAttributes.BOLD} fg={theme.text}>
-              Agent tree
-            </text>
-            <Show when={tree()} fallback={<text fg={theme.textMuted}>No .kilo/organization.jsonc found.</text>}>
-              <box flexDirection="column">
-                <text fg={theme.primary}>
-                  {tree()!.ceo} <span style={{ fg: theme.textMuted }}>ceo</span>
+              {/* Pipeline */}
+              <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
+                <text attributes={TextAttributes.BOLD} fg={theme.text}>
+                  Pipeline
                 </text>
-                <For each={tree()!.departments}>
-                  {(dept) => (
-                    <box flexDirection="column" paddingLeft={2}>
-                      <text fg={theme.text}>
-                        {dept.chief} <span style={{ fg: theme.textMuted }}>[{dept.status}]</span>
+                <Show when={stages().length === 0}>
+                  <text fg={theme.textMuted}>No stages recorded yet.</text>
+                </Show>
+                <For each={stages()}>
+                  {(stage) => (
+                    <box flexDirection="row" gap={2}>
+                      <text fg={theme.text} width={16}>
+                        {stage.stage}
                       </text>
-                      <text fg={theme.textMuted} paddingLeft={2}>
-                        {dept.workers.join(", ")}
+                      <text fg={theme[badgeToThemeKey(stage.badgeVariant)]} width={16}>
+                        {stage.status.replace(/_/g, " ")}
                       </text>
+                      <text fg={theme.textMuted}>{formatCost(stage.cost)}</text>
+                      <Show when={stage.annotation}>
+                        <text fg={theme.warning}>{stage.annotation}</text>
+                      </Show>
                     </box>
                   )}
                 </For>
               </box>
-            </Show>
-          </box>
 
-          {/* Activity log */}
-          <box flexDirection="column" flexGrow={1} minHeight={0} border={["top"]} borderColor={theme.border} paddingTop={1}>
-            <text attributes={TextAttributes.BOLD} fg={theme.text}>
-              Activity
-            </text>
-            <Show when={audit().length === 0}>
-              <text fg={theme.textMuted}>No approval activity recorded yet.</text>
-            </Show>
-            <scrollbox flexGrow={1} minHeight={0} scrollbarOptions={{ visible: false }}>
-              <For each={audit()}>
-                {(entry) => (
-                  <text fg={theme.textMuted}>
-                    {timestamp(entry.ts)} {entry.stage} {entry.decision} {entry.note ?? "—"}
-                  </text>
-                )}
-              </For>
-            </scrollbox>
-          </box>
+              {/* Agent tree */}
+              <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
+                <text attributes={TextAttributes.BOLD} fg={theme.text}>
+                  Agent tree
+                </text>
+                <Show when={tree()} fallback={<text fg={theme.textMuted}>No .kilo/organization.jsonc found.</text>}>
+                  <box flexDirection="column">
+                    <text fg={theme.primary}>
+                      {tree()!.ceo} <span style={{ fg: theme.textMuted }}>ceo</span>
+                    </text>
+                    <For each={tree()!.departments}>
+                      {(dept) => (
+                        <box flexDirection="column" paddingLeft={2}>
+                          <text fg={theme.text}>
+                            {dept.chief} <span style={{ fg: theme.textMuted }}>[{dept.status}]</span>
+                          </text>
+                          <text fg={theme.textMuted} paddingLeft={2}>
+                            {dept.workers.join(", ")}
+                          </text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </Show>
+              </box>
 
-          {/* kilocode_change start - SP2 Task 5: plan/escalation/final-gate conversation strip. */}
-          <MissionStrip
-            card={card()}
-            mode={stripMode()}
-            sent={stripSent()}
-            onSubmitNote={submitNote}
-            onCancelNote={() => setStripMode("idle")}
-          />
-          {/* kilocode_change end */}
+              {/* Activity log */}
+              <box flexDirection="column" border={["top"]} borderColor={theme.border} paddingTop={1}>
+                <text attributes={TextAttributes.BOLD} fg={theme.text}>
+                  Activity
+                </text>
+                <Show when={audit().length === 0}>
+                  <text fg={theme.textMuted}>No approval activity recorded yet.</text>
+                </Show>
+                <For each={audit()}>
+                  {(entry) => (
+                    <text fg={theme.textMuted}>
+                      {timestamp(entry.ts)} {entry.stage} {entry.decision} {entry.note ?? "—"}
+                    </text>
+                  )}
+                </For>
+              </box>
+            </box>
+          </scrollbox>
         </box>
       </Show>
     </box>

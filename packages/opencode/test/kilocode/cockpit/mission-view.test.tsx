@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 // kilocode_change - new file
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeAll, describe, expect, test } from "bun:test"
+import { mkdir } from "node:fs/promises"
+import { Global } from "@opencode-ai/core/global"
 import { testRender, type JSX } from "@opentui/solid"
 import { ThemeProvider } from "../../../src/cli/cmd/tui/context/theme"
 import { TuiConfigProvider } from "../../../src/cli/cmd/tui/context/tui-config"
@@ -10,6 +12,10 @@ import type { EvaluatorPanel, LoopGaugeVM } from "../../../src/kilocode/cockpit/
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 
 let setup: Awaited<ReturnType<typeof testRender>> | undefined
+beforeAll(async () => {
+  await mkdir(Global.Path.state, { recursive: true })
+  await Bun.write(`${Global.Path.state}/kv.json`, "{}")
+})
 afterEach(() => {
   setup?.renderer.destroy()
   setup = undefined
