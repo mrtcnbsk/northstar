@@ -17,8 +17,11 @@
 // owning message's `.agent` - whatever the org's CEO happens to be named, never
 // hardcoded). The CEO's gate protocol (templates/ios-app-factory/agents/ceo.md, step 4)
 // already turns a user decision into `org_decision` + `org_advance`; the message text
-// below spells out the exact decision literal ("approve"/"no-go"/"revise") so an LLM
-// reading it maps it unambiguously.
+// (built by `gateMessage` in gate-card.ts) spells out the exact decision literal
+// ("approve"/"no-go"/"revise") AND embeds the run_id + stage so an LLM reading it - with
+// possibly several concurrent runs/gates in context - maps it unambiguously (Finding 3,
+// wave-close review: `card.runID` used to always be undefined, degrading the message to
+// "approve run the current run" with no disambiguator at all).
 import { createSignal, Show } from "solid-js"
 import type { TextareaRenderable, KeyEvent } from "@opentui/core"
 import type { ToolPart } from "@kilocode/sdk/v2"
@@ -26,17 +29,9 @@ import { SplitBorder } from "@tui/component/border"
 import { useSDK } from "@tui/context/sdk"
 import { useTheme } from "@tui/context/theme"
 import { PartID } from "@/session/schema"
-import type { GateCard } from "@/kilocode/cli/cmd/tui/gate-card"
+import { gateMessage, type GateCard } from "@/kilocode/cli/cmd/tui/gate-card"
 
 type Stage = "choice" | "revise-note" | "sent"
-
-/** kilocode_change - the run_id org_advance's own output never echoes back (see
- * gate-card.ts's doc comment); falls back to a human-readable placeholder so the sent
- * message still reads sensibly ("approve run the current run") - the CEO already knows
- * which run is awaiting a decision from session context either way. */
-function runRef(card: GateCard) {
-  return card.runID ?? "the current run"
-}
 
 export function OrgGateCard(props: { part: ToolPart; sessionID: string; agent: string; card: GateCard }) {
   const sdk = useSDK()
@@ -57,9 +52,9 @@ export function OrgGateCard(props: { part: ToolPart; sessionID: string; agent: s
       .catch(() => {})
   }
 
-  const approve = () => send(`approve run ${runRef(props.card)}`, "Approved")
-  const noGo = () => send(`reject run ${runRef(props.card)} (no-go)`, "Rejected (no-go)")
-  const revise = (note: string) => send(`revise run ${runRef(props.card)}: ${note}`, `Requested revision: ${note}`)
+  const approve = () => send(gateMessage(props.card, "approve"), "Approved")
+  const noGo = () => send(gateMessage(props.card, "no-go"), "Rejected (no-go)")
+  const revise = (note: string) => send(gateMessage(props.card, "revise", note), `Requested revision: ${note}`)
 
   return (
     <box

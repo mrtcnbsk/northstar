@@ -6,14 +6,17 @@
 //   - gatePayload(gate) => { stage, deliverable, ...(note ? { budget_note } : {}), instructions }.
 //   - The standalone gate: `{ action: "human_gate", ...gatePayload(gate) }`.
 //   - The informational fan-out rider: `{ action: "run_tasks", tasks, pending_gate: gatePayload(gate), then }`.
-// Neither shape includes a `run_id` key today (org_advance's output never echoes the run
-// back) - parseGate still maps `run_id` -> `runID` defensively/for forward-compat, so a
-// dedicated fixture exercises that mapping even though it's not what production emits yet.
+// Neither shape includes a `run_id` key in the OUTPUT today (org_advance's output never
+// echoes the run back) - but org_advance's INPUT always carries `run_id` (AdvanceParameters
+// in src/kilocode/organization/tools.ts requires it), and ToolStateCompleted.input
+// (src/session/message-v2.ts) is a populated record of the tool-call args for a completed
+// ToolPart. So parseGate sources runID from `state.input.run_id` primarily, falling back to
+// any `run_id` embedded directly in the parsed output (forward-compat; not emitted today).
 import { describe, test, expect } from "bun:test"
-import { parseGate } from "@/kilocode/cli/cmd/tui/gate-card"
+import { parseGate, gateMessage } from "@/kilocode/cli/cmd/tui/gate-card"
 
-function completed(output: string) {
-  return { tool: "org_advance", state: { status: "completed", output } }
+function completed(output: string, input?: Record<string, unknown>) {
+  return { tool: "org_advance", state: { status: "completed", output, input } }
 }
 
 const HUMAN_GATE_OUTPUT = JSON.stringify(
@@ -148,6 +151,40 @@ describe("parseGate", () => {
     expect(card?.runID).toBe("run_abc123")
   })
 
+  test("sources runID from state.input.run_id (the REAL org_advance call args) - output has no run_id", () => {
+    const card = parseGate(completed(HUMAN_GATE_OUTPUT, { run_id: "run-123" }))
+    expect(card?.runID).toBe("run-123")
+    // rest of the card is still parsed normally from output
+    expect(card?.stage).toBe("review")
+    expect(card?.deliverable).toBe("/Users/dev/proj/.kilocode/org-runs/run_abc123/review.md")
+  })
+
+  test("input.run_id takes priority over an output-embedded run_id when both are present", () => {
+    const output = JSON.stringify(
+      {
+        action: "human_gate",
+        stage: "review",
+        deliverable: "/tmp/review.md",
+        run_id: "run_from_output",
+        instructions: "...",
+      },
+      null,
+      2,
+    )
+    const card = parseGate(completed(output, { run_id: "run_from_input" }))
+    expect(card?.runID).toBe("run_from_input")
+  })
+
+  test("neither input nor output carries run_id -> runID stays undefined", () => {
+    const card = parseGate(completed(HUMAN_GATE_OUTPUT, {}))
+    expect(card?.runID).toBeUndefined()
+  })
+
+  test("sources runID from state.input.run_id for the pending_gate-on-run_tasks shape too", () => {
+    const card = parseGate(completed(PENDING_GATE_ON_RUN_TASKS_OUTPUT, { run_id: "run-456" }))
+    expect(card?.runID).toBe("run-456")
+  })
+
   test("extracts the gate nested under pending_gate on a run_tasks batch", () => {
     const card = parseGate(completed(PENDING_GATE_ON_RUN_TASKS_OUTPUT))
     expect(card).toEqual({
@@ -218,5 +255,28 @@ describe("parseGate", () => {
     expect(parseGate({})).toBeUndefined()
     expect(parseGate({ tool: "org_advance" })).toBeUndefined()
     expect(parseGate({ tool: "org_advance", state: {} })).toBeUndefined()
+  })
+})
+
+describe("gateMessage", () => {
+  const cardWithRunID = { runID: "run-123", stage: "review" }
+  const cardWithoutRunID = { stage: "review" }
+
+  test("approve embeds the runID and the stage", () => {
+    expect(gateMessage(cardWithRunID, "approve")).toBe('approve run run-123 (stage "review")')
+  })
+
+  test("no-go embeds the runID and the stage", () => {
+    expect(gateMessage(cardWithRunID, "no-go")).toBe('reject run run-123 (stage "review", no-go)')
+  })
+
+  test("revise embeds the runID, the stage, and the note", () => {
+    expect(gateMessage(cardWithRunID, "revise", "tighten the copy")).toBe(
+      'revise run run-123 (stage "review"): tighten the copy',
+    )
+  })
+
+  test("falls back to the placeholder run reference only when runID is genuinely absent", () => {
+    expect(gateMessage(cardWithoutRunID, "approve")).toBe('approve run the current run (stage "review")')
   })
 })
