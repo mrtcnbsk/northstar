@@ -692,3 +692,25 @@ Kullanıcı npm publish setup'ı istedi (token'ı chat'e yapıştırdı → **co
 - **CLI version in-repo KALIR 7.4.5** (`packages/opencode/package.json`). Denendi 0.1.0'a düşürmek ama **`bun install --frozen-lockfile` CI'da patladı** (committed bun.lock @ilura/northstar'ı 7.4.5 kaydediyor → frozen mismatch) → geri alındı. **Yayınlanan version zaten `Script.version` (workflow `version` input) tarafından belirlenir** (root publish.ts:46 tüm package.json'ları Script.version'a overwrite eder; publish job'ında non-frozen `bun install` lockfile'ı günceller) — yani statik değer alakasız, release 0.1.0 input'la yayınlanır. **DERS: statik package.json version değişimi committed bun.lock ile frozen-lockfile mismatch yaratır; release version'ı input'la ver, dosyayı elleme.**
 - **CI RUNNER FIX (`fa428b3b67`):** publish.yml `version`+`build-cli` job'ları `blacksmith-4vcpu-ubuntu-2404` (upstream Kilo custom runner) hedefliyordu → bu fork'ta Blacksmith runner YOK → run'lar sonsuza queued. `ubuntu-24.04`'e (GitHub-hosted) çevrildi (build matrix + publish job zaten standard runner). Ayrıca version job'ının `bun i -g @ilura/northstar` adımı `continue-on-error` (ilk release'te paket npm'de yok; version.ts self-contained).
 - **OWNER AKSİYONLARI (kullanıcı yapacak, asistan yapamaz):** (1) sızan token'ı revoke et + yeni Automation token üret; (2) GitHub → Settings → Secrets → Actions → `NPM_TOKEN` ekle; (3) publish workflow'unu tetikle (name reserve + publish). Manuel alternatif: `npm login` + `bun run build` + `cd dist/@ilura/northstar` + `npm publish --access public`. `@ilura/northstar` ismi npm'de BOŞ (404 doğrulandı).
+
+---
+
+# 🚀 RELEASE v0.1.0 — npm'de CANLI (2026-07-12)
+
+`@ilura/northstar@0.1.0` + 8 platform-binary paketi yayınlandı (9/9 registry 200). Uçtan uca doğrulama: temiz dizine `npm install @ilura/northstar` → `northstar --version` = `0.1.0` (exit 0). Release commit `df9d6a6ffc` + tag `v0.1.0` + GitHub release main'de. Publish = GitHub Actions `publish.yml` workflow_dispatch (`version=0.1.0`, `pre_release=false`), run 29193706572.
+
+**9-denemelik CI saga — kök nedenler (kronolojik, hepsi ilk-yayın/fork kalıntısı):**
+1. `version`+`build-cli` job'ları Blacksmith runner hedefliyordu (fork'ta yok, sonsuz queued) → `ubuntu-24.04` (`fa428b3b67`).
+2. `bun install --frozen-lockfile` mismatch — EPIC-1 rebrand'ının bun.lock güncellemesi hiç commit edilmemişti → lock regen + version 7.4.5'e geri dönüş.
+3. Validate matrix'i `@kilocode/cli-*` paket adları + `bin\kilo.exe` smoke → `@ilura/northstar-*` + `bin\northstar.exe`.
+4. setup-git-committer Kilo GitHub App istiyordu ("appId required") → `github.token` + github-actions[bot] committer.
+5. Changeset frontmatter'ı `"@kilocode/cli"` hedefliyordu (workspace'te yok, `changeset version` throw) → `"@ilura/northstar"`.
+6. **ASIL KATİL: publish step env'inde `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` YOKTU** (`3907307cd3`). setup-node `.npmrc`'ye `_authToken=${NODE_AUTH_TOKEN}` yazar ve env yoksa `XXXXX-…` placeholder koyar → npm publish sahte token'la koşar → registry auth hatasını **E404 "not found or no permission"** olarak maskeler. İki deneme (7-8) bu yüzden yanlış izde (provenance / granular-token tuzağı) harcandı. Upstream Kilo muhtemelen OIDC/trusted-publishing kullanıyordu — fork'ta o güven zinciri kopar, token-auth'a `NODE_AUTH_TOKEN` şart.
+7. İkincil: `NPM_CONFIG_PROVENANCE: true` env'i, script'ten silinen `--provenance` bayrağını arka kapıdan geri açıyordu (npm env config > CLI temizliği). İlk yayında provenance yeni pakette E404 → env kaldırıldı.
+
+**Partial-release recovery reçetesi (2× uygulandı, çalışıyor):** version job publish'ten ÖNCE `release: vX` commit + tag + GH release push'lar; npm publish patlarsa: (a) `gh release delete vX --yes --cleanup-tag`, (b) `git revert <release-commit>` (forward — force-push GEREKMEZ ve default branch'te istenmez), (c) push, (d) yeniden dispatch. `packages/opencode/script/publish.ts` `published()` check'i sayesinde re-run idempotent.
+
+**TRACK (release sonrası):**
+- **REL-R1 (provenance re-enable):** paket artık var → `--provenance` (packages/opencode/script/publish.ts) + `NPM_CONFIG_PROVENANCE` geri açılabilir; `permissions: id-token: write` workflow'da zaten mevcut. Sonraki release'te dene.
+- **REL-R2 (OWNER — token rotasyonu, SIRAYLA):** chat'e yapıştırılan npm token'ı hâlâ aktif ve `NPM_TOKEN` secret'ında. (1) npmjs.com'da YENİ granular token üret (Packages and scopes → Read and write → @ilura scope; classic token'lar artık mevcut değil), (2) GitHub `NPM_TOKEN` secret'ını güncelle, (3) ESKİ token'ı revoke et. Bu sıra CI'ı kırmadan sızıntıyı kapatır.
+- **REL-R3:** `version` job'ındaki `bun i -g @ilura/northstar` adımının `continue-on-error`'ı artık kaldırılabilir (paket npm'de mevcut).
