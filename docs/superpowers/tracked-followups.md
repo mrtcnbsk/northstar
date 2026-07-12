@@ -659,4 +659,29 @@ EPIC 7 = org'u chat/session TUI'sinden sür. Chat UI'ının çoğu ZATEN VARDI (
 - **E7-R2** — `org_decision` STAGE param'ı almıyor (`decide()` ilk awaiting stage'i seçer); gate card run_id'yi disambigue eder ama bir run'da ÇOK awaiting stage varsa (paralel DAG) stage-içi ambiguity kalır (pre-existing). Takip: org_decision'a opsiyonel stage param.
 - **E7-R3** — non-resumable incomplete briefing'de not consume edilmediğinden retry'larda not TEKRAR yüzeye çıkabilir (duplication; kayıptan iyi, kabul edildi).
 
-## Sıradaki (SON EPIC): EPIC 8 (TUI Cockpit — run monitoring)
+## EPIC 8'de kapatıldı (feat/tui-cockpit → main `a807e0602d`, push'lu) — TUI Cockpit (SON EPIC)
+EPIC 8 = org koşusunu terminalden CANLI izle. Veri katmanı ZATEN VARDI (W3 org-runs read API + poll@3000ms + saf `org-runs-view.ts` helper'ları); iki şey must-BUILD idi: budget bloğu + agent tree (Tier A).
+- **8.1a budget block + view-models (`82b330754d`).** `GET /org-runs/:runID`'e `budget` bloğu (run/stage/escalationThreshold/retries/spent/remaining/escalated; `org_status` tool'unu mirror'lar; org dosyası okunamazsa `null` — graceful). Saf `buildAgentTree` (Tier A: CEO→per-stage chief[liveness=stage status]→static worker roster) + `budgetGauge` (spent/threshold/ceiling fractions, run=0 guard). SDK type hand-edit (tam regen değil, 6.2b pattern; openapi.json dokunulmadı).
+- **8.1b Cockpit route + render (`6e7ec80e2e`).** `{type:"cockpit"}` route (EPIC 6.0 6-dosya wiring; plugin/api.tsx exhaustiveness branch dahil). view.tsx: detail'i poll'lar (3000ms, status active iken), organization.jsonc'i /file/content ile bir kez okur, 4 section render eder. Fetcher errored-state'e girmez (TUI ErrorBoundary crash'ini önler).
+- **8.2 hard stop + notifications (`f17b264f4c`).** `stopMessage(runID, reason)` saf; hard stop = CEO-instruction mesajı (org_stop CEO-scoped, HTTP yok → cockpit READ-ONLY; direkt OrgRunner.stop YOK). Budget gauge header'da always-visible. Notification'lar once-per-transition (gate/halt/escalated). ceo.md stop protokolü. `CockpitRoute.sessionID` originating session'dan threading (yoksa dürüst degrade).
+- **8.3 run-list home + --dry-run + modes (`6e7081f3ef`+`7bcb4f0271`).** Saf `buildRunList` + `dryRunReport`. `--dry-run` thread.ts HANDLER'ında TUI boot'tan ÖNCE short-circuit (pre-existing process.exit(0) quirk'ini atlar). Run-list home (runID yoksa DialogSelect). `--auto` (run.ts) + `--attach` (attach.ts) EXISTS — doğrulandı, yeniden yapılmadı.
+- **8.4 exit (`123d22cb39`).** Uçtan uca: gerçek endpoint'te budget math + buildAgentTree + budgetGauge + buildRunList + stopMessage/dryRunReport + READ-ONLY guard (cockpit'te OrgRunner.stop/decide çağrısı YOK — dosya taramasıyla).
+
+**Wave-close review (4-boyut, 22 agent, 3-şüpheci) — 6 bulgu (1 CRITICAL, 4 HIGH, 1 MEDIUM), HEPSİ 0/3-refuted, HEPSİ FIXED (`a1ed32eed9`):** **Hepsi render-layer crash/hang — saf-builder testleri KAÇIRDI (SolidJS effect'leri test harness'in server build'inde no-op).**
+- **CRITICAL — notification createEffect KENDİNİ tetikleyen sonsuz döngü.** Effect `prevSnapshot()` sinyalini hem OKUYOR (subscribe) hem `setPrevSnapshot({...})` ile YENİ obje YAZIYOR (aynı effect'te) → her yazı effect'i stale'liyor → sınırsız re-run → aktif bir run açılınca (happy path!) TUI donar (%100 CPU, ErrorBoundary yakalayamaz çünkü throw yok). Fix: `prevSnapshot` düz `let` closure değişkeni (sinyal değil) — `context/route.tsx let previous` pattern'i. Empirik: 201+ run vs untrack ile 1.
+- **HIGH — buildAgentTree department'sız pipeline stage'inde TypeError.** `org.departments[stage]` undefined → `.chief` deref → throw → tree() memo → app ErrorBoundary → TÜM TUI çöker. Elle-düzenlenmiş organization.jsonc ile erişilebilir (view OrgSchema.parse yapar, validate cross-check'i ÇAĞIRMAZ). Fix: buildAgentTree TOTAL (`!dept` → `{chief:"(no department)", workers:[]}`). TDD RED→GREEN.
+- **HIGH — runsList fetcher try/catch'siz** → fetch reject'i run-list home'da TUI'yi çökertir (detail fetcher guard'lı, list değil). Fix: try/catch → [] + runsListError sinyali.
+- **HIGH — cross-invalid organization.jsonc TÜM TUI'yi çökertir** (agent-tree section yerine) — buildAgentTree kök nedeni (yukarıdaki fix kapatır).
+- **MEDIUM — tek başarısız poll dashboard'u boşaltır VE polling'i kalıcı durdurur.** Fix: `lastDetail`/`lastDetailRunID` (runID-keyed) ile son-iyi-değeri koru → aynı obje referansı dönünce Solid Object.is değişiklik görmez → poll effect re-run olmaz → interval yaşar; gerçek status değişince yeni referans → düzgün durur.
+**DERS: saf view-model testleri render-layer bug'larını (SolidJS reactive loop, ErrorBoundary crash path'leri, fetch-failure) KAÇIRIR — wave-close review + skeptic'ler bunları reasoning ile yakaladı. Render katmanı için adversarial review load-bearing.**
+Full sweep SOLO 665/665. openapi.json + bun.lock dokunulmadı.
+
+**TRACK (EPIC 8 kalan, bilinçli):**
+- **E8-R1 (Tier B agent tree) — worker-level liveness DEFERRED.** Agent tree Tier A (chief liveness = stage status; worker'lar static roster). Gerçek per-worker liveness = session-children join (`GET /session/:chiefTaskID/children` + `/session/status`), cold-attach'te Tier A'ya degrade eder. Deferred enhancement.
+- **E8-R2 (SSE) — poll@3000ms kullanıldı; SSE org-event stream DEFERRED** (W3 precedent'i; activity log = audit trail + stage transitions, ham event stream değil).
+- **E8-R3 (E6-R1 SDK spec drift) — bu epic de openapi.json'ı byte-identical bıraktı** (budget bloğu için surgical types.gen.ts hand-edit); tam SDK regen + spec sync hâlâ ayrı iş (E6-R1).
+
+---
+
+# EPIC ROADMAP (0-8) TAMAMLANDI — 2026-07-12
+W0-W9 master plan + EPIC 0/1/2/3/4/5/6/7/8 hepsi main'de + push'lu (repo PUBLIC, Ilura Technology OÜ, MIT). Her epic: JIT plan → subagent-driven TDD → exit test → adversarial wave-close review (Workflow, 3-şüpheci refutation) → full sweep SOLO → merge --no-ff → push --no-verify. Kalan tracked follow-up'lar: E6-R1/R2, E7-R1/R2/R3, E8-R1/R2/R3 + owner aksiyonları (npm rezervasyon, NPM_TOKEN secret, ilk release version — EPIC 2 defterinde). Dependabot 9 açık (upstream deps).
