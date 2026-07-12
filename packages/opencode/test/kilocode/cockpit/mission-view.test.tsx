@@ -21,7 +21,15 @@ afterEach(() => {
   setup = undefined
 })
 
-async function frame(component: () => JSX.Element) {
+async function until(check: () => boolean | Promise<boolean>, timeout = 5_000) {
+  const deadline = Date.now() + timeout
+  while (!(await check())) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Mission View render")
+    await Bun.sleep(20)
+  }
+}
+
+async function frame(component: () => JSX.Element, text: string) {
   setup = await testRender(
     () => (
       <TuiConfigProvider config={createTuiResolvedConfig()}>
@@ -32,9 +40,10 @@ async function frame(component: () => JSX.Element) {
     ),
     { width: 60, height: 16 },
   )
-  await setup.renderOnce()
-  await Bun.sleep(25)
-  await setup.renderOnce()
+  await until(async () => {
+    await setup?.renderOnce()
+    return setup?.captureCharFrame().includes(text) ?? false
+  })
   return setup.captureCharFrame()
 }
 
@@ -60,7 +69,7 @@ const GAUGE: LoopGaugeVM = {
 
 describe("MissionEvaluatorPanel", () => {
   test("renders stage, criteria, iteration, and rejection", async () => {
-    const out = await frame(() => <MissionEvaluatorPanel panel={PANEL} />)
+    const out = await frame(() => <MissionEvaluatorPanel panel={PANEL} />, "build")
     expect(out).toContain("build")
     expect(out).toContain("✓ compiles cleanly")
     expect(out).toContain("✗ documents the API")
@@ -77,13 +86,13 @@ describe("MissionEvaluatorPanel", () => {
       latestRejection: null,
       passed: null,
     }
-    expect(await frame(() => <MissionEvaluatorPanel panel={empty} />)).toContain("No active stage")
+    expect(await frame(() => <MissionEvaluatorPanel panel={empty} />, "No active stage")).toContain("No active stage")
   })
 })
 
 describe("MissionLoopGauge", () => {
   test("renders iteration, elapsed, and evaluator model", async () => {
-    const out = await frame(() => <MissionLoopGauge gauge={GAUGE} />)
+    const out = await frame(() => <MissionLoopGauge gauge={GAUGE} />, "iter 2/4")
     expect(out).toContain("iter 2/4")
     expect(out).toContain("5s")
     expect(out).toContain("haiku")

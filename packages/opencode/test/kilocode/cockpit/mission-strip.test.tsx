@@ -21,7 +21,15 @@ afterEach(() => {
   setup = undefined
 })
 
-async function frame(node: () => JSX.Element) {
+async function until(check: () => boolean | Promise<boolean>, timeout = 5_000) {
+  const deadline = Date.now() + timeout
+  while (!(await check())) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Mission Strip render")
+    await Bun.sleep(20)
+  }
+}
+
+async function frame(node: () => JSX.Element, text: string) {
   setup = await testRender(
     () => (
       <TuiConfigProvider config={createTuiResolvedConfig()}>
@@ -32,9 +40,10 @@ async function frame(node: () => JSX.Element) {
     ),
     { width: 70, height: 18 },
   )
-  await setup.renderOnce()
-  await Bun.sleep(25)
-  await setup.renderOnce()
+  await until(async () => {
+    await setup?.renderOnce()
+    return setup?.captureCharFrame().includes(text) ?? false
+  })
   return setup
 }
 
@@ -46,7 +55,7 @@ function strip(card: ConversationCard, mode: StripMode = "idle", sent?: string) 
 
 describe("MissionStrip", () => {
   test("final gate renders approve/revise/cancel actions", async () => {
-    const view = await frame(() => strip({ kind: "final_gate", stage: "ship", detail: "approve to ship" }))
+    const view = await frame(() => strip({ kind: "final_gate", stage: "ship", detail: "approve to ship" }), "Final gate: ship")
     const out = view.captureCharFrame()
     expect(out).toContain("Final gate: ship")
     expect(out).toContain("[a] approve")
@@ -56,8 +65,9 @@ describe("MissionStrip", () => {
   })
 
   test("escalation renders steer/no-go and reasons", async () => {
-    const view = await frame(() =>
-      strip({ kind: "escalation", stage: "build", reasons: ["over budget"], detail: "escalated" }),
+    const view = await frame(
+      () => strip({ kind: "escalation", stage: "build", reasons: ["over budget"], detail: "escalated" }),
+      "Escalation: build",
     )
     const out = view.captureCharFrame()
     expect(out).toContain("Escalation: build")
@@ -67,7 +77,7 @@ describe("MissionStrip", () => {
   })
 
   test("plan renders approve/edit actions and criteria", async () => {
-    const view = await frame(() => strip({ kind: "plan", stage: "plan", criteria: ["ship a demo"] }))
+    const view = await frame(() => strip({ kind: "plan", stage: "plan", criteria: ["ship a demo"] }), "Plan: plan")
     const out = view.captureCharFrame()
     expect(out).toContain("Plan: plan")
     expect(out).toContain("[a] approve")
@@ -77,26 +87,31 @@ describe("MissionStrip", () => {
 
   test("note composer submits entered text", async () => {
     let submitted: string | undefined
-    const view = await frame(() => (
-      <MissionStrip
-        card={{ kind: "none" }}
-        mode="note"
-        sent={undefined}
-        onSubmitNote={(text) => (submitted = text)}
-        onCancelNote={noop}
-      />
-    ))
+    const view = await frame(
+      () => (
+        <MissionStrip
+          card={{ kind: "none" }}
+          mode="note"
+          sent={undefined}
+          onSubmitNote={(text) => (submitted = text)}
+          onCancelNote={noop}
+        />
+      ),
+      "@name to target",
+    )
     expect(view.captureCharFrame()).toContain("@name to target")
     await view.mockInput.typeText("slow down")
-    await Bun.sleep(20)
-    await view.renderOnce()
+    await until(async () => {
+      await view.renderOnce()
+      return view.captureCharFrame().includes("slow down")
+    })
     view.mockInput.pressEnter()
-    await Bun.sleep(25)
+    await until(() => submitted === "slow down")
     expect(submitted).toBe("slow down")
   })
 
   test("sent mode renders confirmation", async () => {
-    const view = await frame(() => strip({ kind: "none" }, "sent", "Note sent to *"))
+    const view = await frame(() => strip({ kind: "none" }, "sent", "Note sent to *"), "Note sent to *")
     expect(view.captureCharFrame()).toContain("Note sent to *")
   })
 })

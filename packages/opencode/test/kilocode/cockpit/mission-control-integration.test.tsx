@@ -145,9 +145,7 @@ test("Mission Control renders evaluator + loop panels from a paused run", async 
   await using tmp = await tmpdir()
   const state = { detailCalls: 0, failAfter: 999 }
   setup = await mount(tmp.path, stubFetch(state))
-  await setup.renderOnce()
-  await Bun.sleep(80)
-  await setup.renderOnce()
+  await waitForFrame("Final gate: build")
   const out = setup.captureCharFrame()
   expect(out).toContain("Mission Control")
   expect(out).toContain("eval: haiku")
@@ -158,9 +156,7 @@ test("a transient paused-run poll failure keeps the last-good surface", async ()
   await using tmp = await tmpdir()
   const state = { detailCalls: 0, failAfter: 1 }
   setup = await mount(tmp.path, stubFetch(state))
-  await setup.renderOnce()
-  await Bun.sleep(80)
-  await setup.renderOnce()
+  await waitForFrame("Mission Control")
   await Bun.sleep(3_100)
   await setup.renderOnce()
   expect(setup.captureCharFrame()).toContain("Mission Control")
@@ -208,20 +204,26 @@ function recordingFetch(detailFactory: () => unknown, posted: string[]): typeof 
   }) as typeof fetch
 }
 
-async function waitFor(check: () => boolean, timeout = 1_000) {
+async function waitFor(check: () => boolean | Promise<boolean>, timeout = 5_000) {
   const deadline = Date.now() + timeout
-  while (!check()) {
+  while (!(await check())) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for Mission Control action")
     await Bun.sleep(20)
   }
+}
+
+async function waitForFrame(text: string) {
+  await waitFor(async () => {
+    await setup?.renderOnce()
+    return setup?.captureCharFrame().includes(text) ?? false
+  })
 }
 
 test("[p] pause posts orgRuns.pause through the production keymap", async () => {
   await using tmp = await tmpdir()
   const posted: string[] = []
   setup = await mount(tmp.path, recordingFetch(pausedDetail, posted))
-  await setup.renderOnce()
-  await Bun.sleep(80)
+  await waitForFrame("Mission Control")
   setup.mockInput.pressKey("p")
   await waitFor(() => posted.includes("pause"))
   expect(posted).toContain("pause")
@@ -231,8 +233,7 @@ test("[a] approve on a final gate posts orgRuns.decision", async () => {
   await using tmp = await tmpdir()
   const posted: string[] = []
   setup = await mount(tmp.path, recordingFetch(pausedDetail, posted))
-  await setup.renderOnce()
-  await Bun.sleep(80)
+  await waitForFrame("Final gate: build")
   setup.mockInput.pressKey("a")
   await waitFor(() => posted.includes("decision"))
   expect(posted).toContain("decision")
@@ -242,8 +243,7 @@ test("[n] no-go on an escalation posts orgRuns.decision", async () => {
   await using tmp = await tmpdir()
   const posted: string[] = []
   setup = await mount(tmp.path, recordingFetch(escalationDetail, posted))
-  await setup.renderOnce()
-  await Bun.sleep(80)
+  await waitForFrame("Escalation: build")
   setup.mockInput.pressKey("n")
   await waitFor(() => posted.includes("decision"))
   expect(posted).toContain("decision")
@@ -253,11 +253,9 @@ test("[s] on an escalation opens steer composer and never hard-stops", async () 
   await using tmp = await tmpdir()
   const posted: string[] = []
   setup = await mount(tmp.path, recordingFetch(escalationDetail, posted))
-  await setup.renderOnce()
-  await Bun.sleep(80)
+  await waitForFrame("Escalation: build")
   setup.mockInput.pressKey("s")
-  await Bun.sleep(50)
-  await setup.renderOnce()
+  await waitForFrame("enter send, esc cancel")
   expect(posted).not.toContain("stop")
   expect(setup.captureCharFrame()).toContain("enter send, esc cancel")
 })
@@ -266,15 +264,13 @@ test("[e] edits plan criteria locally; [a] posts plan then decision without a st
   await using tmp = await tmpdir()
   const posted: string[] = []
   setup = await mount(tmp.path, recordingFetch(planDetail, posted))
-  await setup.renderOnce()
-  await Bun.sleep(80)
+  await waitForFrame("Plan: plan")
   setup.mockInput.pressKey("e")
-  await Bun.sleep(30)
-  await setup.renderOnce()
+  await waitForFrame("separate with ;")
   expect(setup.captureCharFrame()).toContain("separate with ;")
   await setup.mockInput.typeText("focused tests pass; docs are complete")
   setup.mockInput.pressEnter()
-  await Bun.sleep(40)
+  await waitForFrame("[a] approve")
   setup.mockInput.pressKey("a")
   await waitFor(() => posted.includes("decision"))
   expect(posted).not.toContain("note")
