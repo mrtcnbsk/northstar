@@ -4,6 +4,7 @@ import { createMemo, Show } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import type { Model } from "@kilocode/sdk/v2"
 import { FreeModelDisclosure } from "./free-model-disclosure"
+import { modelWarning } from "@/kilocode/provider/local-model-validation"
 import {
   avgPrice,
   fmtAttemptCost,
@@ -56,6 +57,10 @@ export function ModelInfoPanel(props: Props) {
     const d = m().options?.description
     return typeof d === "string" && d.trim() ? d : null
   }
+  // EPIC 5 Task 5.3 - visible warning when a local model's capabilities are unverified
+  // (unconfirmed context window / tool-calling support). See
+  // `@/kilocode/provider/local-model-validation.ts`.
+  const warning = () => modelWarning(m())
 
   return (
     <box
@@ -75,6 +80,15 @@ export function ModelInfoPanel(props: Props) {
           </text>
           <text fg={theme.textMuted}>{props.provider ?? m().providerID ?? ""}</text>
         </box>
+        <Show when={warning()}>
+          {(text) => (
+            <box>
+              <text fg={theme.warning} attributes={TextAttributes.BOLD} width={23}>
+                {text()}
+              </text>
+            </box>
+          )}
+        </Show>
         <Show when={FreeModelDisclosure.hasByok(m())}>
           <box>
             <text fg={theme.text}>{FreeModelDisclosure.byok}</text>

@@ -75,6 +75,23 @@ export const layer: Layer.Layer<
       return [...failures.keys()]
     })
 
+    // kilocode_change start - EPIC 5 Task 5.3: the openai-compatible `/models` response only
+    // ever carries `{id, owned_by}` (see `ApertisItem` above) — no context-window or
+    // tool-calling metadata. Blind-defaulting to `tool_call:true` / `limit.context:128000`
+    // here MASKED an unverified model as if models.dev (or the endpoint itself) had confirmed
+    // its real capabilities. Mark it unverified instead: `tool_call:false` mirrors the
+    // anaconda-desktop convention of treating unconfirmed tool-call support as `false` for
+    // gating (`@/kilocode/anaconda-desktop/provider.ts`'s `toolcall: metadata.toolcall ===
+    // "supported"`), and `limit.context/output:0` is the safe default `session/overflow.ts`
+    // already reads as "unknown" (compaction OFF — `context === 0` disables auto-compaction),
+    // while `ProviderTransform.maxOutputTokens` falls back to its own default when
+    // `limit.output` is 0. `LocalProvider.addLocalProviders`
+    // (`@/kilocode/provider/local-provider.ts`) re-applies the models.dev catalog's REAL
+    // capabilities on top of this for any discovered id the catalog already knows about (or a
+    // user's explicit `limit.context`/`tool_call` config wins via the config-merge in
+    // `@/provider/provider.ts`), so a verified model is never flagged. See
+    // `@/kilocode/provider/local-model-validation.ts` for the verified/unverified decision
+    // this feeds, and the visible warning it produces.
     const aperture = (item: ApertisItem): Models[string] => ({
       id: item.id,
       name: item.id,
@@ -83,11 +100,12 @@ export const layer: Layer.Layer<
       attachment: true,
       reasoning: false,
       temperature: true,
-      tool_call: true,
+      tool_call: false,
       cost: { input: 0, output: 0 },
-      limit: { context: 128000, output: 4096 },
+      limit: { context: 0, output: 0 },
       modalities: { input: ["text", "image"], output: ["text"] },
     })
+    // kilocode_change end
 
     // kilocode_change start - generalized so any openai-compatible endpoint (Apertis, or a
     // user-added local provider — Ollama/LM Studio/custom baseURL) can reuse the same

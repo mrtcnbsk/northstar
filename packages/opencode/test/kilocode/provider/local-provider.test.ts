@@ -142,6 +142,97 @@ describe("addLocalProviders", () => {
     }),
   )
 
+  it.live(
+    "preserves the models.dev catalog's real capabilities for a discovered id it already knows (EPIC 5 Task 5.3)",
+    () =>
+      Effect.gen(function* () {
+        // The live `/models` fetch resolves through `aperture()`, which — since Task 5.3 —
+        // marks a model UNVERIFIED (tool_call:false, limit.context:0) when the openai-compatible
+        // response carries no capability metadata. But models.dev's static "lmstudio" catalog
+        // entry DOES know real capabilities for "openai/gpt-oss-20b" — that catalog data must
+        // win so a verified model is never flagged by `@/kilocode/provider/local-model-validation.ts`.
+        const auth = yield* Auth.Service
+        yield* auth.set("lmstudio", {
+          type: "api",
+          key: "local",
+          metadata: { baseURL: "http://localhost:1234/v1", preset: "lmstudio" },
+        })
+
+        const cache = yield* ModelCache.Service.pipe(
+          Effect.provide(cacheLayer({ data: [{ id: "openai/gpt-oss-20b" }] })),
+        )
+
+        const staticCatalogStub: Provider = {
+          id: "lmstudio",
+          name: "LMStudio",
+          env: ["LMSTUDIO_API_KEY"],
+          api: "http://127.0.0.1:1234/v1",
+          npm: "@ai-sdk/openai-compatible",
+          models: {
+            "openai/gpt-oss-20b": {
+              id: "openai/gpt-oss-20b",
+              name: "GPT OSS 20B",
+              release_date: "",
+              attachment: false,
+              reasoning: false,
+              temperature: true,
+              tool_call: true,
+              limit: { context: 131072, output: 32768 },
+            },
+          },
+        }
+        const providers: Record<string, Provider> = { lmstudio: staticCatalogStub }
+        yield* addLocalProviders(providers, auth, cache)
+
+        const model = providers["lmstudio"].models["openai/gpt-oss-20b"]
+        expect(model).toBeDefined()
+        expect(model.tool_call).toBe(true)
+        expect(model.limit).toEqual({ context: 131072, output: 32768 })
+      }),
+  )
+
+  it.live("does not invent capabilities for a discovered id the catalog does NOT know (stays unverified)", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth.Service
+      yield* auth.set("lmstudio", {
+        type: "api",
+        key: "local",
+        metadata: { baseURL: "http://localhost:1234/v1", preset: "lmstudio" },
+      })
+
+      const cache = yield* ModelCache.Service.pipe(
+        Effect.provide(cacheLayer({ data: [{ id: "qwen3-coder-30b" }] })),
+      )
+
+      const staticCatalogStub: Provider = {
+        id: "lmstudio",
+        name: "LMStudio",
+        env: ["LMSTUDIO_API_KEY"],
+        api: "http://127.0.0.1:1234/v1",
+        npm: "@ai-sdk/openai-compatible",
+        models: {
+          "openai/gpt-oss-20b": {
+            id: "openai/gpt-oss-20b",
+            name: "GPT OSS 20B",
+            release_date: "",
+            attachment: false,
+            reasoning: false,
+            temperature: true,
+            tool_call: true,
+            limit: { context: 131072, output: 32768 },
+          },
+        },
+      }
+      const providers: Record<string, Provider> = { lmstudio: staticCatalogStub }
+      yield* addLocalProviders(providers, auth, cache)
+
+      const model = providers["lmstudio"].models["qwen3-coder-30b"]
+      expect(model).toBeDefined()
+      expect(model.tool_call).toBe(false)
+      expect(model.limit).toEqual({ context: 0, output: 0 })
+    }),
+  )
+
   it.live("ignores auth entries without both baseURL and preset metadata", () =>
     Effect.gen(function* () {
       const auth = yield* Auth.Service

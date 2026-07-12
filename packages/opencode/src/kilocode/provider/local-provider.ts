@@ -89,6 +89,28 @@ function localMetadata(metadata: Record<string, string> | undefined): LocalMetad
   return { baseURL, preset }
 }
 
+/**
+ * EPIC 5 Task 5.3: since a discovered openai-compatible model's `/models` response carries no
+ * capability metadata, `aperture()` (`@/provider/model-cache.ts`) now marks it UNVERIFIED
+ * (`tool_call:false`, `limit.context/output:0`) rather than blind-defaulting. But when the
+ * discovered id ALSO exists in the models.dev catalog's prior entry for this providerID (e.g.
+ * models.dev ships a static "lmstudio" entry with a handful of known models/capabilities — see
+ * the module docstring above), that catalog data is real and verified — trust it over the
+ * unverified synth so a known-good model is never flagged by
+ * `@/kilocode/provider/local-model-validation.ts`.
+ */
+function withKnownCapabilities(discovered: Provider["models"][string], known: Provider["models"][string] | undefined) {
+  if (!known) return discovered
+  return {
+    ...discovered,
+    tool_call: known.tool_call,
+    limit: known.limit,
+    attachment: known.attachment,
+    reasoning: known.reasoning,
+    modalities: known.modalities,
+  }
+}
+
 // Provider IDs resolved earlier in the SAME `ModelsDev.get()` call (`@/provider/models.ts`)
 // with their own dedicated auth/config flow. A local-provider auth entry can never target
 // these through the TUI (the preset list is fixed to ollama/lmstudio/openai-compatible),
@@ -119,8 +141,12 @@ export const addLocalProviders = Effect.fn("LocalProvider.addLocalProviders")(fu
     if (!metadata) continue
     if (PROTECTED_PROVIDER_IDS.has(providerID)) continue
 
+    const catalogModels = providers[providerID]?.models // models.dev catalog entry, if any, BEFORE it's overwritten below
     const options = { baseURL: metadata.baseURL, apiKey: info.key }
-    const models = yield* cache.fetch(providerID, options).pipe(Effect.catch(() => Effect.succeed({})))
+    const discovered = yield* cache.fetch(providerID, options).pipe(Effect.catch(() => Effect.succeed({})))
+    const models = Object.fromEntries(
+      Object.entries(discovered).map(([id, model]) => [id, withKnownCapabilities(model, catalogModels?.[id])]),
+    )
     providers[providerID] = {
       id: providerID,
       name: localProviderLabel(providerID, metadata.preset),
