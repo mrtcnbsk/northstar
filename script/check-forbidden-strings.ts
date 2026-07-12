@@ -12,6 +12,7 @@
 
 import { spawnSync } from "node:child_process"
 import path from "node:path"
+import { scanVisibleBrand, VISIBLE_ROOTS, type BrandSource } from "./user-visible-brand"
 
 const ROOT = path.resolve(import.meta.dir, "..")
 const SELF = path.relative(ROOT, import.meta.path).replaceAll("\\", "/")
@@ -80,6 +81,7 @@ const files = ls.stdout
   .filter((f) => f !== SELF)
 
 const hits: string[] = []
+const sources: BrandSource[] = []
 for (const file of files) {
   const buf = Bun.file(path.join(ROOT, file))
   if (!(await buf.exists())) continue
@@ -87,6 +89,7 @@ for (const file of files) {
   const text = await buf.text().catch(() => null)
   if (text === null) continue
   if (text.includes("\0")) continue
+  if (VISIBLE_ROOTS.some((root) => file === root || file.startsWith(root))) sources.push({ file, text })
   for (const f of forbidden) {
     if (isAllowed(file, f.allow)) continue
     let idx = 0
@@ -98,6 +101,10 @@ for (const file of files) {
       idx = at + f.pattern.length
     }
   }
+}
+
+for (const hit of scanVisibleBrand(sources)) {
+  hits.push(`${hit.file}:${hit.line}: ${hit.pattern} (user-visible product copy must say Northstar)`)
 }
 
 if (hits.length === 0) {
