@@ -197,6 +197,47 @@ export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel
 }
 // kilocode_change end
 
+// kilocode_change start - SP2 Task 2: loop gauge view-model.
+export type LoopStageView = { stage: string; status: string; iterations?: number; startedAt?: string | null }
+export type LoopDetailView = {
+  run: { createdAt: string; status: string; pausedReason?: { kind: string; stage: string; detail: string } | null }
+  stages: LoopStageView[]
+  loop?: { maxIterations: number; evaluatorModel: string }
+}
+
+export type LoopGaugeVM = {
+  iteration: number
+  maxIterations: number
+  elapsed: string
+  evaluatorModel: string
+  atLimit: boolean
+}
+
+export function formatElapsed(ms: number): string {
+  const safe = Number.isFinite(ms) && ms > 0 ? ms : 0
+  const total = Math.floor(safe / 1000)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  const pad = (value: number) => String(value).padStart(2, "0")
+  if (hours > 0) return `${hours}h ${pad(minutes)}m ${pad(seconds)}s`
+  if (minutes > 0) return `${minutes}m ${pad(seconds)}s`
+  return `${seconds}s`
+}
+
+export function loopGauge(detail: LoopDetailView, now: number = Date.now()): LoopGaugeVM {
+  const maxIterations = detail.loop?.maxIterations ?? DEFAULT_MAX_ITERATIONS
+  const evaluatorModel = detail.loop?.evaluatorModel ?? DEFAULT_EVALUATOR_MODEL
+  const active =
+    detail.stages.find((stage) => stage.status === "running") ??
+    detail.stages.find((stage) => stage.status === "awaiting_approval")
+  const iteration = active?.iterations ?? 0
+  const started = Date.parse(active?.startedAt ?? detail.run.createdAt)
+  const elapsed = formatElapsed(Number.isNaN(started) ? 0 : now - started)
+  return { iteration, maxIterations, elapsed, evaluatorModel, atLimit: iteration >= maxIterations }
+}
+// kilocode_change end
+
 /** The SDK guards NaN/Infinity over the wire by widening numeric fields to include the string
  * sentinels "NaN"/"Infinity"/"-Infinity". Coerces back to a plain finite number (default 0) so
  * downstream pure view helpers (`stageTimeline`, `budgetFromRun`) never have to think about it. */
