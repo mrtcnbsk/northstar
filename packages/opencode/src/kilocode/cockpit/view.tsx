@@ -94,22 +94,41 @@ export function CockpitView() {
   const sessionID = createMemo(() => (route.data.type === "cockpit" ? route.data.sessionID : undefined))
   const [loadError, setLoadError] = createSignal<string | undefined>()
 
+  // kilocode_change start - wave-close review fix: keep the last-good detail across a transient
+  // poll failure instead of letting the resource collapse to `undefined` (which blanked the whole
+  // dashboard AND, via the poll effect below reading `detail()?.run.status`, permanently killed
+  // polling since `undefined !== "active"`). Plain closure variables (not signals) -- mirrors
+  // `context/route.tsx`'s `let previous` / `routes/session/index.tsx`'s `let processSessionID`:
+  // this is cross-poll bookkeeping the fetcher reads/writes itself, not something a consumer needs
+  // to react to. Keyed by runID so switching to a different run never leaks the old run's stale
+  // detail into a failed first fetch for the new one.
+  let lastDetail: OrgRunDetailResponse | undefined
+  let lastDetailRunID: string | undefined
+  // kilocode_change end
+
   const [detail, { refetch }] = createResource(runID, async (id): Promise<OrgRunDetailResponse | undefined> => {
     setLoadError(undefined)
     try {
       const result = await sdk.client.orgRuns.detail({ runID: id, workspace: project.workspace.current() })
       if (result.error || !result.data) {
         setLoadError("Failed to load org run detail.")
-        return undefined
+        return lastDetailRunID === id ? lastDetail : undefined // kilocode_change - keep last-good on failure
       }
+      lastDetail = result.data // kilocode_change
+      lastDetailRunID = id // kilocode_change
       return result.data
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err))
-      return undefined
+      return lastDetailRunID === id ? lastDetail : undefined // kilocode_change - keep last-good on failure
     }
   })
 
   // Poll every 3s while the run is active (mirrors the Kilo Console's OrgRunDetailRoute).
+  // kilocode_change - because a failed refetch now returns the SAME `lastDetail` object reference
+  // (see fetcher above) rather than a new `undefined`, the resource's value doesn't change on a
+  // transient failure, so this effect does not re-run and does NOT tear down the already-running
+  // interval -- polling survives the failure. It still stops normally once a genuinely successful
+  // poll returns a new object whose `run.status` is no longer "active" (completed/halted).
   createEffect(() => {
     if (detail()?.run.status !== "active") return
     const timer = setInterval(() => void refetch(), POLL_INTERVAL_MS)
@@ -133,12 +152,31 @@ export function CockpitView() {
   // kilocode_change start - Task 8.3: run-list home. Fetches ONLY when the Cockpit was opened
   // without a runID (the run picker below) -- once a run is selected, `detail` above takes over and
   // this resource goes idle (createResource's source returns undefined whenever runID() is set).
+  //
+  // kilocode_change - wave-close review fix: `sdk.client.orgRuns.list` REJECTS on a network-level
+  // failure (server down / connection refused / sleep-resume -- the SDK response interceptor
+  // throws on a non-JSON body), which previously put this resource into Solid's errored state;
+  // reading an errored resource's accessor re-throws, and `runRows`/the `Show` conditions below
+  // read `runsList()`, so that re-throw would escape to the app ErrorBoundary and crash the whole
+  // TUI on the run-list home. Wrapped in try/catch returning `[]`, MIRRORING the `detail` fetcher's
+  // pattern above (incl. its own `runsListError` signal so the run-list home can show why it's
+  // empty instead of silently looking like "no runs yet").
+  const [runsListError, setRunsListError] = createSignal<string | undefined>()
   const [runsList] = createResource(
     () => (runID() ? undefined : true),
     async () => {
-      const result = await sdk.client.orgRuns.list({ workspace: project.workspace.current() })
-      if (result.error || !result.data) return []
-      return result.data.runs
+      setRunsListError(undefined)
+      try {
+        const result = await sdk.client.orgRuns.list({ workspace: project.workspace.current() })
+        if (result.error || !result.data) {
+          setRunsListError("Failed to load org runs.")
+          return []
+        }
+        return result.data.runs
+      } catch (err) {
+        setRunsListError(err instanceof Error ? err.message : String(err))
+        return []
+      }
     },
   )
   const runRows = createMemo(() => buildRunList(runsList() ?? []))
@@ -168,8 +206,18 @@ export function CockpitView() {
   // only a genuine transition (prev !== awaiting_approval -> now awaiting_approval, etc.) does. The
   // snapshot is then overwritten with the new state every time, so a transition is only ever
   // detected once (the NEXT poll's "previous" already reflects it).
+  //
+  // kilocode_change - wave-close review fix: this used to be a `createSignal`, which made the
+  // effect below both READ (`prevSnapshot()`) and WRITE (`setPrevSnapshot(...)`) the same signal
+  // inside one `createEffect` -- reading it subscribes the effect to it, and writing it (with a
+  // fresh object every run) then immediately reschedules the very effect that just ran, an
+  // unbounded self-retriggering loop that hangs the TUI the instant the Cockpit shows any active
+  // run. Fixed by holding the previous snapshot in a PLAIN closure variable instead (mirrors
+  // `context/route.tsx`'s `let previous` / `routes/session/index.tsx`'s `let processSessionID`):
+  // the effect still tracks `detail()` (its real, external dependency) but no longer subscribes to
+  // its own writes, since a plain `let` isn't reactive at all.
   type NotifySnapshot = { stageStatus: Record<string, string>; runStatus: string; escalated: boolean }
-  const [prevSnapshot, setPrevSnapshot] = createSignal<NotifySnapshot | undefined>()
+  let prevSnapshot: NotifySnapshot | undefined
 
   createEffect(() => {
     const run = detail()
@@ -177,7 +225,7 @@ export function CockpitView() {
     const nextStageStatus: Record<string, string> = {}
     for (const stage of run.stages) nextStageStatus[stage.stage] = stage.status
 
-    const prev = prevSnapshot()
+    const prev = prevSnapshot
     if (prev) {
       for (const stage of run.stages) {
         if (stage.status === "awaiting_approval" && prev.stageStatus[stage.stage] !== "awaiting_approval") {
@@ -192,7 +240,7 @@ export function CockpitView() {
       }
     }
 
-    setPrevSnapshot({ stageStatus: nextStageStatus, runStatus: run.run.status, escalated: !!run.run.escalated })
+    prevSnapshot = { stageStatus: nextStageStatus, runStatus: run.run.status, escalated: !!run.run.escalated }
   })
   // kilocode_change end
 
@@ -266,7 +314,12 @@ export function CockpitView() {
         <Show when={runsList.loading && !runsList()}>
           <text fg={theme.textMuted}>Loading org runs...</text>
         </Show>
-        <Show when={!runsList.loading && runsList() && runRows().length === 0}>
+        {/* kilocode_change - wave-close review fix: surface a fetch failure distinctly from the
+            legitimate "no runs yet" empty state (see runsListError above). */}
+        <Show when={!runsList.loading && runsListError()}>
+          <text fg={theme.error}>{runsListError()}</text>
+        </Show>
+        <Show when={!runsList.loading && !runsListError() && runsList() && runRows().length === 0}>
           <text fg={theme.textMuted}>No org runs yet. Start one from a shell: northstar run --auto "your idea"</text>
         </Show>
         <Show when={runRows().length > 0}>

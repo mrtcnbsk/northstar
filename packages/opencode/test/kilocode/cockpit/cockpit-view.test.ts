@@ -37,6 +37,36 @@ describe("buildAgentTree", () => {
     expect(planning.status).toBe("pending")
     expect(planning.workers).toEqual(["architect"])
   })
+
+  // kilocode_change - wave-close review fix: a hand-edited .kilo/organization.jsonc can have a
+  // pipeline stage with no matching `departments` entry (OrgSchema.parse is structural-only and
+  // does not run the validate() cross-check that flags this). buildAgentTree must stay total
+  // rather than dereferencing `dept.chief`/`dept.workers` on undefined.
+  test("a pipeline stage with no matching departments entry does not throw -- emits a placeholder row", () => {
+    const orgWithOrphanStage = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["market-research"] },
+      },
+      pipeline: [{ stage: "evaluation", gate: "human", haltOn: "no-go" }, { stage: "planning" }],
+    })
+    const detail = {
+      stages: [
+        { stage: "evaluation", status: "running" },
+        { stage: "planning", status: "awaiting_approval" },
+      ],
+    }
+
+    expect(() => buildAgentTree(orgWithOrphanStage, detail)).not.toThrow()
+
+    const tree = buildAgentTree(orgWithOrphanStage, detail)
+    expect(tree.departments).toHaveLength(2)
+    const planning = tree.departments[1]
+    expect(planning.stage).toBe("planning")
+    expect(planning.chief).toBe("(no department)")
+    expect(planning.workers).toEqual([])
+    expect(planning.status).toBe("awaiting_approval")
+  })
 })
 
 describe("budgetGauge", () => {

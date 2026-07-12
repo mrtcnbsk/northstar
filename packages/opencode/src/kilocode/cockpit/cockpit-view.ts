@@ -41,6 +41,13 @@ export type AgentTree = {
  * preserved (org.pipeline is already ordered; see OrgSchema.Organization). A pipeline stage
  * without a matching detail.stages entry (shouldn't happen -- OrgState.create seeds every pipeline
  * stage up front) falls back to "pending" rather than throwing, keeping this a total function.
+ *
+ * kilocode_change - wave-close review fix: a pipeline stage without a matching `departments` entry
+ * CAN happen (a hand-edited `.kilo/organization.jsonc` -- `OrgSchema.parse` is structural-only and
+ * does not run the `validate()` cross-check that flags a stage/department mismatch, see
+ * `schema.ts`'s validate()). Dereferencing `dept.chief`/`dept.workers` on `undefined` would throw
+ * out of the `tree()` memo in view.tsx to the app ErrorBoundary and crash the whole TUI, so this
+ * emits a safe placeholder row instead, keeping the function TOTAL over any structurally-valid org.
  */
 export function buildAgentTree(org: OrgSchema.Organization, detail: { stages: StageStatusView[] }): AgentTree {
   const statusByStage = new Map(detail.stages.map((s) => [s.stage, s.status]))
@@ -48,10 +55,12 @@ export function buildAgentTree(org: OrgSchema.Organization, detail: { stages: St
     ceo: org.ceo,
     departments: org.pipeline.map(({ stage }) => {
       const dept = org.departments[stage]
+      const status = statusByStage.get(stage) ?? "pending"
+      if (!dept) return { stage, chief: "(no department)", status, workers: [] }
       return {
         stage,
         chief: dept.chief,
-        status: statusByStage.get(stage) ?? "pending",
+        status,
         workers: dept.workers,
       }
     }),
