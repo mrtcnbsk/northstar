@@ -39,7 +39,7 @@ export namespace OrgPrompts {
       : ""
     return `You are running the "${input.stage}" stage of an organization pipeline.
 
-## App idea
+## Idea
 <idea>
 ${escapeFence(input.idea, "idea")}
 </idea>
@@ -51,7 +51,7 @@ ${revise}
 Delegate concrete work to your workers via the task tool (you may run independent
 tasks in parallel with background=true; if the background option is unavailable,
 run them sequentially): ${input.workers.map((w) => annotateWorker(w, input.workerCapabilities)).join(", ")}.
-For Apple platform/API/HIG questions consult: ${input.shared.join(", ") || "(none)"}.
+For specialist/domain questions, consult these shared advisors: ${input.shared.join(", ") || "(none)"}.
 Do not do the workers' work yourself; decompose, delegate, verify, integrate.
 
 ## Deliverable (mandatory)
