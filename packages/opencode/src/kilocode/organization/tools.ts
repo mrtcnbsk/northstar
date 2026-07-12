@@ -401,6 +401,12 @@ const DecisionParameters = Schema.Struct({
   note: Schema.optional(Schema.String).annotate({
     description: "Required for revise: what the user wants changed",
   }),
+  // kilocode_change - E7-R2: optional target stage, for a parallel DAG with multiple stages
+  // awaiting_approval at once. Omit to fall back to the first awaiting stage (unchanged behavior).
+  stage: Schema.optional(Schema.String).annotate({
+    description:
+      "Target a specific stage awaiting approval (needed when multiple stages are awaiting approval at once, e.g. a parallel DAG). The human_gate response's `stage` field names it. Omit to resolve the first awaiting stage.",
+  }),
 })
 
 export const OrgDecisionTool = Tool.define(
@@ -418,7 +424,14 @@ export const OrgDecisionTool = Tool.define(
           // kilocode_change - W0-R2: serialize against other mutating org tool calls on this run_id.
           const run = yield* tryOrg(() =>
             withRunLock(params.run_id, async () => {
-              const updated = await OrgRunner.decide(dir, org, params.run_id, params.decision, params.note)
+              const updated = await OrgRunner.decide(
+                dir,
+                org,
+                params.run_id,
+                params.decision,
+                params.note,
+                params.stage,
+              )
               // kilocode_change start - W6.2: a "no-go" decision halts the run right here; record
               // the postmortem now, AFTER `updated` is fully computed, best-effort.
               if (updated.status === "halted") {

@@ -861,11 +861,33 @@ export namespace OrgRunner {
     runID: string,
     decision: "approve" | "no-go" | "revise",
     note?: string,
+    // kilocode_change start - E7-R2: optional target stage. Under maxConcurrency>1 a run can have
+    // MULTIPLE stages "awaiting_approval" at once (a parallel DAG's independent gated branches); the
+    // pre-existing behavior (org.pipeline.find of the FIRST awaiting stage) could silently resolve a
+    // decision meant for one gate against a different one. When `stage` is given, it must itself be
+    // "awaiting_approval" - otherwise this throws rather than falling back to some other stage. When
+    // omitted, behavior is EXACTLY the pre-existing first-awaiting-stage resolution (back-compat).
+    stage?: string,
+    // kilocode_change end
   ): Promise<OrgState.Run> {
     const run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
-    const gated = org.pipeline.find(({ stage }) => run.stages[stage].status === "awaiting_approval")
-    if (!gated) throw new Error(`Cannot record decision "${decision}": no stage awaiting approval in run ${runID}`)
+    // kilocode_change start - E7-R2: with `stage` given, only that stage may resolve the gate; a
+    // stage unknown to the pipeline (gated undefined) or known-but-not-awaiting (status check) both
+    // fall through to the same clear, stage-specific error below - neither silently picks another
+    // stage. Without `stage`, this is byte-identical to the pre-existing lookup.
+    const gated = stage
+      ? org.pipeline.find((p) => p.stage === stage)
+      : org.pipeline.find(({ stage }) => run.stages[stage].status === "awaiting_approval")
+    if (!gated || run.stages[gated.stage].status !== "awaiting_approval") {
+      if (stage) {
+        throw new Error(
+          `Cannot record decision "${decision}" for stage "${stage}": not awaiting approval in run ${runID}`,
+        )
+      }
+      throw new Error(`Cannot record decision "${decision}": no stage awaiting approval in run ${runID}`)
+    }
+    // kilocode_change end
     // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
     const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
     // kilocode_change start - W8.5: best-effort content snapshot of the PRE-revise deliverable.
