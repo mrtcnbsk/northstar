@@ -101,6 +101,102 @@ export function budgetGauge(budget: BudgetGaugeInput): BudgetGauge {
   }
 }
 
+// kilocode_change start - SP2 Task 1: evaluator panel view-model. Defaults mirror the organization
+// loop schema and keep older/degraded run responses renderable.
+export const DEFAULT_MAX_ITERATIONS = 4
+export const DEFAULT_EVALUATOR_MODEL = "haiku"
+
+export type VerdictView = { pass: boolean; reasons?: string[]; ts: string }
+
+export type EvaluatorStageView = {
+  stage: string
+  status: string
+  criteria?: string[]
+  iterations?: number
+  verdictHistory?: VerdictView[]
+}
+
+export type EvaluatorDetailView = {
+  run: { status: string; pausedReason?: { kind: string; stage: string; detail: string } | null }
+  stages: EvaluatorStageView[]
+  loop?: { maxIterations: number; evaluatorModel: string }
+}
+
+export type EvaluatorCriterion = { text: string; met: boolean }
+
+export type EvaluatorPanel = {
+  stage: string | null
+  criteria: EvaluatorCriterion[]
+  iteration: number
+  maxIterations: number
+  latestRejection: string | null
+  passed: boolean | null
+}
+
+function focusStage(detail: EvaluatorDetailView): EvaluatorStageView | undefined {
+  const paused = detail.run.pausedReason?.stage
+  if (paused) {
+    const stage = detail.stages.find((item) => item.stage === paused)
+    if (stage) return stage
+  }
+  return (
+    detail.stages.find((stage) => stage.status === "running") ??
+    detail.stages.find((stage) => stage.status === "awaiting_approval")
+  )
+}
+
+/** Normalizes lightweight English morphology so a rejection such as "the API is undocumented"
+ * can identify "documents the API" without pretending to perform general semantic evaluation. */
+function concept(word: string): string {
+  let value = word.toLowerCase()
+  if (value.startsWith("un") && value.length > 7) value = value.slice(2)
+  if (value.endsWith("ing") && value.length > 6) value = value.slice(0, -3)
+  else if (value.endsWith("ed") && value.length > 5) value = value.slice(0, -2)
+  else if (value.endsWith("es") && value.length > 5) value = value.slice(0, -2)
+  else if (value.endsWith("s") && value.length > 4) value = value.slice(0, -1)
+  return value
+}
+
+function concepts(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .filter((word) => word !== "a" && word !== "an" && word !== "the")
+    .map(concept)
+}
+
+/** Verdicts have no per-criterion result. A failed criterion is therefore inferred only when one
+ * rejection reason contains every normalized concept in that criterion; otherwise it remains met.
+ * No verdict means not evaluated, while a reasonless rejection cannot safely blame any criterion. */
+function criterionMet(text: string, verdict: VerdictView | undefined): boolean {
+  if (!verdict) return false
+  if (verdict.pass) return true
+  const expected = concepts(text)
+  if (expected.length === 0) return true
+  return !(verdict.reasons ?? []).some((reason) => {
+    const actual = new Set(concepts(reason))
+    return expected.every((token) => actual.has(token))
+  })
+}
+
+export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel {
+  const maxIterations = detail.loop?.maxIterations ?? DEFAULT_MAX_ITERATIONS
+  const stage = focusStage(detail)
+  if (!stage) {
+    return { stage: null, criteria: [], iteration: 0, maxIterations, latestRejection: null, passed: null }
+  }
+  const latest = (stage.verdictHistory ?? []).at(-1)
+  const criteria = (stage.criteria ?? []).map((text) => ({ text, met: criterionMet(text, latest) }))
+  const firstReason = (latest?.reasons ?? []).at(0)
+  return {
+    stage: stage.stage,
+    criteria,
+    iteration: stage.iterations ?? 0,
+    maxIterations,
+    latestRejection: latest && !latest.pass ? firstReason ?? "rejected (no reason given)" : null,
+    passed: latest?.pass ?? null,
+  }
+}
+// kilocode_change end
+
 /** The SDK guards NaN/Infinity over the wire by widening numeric fields to include the string
  * sentinels "NaN"/"Infinity"/"-Infinity". Coerces back to a plain finite number (default 0) so
  * downstream pure view helpers (`stageTimeline`, `budgetFromRun`) never have to think about it. */
