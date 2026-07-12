@@ -156,6 +156,20 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
           dialog.clear()
         },
       },
+
+      // /cockpit command (Task 8.1b, EPIC 8) — opens the Cockpit dashboard. No runID yet (8.3 adds
+      // a run-list when absent); the view shows "no run selected" until then.
+      {
+        name: "cockpit.open",
+        title: "Open Cockpit",
+        desc: "Open the org-run Cockpit dashboard",
+        category: "Org",
+        slashName: "cockpit",
+        run: () => {
+          route.navigate({ type: "cockpit" })
+          dialog.clear()
+        },
+      },
       // kilocode_change end
 
       // /kiloclaw command

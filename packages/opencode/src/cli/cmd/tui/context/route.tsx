@@ -26,6 +26,13 @@ export type BuilderRoute = {
 }
 // kilocode_change end
 
+// kilocode_change start
+export type CockpitRoute = {
+  type: "cockpit"
+  runID?: string
+}
+// kilocode_change end
+
 export type PluginRoute = {
   type: "plugin"
   id: string
@@ -33,7 +40,7 @@ export type PluginRoute = {
 }
 
 // kilocode_change start
-export type Route = HomeRoute | SessionRoute | PluginRoute | KiloClawRoute | BuilderRoute
+export type Route = HomeRoute | SessionRoute | PluginRoute | KiloClawRoute | BuilderRoute | CockpitRoute
 // kilocode_change end
 
 export const { use: useRoute, provider: RouteProvider } = createSimpleContext({

@@ -30,6 +30,7 @@ import { Session as SessionApi } from "@/session/session"
 // Re-export so upstream can render the route without importing directly
 export { KiloClawView } from "@/kilocode/claw/view"
 export { BuilderView } from "@/kilocode/builder/view"
+export { CockpitView } from "@/kilocode/cockpit/view"
 export { KiloTerminalTitle } from "./terminal-title"
 
 // Hot reload TUI-local settings (keybinds/theme/ui) when changed from the Kilo Console.
