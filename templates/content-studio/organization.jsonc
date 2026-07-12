@@ -1,0 +1,31 @@
+// Organization chart + pipeline for a content organization: draft, edit, then
+// a human-gated fact-check/quality review before the run completes.
+// Scaffold this template into your project: northstar org init --template content-studio
+{
+  "ceo": "ceo",
+  "toolpacks": [],
+  "departments": {
+    // editorial-chief chiefs ALL THREE departments (a chief may chief more than
+    // one department - OrgSchema.validate/crossCheck only bar a name being both
+    // a chief and a worker; a chief's subordinates just need to be a superset of
+    // each department it chiefs). editorial-chief.subordinates therefore covers
+    // the union of all three departments' workers: writer, editor, fact-checker
+    // (see agents/editorial-chief.md).
+    "draft":  { "chief": "editorial-chief", "workers": ["writer"] },
+    "edit":   { "chief": "editorial-chief", "workers": ["editor"] },
+    "review": { "chief": "editorial-chief", "workers": ["fact-checker"] }
+  },
+  "shared": [],
+  // Budget ceilings (USD; "retries" is an integer count). All fields optional -
+  // omitted fields fall back to these owner-approved defaults. See
+  // OrgSchema.resolveBudget / the ios-app-factory template for the full field docs.
+  "budget": { "run": 30, "stage": 10, "escalationThreshold": 8, "retries": 2 },
+  // Linear, drivable-to-done pipeline: draft -> edit (needs the draft) ->
+  // review (needs the edited copy; a human fact-check gate that can halt the
+  // run on a "no-go" verdict instead of publishing unverified content).
+  "pipeline": [
+    { "stage": "draft" },
+    { "stage": "edit", "requires": ["draft"] },
+    { "stage": "review", "requires": ["edit"], "gate": "human", "haltOn": "no-go" }
+  ]
+}

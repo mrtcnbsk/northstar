@@ -1,0 +1,19 @@
+// Minimal valid organization: one department, one chief, one worker.
+// Use this as a starting point for a custom org - copy it and grow the
+// departments/pipeline/agents to fit your task.
+// Scaffold this template into your project: northstar org init --template blank
+{
+  "ceo": "ceo",
+  "toolpacks": [],
+  "departments": {
+    "work": { "chief": "lead", "workers": ["worker"] }
+  },
+  "shared": [],
+  // Budget ceilings (USD; "retries" is an integer count). All fields optional -
+  // omitted fields fall back to these owner-approved defaults. See
+  // OrgSchema.resolveBudget / the ios-app-factory template for the full field docs.
+  "budget": { "run": 50, "stage": 15, "escalationThreshold": 10, "retries": 2 },
+  // A single, ungated stage: the chief receives the idea, delegates to the
+  // worker, and writes the department's one deliverable (work.md).
+  "pipeline": [{ "stage": "work" }]
+}
