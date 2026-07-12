@@ -98,9 +98,41 @@ export const OrgRunDetailResponse = Schema.Struct({
   budget: Schema.optional(OrgRunBudget),
 }).annotate({ identifier: "OrgRunDetailResponse" })
 
+export const OrgRunPlanPayload = Schema.Struct({
+  stages: Schema.Array(
+    Schema.Struct({
+      stage: Schema.String,
+      objective: Schema.String,
+      criteria: Schema.Array(Schema.String),
+      agents: Schema.optional(Schema.Array(Schema.String)),
+    }),
+  ),
+})
+export const OrgRunDecisionPayload = Schema.Struct({
+  decision: Schema.Literals(["approve", "no-go", "revise"]),
+  note: Schema.optional(Schema.String),
+  stage: Schema.optional(Schema.String),
+})
+export const OrgRunNotePayload = Schema.Struct({ target_agent: Schema.String, text: Schema.String })
+export const OrgRunStopPayload = Schema.Struct({ reason: Schema.String })
+export const OrgRunPausePayload = Schema.Struct({ detail: Schema.String, stage: Schema.optional(Schema.String) })
+export const OrgRunResumePayload = Schema.Struct({ note: Schema.optional(Schema.String) })
+
+export const OrgRunCommandResponse = Schema.Struct({
+  ok: Schema.Boolean,
+  runID: Schema.String,
+  status: OrgRunStatus,
+}).annotate({ identifier: "OrgRunCommandResponse" })
+
 export const OrgRunsPaths = {
   list: "/org-runs",
   detail: "/org-runs/:runID",
+  plan: "/org-runs/:runID/plan",
+  decision: "/org-runs/:runID/decision",
+  note: "/org-runs/:runID/note",
+  stop: "/org-runs/:runID/stop",
+  pause: "/org-runs/:runID/pause",
+  resume: "/org-runs/:runID/resume",
 } as const
 
 export const OrgRunsApi = HttpApi.make("org-runs")
@@ -130,8 +162,52 @@ export const OrgRunsApi = HttpApi.make("org-runs")
             description: "Return the full run state, gate-decision audit trail, total cost, and a per-stage view.",
           }),
         ),
+        ...[
+          HttpApiEndpoint.post("plan", OrgRunsPaths.plan, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunPlanPayload,
+            success: described(OrgRunCommandResponse, "Committed autonomous plan"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+          HttpApiEndpoint.post("decision", OrgRunsPaths.decision, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunDecisionPayload,
+            success: described(OrgRunCommandResponse, "Applied run gate decision"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+          HttpApiEndpoint.post("note", OrgRunsPaths.note, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunNotePayload,
+            success: described(OrgRunCommandResponse, "Queued run steering note"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+          HttpApiEndpoint.post("stop", OrgRunsPaths.stop, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunStopPayload,
+            success: described(OrgRunCommandResponse, "Stopped run"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+          HttpApiEndpoint.post("pause", OrgRunsPaths.pause, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunPausePayload,
+            success: described(OrgRunCommandResponse, "Paused run"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+          HttpApiEndpoint.post("resume", OrgRunsPaths.resume, {
+            params: { runID: Schema.String },
+            query: WorkspaceRoutingQuery,
+            payload: OrgRunResumePayload,
+            success: described(OrgRunCommandResponse, "Resumed run"),
+            error: [HttpApiError.NotFound, HttpApiError.BadRequest],
+          }),
+        ],
       )
-      .annotateMerge(OpenApi.annotations({ title: "org-runs", description: "Read-only org run observability routes." }))
+      .annotateMerge(OpenApi.annotations({ title: "org-runs", description: "Org run observability and run-scoped control routes." }))
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),

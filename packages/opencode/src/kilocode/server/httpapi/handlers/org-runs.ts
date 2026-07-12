@@ -6,7 +6,19 @@ import { InstanceHttpApi } from "@/server/routes/instance/httpapi/api"
 import { OrgState } from "@/kilocode/organization/state"
 import { OrgAudit } from "@/kilocode/organization/audit"
 import { OrgSchema } from "@/kilocode/organization/schema"
-import type { OrgRunDetailResponse, OrgRunsListResponse } from "../groups/org-runs"
+import { OrgRunner } from "@/kilocode/organization/runner"
+import { OrgNote } from "@/kilocode/organization/state"
+import { withRunLock } from "@/kilocode/organization/tools"
+import type {
+  OrgRunDecisionPayload,
+  OrgRunDetailResponse,
+  OrgRunNotePayload,
+  OrgRunPausePayload,
+  OrgRunPlanPayload,
+  OrgRunResumePayload,
+  OrgRunsListResponse,
+  OrgRunStopPayload,
+} from "../groups/org-runs"
 
 /**
  * Pure, org-free view builders over run state.json + approvals.json. Kept separate from the Effect
@@ -98,6 +110,25 @@ export namespace OrgRunsView {
 
 export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs", (handlers) =>
   Effect.gen(function* () {
+    const organization = (projectDir: string) =>
+      Effect.tryPromise({ try: () => OrgSchema.loadOrganization(projectDir), catch: (error) => error }).pipe(
+        Effect.catch((error) => Effect.die(error)),
+      )
+
+    const command = <A>(fn: () => Promise<A>) =>
+      Effect.tryPromise({ try: fn, catch: (error) => error }).pipe(
+        Effect.catchIf(
+          (error: unknown): error is OrgState.NotFound => error instanceof OrgState.NotFound,
+          () => Effect.fail(new HttpApiError.NotFound({})),
+          (error) =>
+            error instanceof OrgRunner.TransitionError
+              ? Effect.fail(new HttpApiError.BadRequest({}))
+              : Effect.die(error),
+        ),
+      )
+
+    const response = (run: OrgState.Run) => ({ ok: true as const, runID: run.runID, status: run.status })
+
     const list = Effect.fn("OrgRunsHttpApi.list")(function* () {
       const instance = yield* InstanceState.context
       return yield* Effect.promise(() => OrgRunsView.list(instance.directory))
@@ -124,6 +155,113 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       )
     })
 
-    return handlers.handle("list", list).handle("detail", detail)
+    const plan = Effect.fn("OrgRunsHttpApi.plan")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunPlanPayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const run = yield* command(() =>
+        withRunLock(ctx.params.runID, () => OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages)),
+      )
+      return response(run)
+    })
+
+    const decision = Effect.fn("OrgRunsHttpApi.decision")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunDecisionPayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const run = yield* command(() =>
+        withRunLock(ctx.params.runID, () =>
+          OrgRunner.decide(
+            instance.directory,
+            org,
+            ctx.params.runID,
+            ctx.payload.decision,
+            ctx.payload.note,
+            ctx.payload.stage,
+          ),
+        ),
+      )
+      return response(run)
+    })
+
+    const note = Effect.fn("OrgRunsHttpApi.note")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunNotePayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const run = yield* command(() =>
+        withRunLock(ctx.params.runID, () =>
+          OrgNote.append(instance.directory, org, ctx.params.runID, {
+            target: ctx.payload.target_agent,
+            text: ctx.payload.text,
+            from: "mission-control",
+          }),
+        ),
+      )
+      return response(run)
+    })
+
+    const stop = Effect.fn("OrgRunsHttpApi.stop")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunStopPayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const stopped = yield* command(() =>
+        withRunLock(ctx.params.runID, () =>
+          OrgRunner.stop(instance.directory, org, ctx.params.runID, ctx.payload.reason),
+        ),
+      )
+      return response(stopped.run)
+    })
+
+    const pause = Effect.fn("OrgRunsHttpApi.pause")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunPausePayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const run = yield* command(() =>
+        withRunLock(ctx.params.runID, async () => {
+          const current = await OrgState.read(instance.directory, ctx.params.runID)
+          const stage = ctx.payload.stage ?? OrgState.runSummary(current).currentStage ?? "none"
+          return OrgRunner.pause(instance.directory, org, ctx.params.runID, {
+            kind: "manual",
+            stage,
+            detail: ctx.payload.detail,
+          })
+        }),
+      )
+      return response(run)
+    })
+
+    const resume = Effect.fn("OrgRunsHttpApi.resume")(function* (ctx: {
+      params: { runID: string }
+      payload: typeof OrgRunResumePayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const org = yield* organization(instance.directory)
+      const run = yield* command(() =>
+        withRunLock(ctx.params.runID, () =>
+          OrgRunner.resume(instance.directory, org, ctx.params.runID, ctx.payload.note),
+        ),
+      )
+      return response(run)
+    })
+
+    return handlers
+      .handle("list", list)
+      .handle("detail", detail)
+      .handle("plan", plan)
+      .handle("decision", decision)
+      .handle("note", note)
+      .handle("stop", stop)
+      .handle("pause", pause)
+      .handle("resume", resume)
   }),
 )

@@ -14,8 +14,6 @@ import { OrgState, OrgNote } from "./state"
 import { OrgAudit } from "./audit" // kilocode_change - W6.2: postmortem's gate-decision trail
 import { OrgPostmortem } from "./postmortem" // kilocode_change - W6.2: postrun postmortem hook
 import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson in the org memory pool
-import { OrgArtifacts } from "./artifacts" // kilocode_change - SP1 approved plan deliverable
-import { OrgPrompts } from "./prompts" // kilocode_change - SP1 approved plan rendering
 
 // kilocode_change start - W6.2: postrun postmortem hook.
 const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
@@ -222,10 +220,6 @@ export const OrgPlanTool = Tool.define(
           const run = yield* tryOrg(() =>
             withRunLock(params.run_id, async () => {
               const updated = await OrgRunner.commitPlan(dir, org, params.run_id, params.stages)
-              await Bun.write(
-                OrgArtifacts.deliverablePath(dir, params.run_id, org.pipeline[0].stage),
-                OrgPrompts.planDocument(params.stages),
-              )
               return updated
             }),
           )
