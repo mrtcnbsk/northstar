@@ -5,6 +5,7 @@ import * as InstanceState from "@/effect/instance-state"
 import { InstanceHttpApi } from "@/server/routes/instance/httpapi/api"
 import { OrgState } from "@/kilocode/organization/state"
 import { OrgAudit } from "@/kilocode/organization/audit"
+import { OrgSchema } from "@/kilocode/organization/schema"
 import type { OrgRunDetailResponse, OrgRunsListResponse } from "../groups/org-runs"
 
 /**
@@ -68,7 +69,30 @@ export namespace OrgRunsView {
       completedAt: s.completedAt ?? null,
       decision: s.decision ?? null,
     }))
-    return { run, audit, totalCost: summary.totalCost, stages }
+    // organization.jsonc is supplementary for the detail view (same posture as approvals.json
+    // above): a missing/corrupt org file degrades to an absent `budget` block rather than failing
+    // an otherwise-healthy run's detail. Mirrors OrgStatusTool's budget assembly (organization/tools.ts).
+    const spent = summary.totalCost
+    const budget = await OrgSchema.loadOrganization(projectDir)
+      .then((org) => {
+        const resolved = OrgSchema.resolveBudget(org)
+        return {
+          run: resolved.run,
+          stage: resolved.stage,
+          escalationThreshold: resolved.escalationThreshold,
+          retries: resolved.retries,
+          spent,
+          remaining: Math.max(0, resolved.run - spent),
+          escalated: run.escalated ?? false,
+        }
+      })
+      .catch((e: unknown) => {
+        console.warn(
+          `[org-runs] organization unreadable for run "${runID}", omitting budget: ${e instanceof Error ? e.message : String(e)}`,
+        )
+        return undefined
+      })
+    return { run, audit, totalCost: summary.totalCost, stages, budget }
   }
 }
 
