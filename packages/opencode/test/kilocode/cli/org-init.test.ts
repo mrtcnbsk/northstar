@@ -155,6 +155,50 @@ describe("org init", () => {
     const org = await OrgSchema.loadOrganization(tmp.path)
     expect(org.pipeline.length).toBe(11)
   })
+
+  test("--force switching to a smaller template REPLACES (no stale agents) and preserves .kilo/org/", async () => {
+    await using tmp = await tmpdir()
+    const first = harness()
+    await handleInit({
+      template: "ios-app-factory",
+      force: false,
+      cwd: tmp.path,
+      templatesDir: TEMPLATES_DIR,
+      log: first.log,
+      error: first.error,
+      exit: first.exit,
+    })
+    expect(first.errors).toEqual([])
+    expect(Object.keys(await ConfigAgent.load(path.join(tmp.path, ".kilo"))).length).toBe(63)
+
+    // Simulate run state that a re-init MUST preserve (it is not template-managed content).
+    const runMarker = path.join(tmp.path, ".kilo", "org", "runs", "keep.txt")
+    await fs.mkdir(path.dirname(runMarker), { recursive: true })
+    await fs.writeFile(runMarker, "run state - must survive re-init")
+
+    const second = harness()
+    await handleInit({
+      template: "blank",
+      force: true,
+      cwd: tmp.path,
+      templatesDir: TEMPLATES_DIR,
+      log: second.log,
+      error: second.error,
+      exit: second.exit,
+    })
+    expect(second.errors).toEqual([])
+    expect(second.codes).toEqual([])
+
+    // blank has 3 agents — the 60 ios agents must NOT have merged through.
+    const agents = await ConfigAgent.load(path.join(tmp.path, ".kilo"))
+    expect(Object.keys(agents).length).toBe(3)
+    expect(existsSync(path.join(tmp.path, ".kilo", "agents", "swiftui-dev-1.md"))).toBe(false)
+    expect(existsSync(path.join(tmp.path, ".kilo", "command", "build-app.md"))).toBe(false)
+    // Run state (not template-managed) survives.
+    expect(existsSync(runMarker)).toBe(true)
+    // Summary reports the REAL blank count, not a polluted one.
+    expect(second.logs.join("\n")).toContain("3 agents")
+  })
 })
 
 describe("OrgTemplates.dir resolution", () => {

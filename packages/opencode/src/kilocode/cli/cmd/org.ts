@@ -69,6 +69,13 @@ export async function handleInit(args: InitArgs): Promise<void> {
     return
   }
 
+  // kilocode_change - EPIC 4 review fix: REPLACE (not merge) the template-managed entries so switching
+  // to a smaller template can't leave stale agents/command behind (fs.cp only overwrites, never deletes).
+  // Removes only what the template provides (organization.jsonc, agents/, command/, README.md) —
+  // never .kilo/org/ (run state + memory), which no template contains.
+  for (const entry of await fs.readdir(source)) {
+    await fs.rm(path.join(target, entry), { recursive: true, force: true })
+  }
   await fs.cp(source, target, { recursive: true })
 
   try {
