@@ -1,0 +1,69 @@
+# EPIC 7 — TUI: Chat / Prompt + agent selection
+
+> REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps. TDD.
+
+**Goal:** Drive the org from the chat/session TUI: org slash commands in the composer (7.1), the org roster in the agent selector (7.2), `@mention` mid-run routing as a **side-channel note** to a target agent (7.3, the agreed 0.3 semantics — runner flow preserved), and an **inline gate-approval card** (a/n/r → `org_decision`, 7.4).
+
+**Branch:** `feat/tui-chat` (off main `0fc22545f8`).
+
+**Acceptance (exit):** start a run from chat → mid-run send a note to `@analyst` (via `org_note`) → the analyst-owned stage's next instruct prompt contains the note block AND the run's status/costs/gates are byte-identical to a no-note run (determinism preserved) → at a `gate:"human"` stage the inline card's `approve` drives `org_decision(approve)` + `org_advance` → the runner advances.
+
+**Architecture (from recon `wf_6e32787e-a53`):** Chat UI mostly EXISTS (composer/slash/`@`-mention/agent chip/model chip/Tab-cycle). The org runtime is a pure CEO-driven state machine whose only existing user-input seam is `org_decision` at a gate. EPIC 7 adds: (a) an additive, instruct-time **note** channel that never perturbs the state machine, (b) surfacing of the org roster (already in `sync.data.agent`), (c) an inline gate card that submits via a CEO-instruction message. The chat→run binding uses the **CEO-message convention** (the CEO session holds `run_id`; the TUI sends it a formatted message; the CEO calls the org tool) — NO new `sessionID→runID` index.
+
+**Determinism invariant (PRESERVE — load-bearing):** the linear-run byte-identical pin (green since W4) MUST stay green. Notes are read-only at `stagePromptFor` time; they NEVER enter `settleRunningStage`'s atomic cost/ceiling/escalation/readiness/gate logic. Do NOT touch `advance`/`settleRunningStage`/status transitions/`readyStages`/`runningStages`/gating.
+
+**Security invariant (PRESERVE):** `org_note` is CEO-scoped (`guardCeo`) + `withRunLock` (mirror `org_decision`). Note text is fenced via `escapeFence(text, "note")` (anti-spoofing, already in `prompts.ts`). Do NOT touch `config/variable.ts`.
+
+**Conventions:** `bun` at `~/.bun/bin`. Test from `packages/opencode/`. Typecheck `bun turbo typecheck --filter='!@kilocode/kilo-jetbrains'`. NEVER stage `bun.lock`. `// kilocode_change` on shared-file edits (block form for multi-line). Verify guards after each commit (annotations exit on its OWN line — a pipe masks it). Push `--no-verify`.
+
+---
+
+## Task 7.3 — Side-channel note: `org_note` tool + `Run.notes` + stage-prompt surfacing (THE testable core; do FIRST)
+
+**Files:** `packages/opencode/src/kilocode/organization/state.ts` (`Run.notes` field ~L56-67); `prompts.ts` (`StageInput.notes` ~L4-17 + render block ~L31-67, model on the `revise` block L37-39); `runner.ts` (`stagePromptFor` ~L206-224 — filter+pass+optional-consume; do NOT touch `advance`/`settleRunningStage`); `tools.ts` (new `OrgNoteTool` mirroring `org_decision` L398-435 + `guardCeo` L153-156 + `withRunLock` L130-146); `registry.ts` (register `org_note` like the other `org_*` tools — CEO-visibility gate); the org-template `command`/`agents/ceo.md` (protocol line so the CEO recognizes a side-channel note). Test: `test/kilocode/organization/org-note.test.ts`.
+
+- [ ] **RED — note round-trip + determinism test.** In `org-note.test.ts`: (a) `OrgState.create` a run; append a note `{target:"analyst", text:"prefer SwiftData"}` via the new `OrgNote.append(dir, org, runID, {target, text, from?})` (the core the tool wraps); reload state → `run.notes` has the entry (id/ts assigned; back-compat: an old state.json with no `notes` still parses). (b) Drive the runner so a stage whose chief/worker is `analyst` gets instructed; assert the returned `taskPrompt`/instruct contains the note text inside a fenced `note` block. (c) **Determinism:** run the SAME toy pipeline to a fixed point WITH a note and WITHOUT — assert every stage's `status`, `costs`, `decision`, and the gate/awaiting sequence are IDENTICAL (the note changes only the instruct text, never the machine). (d) a note whose `target` matches no stage agent is simply never surfaced (no crash). Run → FAIL.
+- [ ] **GREEN — state.ts:** add `notes?: Array<{ id: string; target: string; text: string; from?: string; ts: string; consumedByStage?: string }>` to the `Run` schema (optional ⇒ back-compat, mirror how W-fields were added). No other state change.
+- [ ] **GREEN — prompts.ts:** add `notes?: { target: string; text: string; from?: string }[]` to `StageInput`; render a fenced block (before/after the revise block) `=== SIDE-CHANNEL NOTES ===` with each `escapeFence(text, "note")`; omit the block when empty.
+- [ ] **GREEN — runner.ts `stagePromptFor`:** compute the stage's roster (`org.departments[stage].chief` + `.workers` + treat `target:"*"`/`target:"ceo"` as always-matching), filter `run.notes` (unconsumed, matching target), pass them into `OrgPrompts.stagePrompt`, and (idempotently) mark matched notes `consumedByStage` via ONE `OrgState.update` OUTSIDE the settle path. Assert (in code review) this touches no status/cost/gate/readiness.
+- [ ] **GREEN — tools.ts `OrgNoteTool`:** `org_note({ run_id, target_agent, text })` → `guardCeo(org, ctx.agent)` → `withRunLock(run_id, () => OrgNote.append(dir, org, run_id, {target:target_agent, text, from: ctx.agent}))` → `result("note queued for " + target_agent, { ok: true })`. Register in `registry.ts` alongside the other `org_*` tools (same CEO-scoped visibility gate — grep how `org_decision` is registered/gated and mirror EXACTLY).
+- [ ] **GREEN — CEO protocol:** add ONE step to the org-template `agents/ceo.md` (and any shared CEO prompt): "When the user sends `SIDE-CHANNEL NOTE for @<agent>: <text>` (or `@<agent> <text>` addressed to a running pipeline), call `org_note(run_id, "<agent>", "<text>")` — do NOT interrupt the running stage; the note surfaces in that agent's next instruction." Keep it minimal; do not restructure ceo.md.
+- [ ] **Verify + commit.** org-note test green (incl. determinism); the linear-run pin + full org suite green or isolation-confirmed; typecheck; annotations exit 0. Commit: `feat(chat): org_note side-channel — Run.notes + stagePromptFor surfacing + CEO protocol (runner flow preserved)`.
+
+## Task 7.1 — Composer org slash commands
+
+**Files:** `packages/opencode/src/kilocode/cli/cmd/tui/component/prompt/*` OR `app.tsx` command registration (mirror `promptCommands` / the `agent.list`/`model.list` pattern); test only if a pure helper is extracted.
+
+- [ ] Register org palette commands with `slashName` so they appear in the `/` palette (feeder `useCommandSlashes` auto-picks up `namespace:"palette"` + `slashName`): at minimum `/org-status` (dispatches to a dialog/toast showing the `org_status` dry-run) and `/builder` already exists from EPIC 6. If a `/org-start <idea>` is feasible without new server plumbing (it would create a CEO session + send an `org_start` instruction), add it; otherwise document that `org_start` is invoked by the CEO from a normal prompt and 7.1 ships the discoverability commands. Keep these kilo-owned (register in the kilocode command hub, mirror EPIC 6's `builder.open`).
+- [ ] Verify (the commands appear in `/` palette; typecheck; annotations) + commit: `feat(chat): org slash commands in the composer palette (/org-status discoverability)`.
+
+## Task 7.2 — Agent selector: surface the org roster
+
+**Files:** `packages/opencode/src/cli/cmd/tui/context/local.tsx` (`agents()` filter ~L49 — shared upstream, `// kilocode_change`); `packages/opencode/src/cli/cmd/tui/component/dialog-agent.tsx` (grouping/labels — shared upstream, `// kilocode_change`); a pure helper `packages/opencode/src/kilocode/cli/cmd/tui/agent-roster.ts` (NEW — the testable selection/grouping logic); test `test/kilocode/cli/agent-roster.test.ts`.
+
+- [ ] **RED — roster grouping test.** `agent-roster.ts` exports `buildAgentOptions(agents: Agent[], current?: string): { category: string; name: string; title: string; description?: string }[]` grouping into "Built-in" (`native === true` / no `source`) and "Org" (`source === "organization"`, title=`displayName ?? name`), preserving the CEO (mode primary) and the roster subagents as labeled entries; a deterministic order (built-ins first, then org). Test with a mixed fixture (code/plan/ask built-ins + a CEO + analyst/chief org agents) → assert grouping + labels + order. Run → FAIL.
+- [ ] **GREEN — agent-roster.ts** (pure). Then wire `dialog-agent.tsx` to render `buildAgentOptions(...)` with `category` (DialogSelect renders section headers automatically), and relax `local.tsx`'s `agents()` so `source === "organization"` agents survive the `mode !== "subagent"` filter (a source-aware carve-out) — OR keep `agents()` for primaries and add a separate `roster()` accessor that DialogAgent renders as its own section. Decide by whether Tab-cycle should include the roster: keep Tab on primaries (`move()` should skip `source === "organization"` subagents) so cycling stays sane; the roster is for selection/@mention discovery. Wrap the shared-file edits in `// kilocode_change`.
+- [ ] Verify (roster test green; typecheck; annotations; the agent selector shows Built-in + Org sections; Tab still cycles primaries) + commit: `feat(chat): surface the org roster in the agent selector (grouped Built-in / Org, source-aware)`.
+
+## Task 7.4 — Inline gate card
+
+**Files:** `packages/opencode/src/kilocode/cli/cmd/tui/gate-card.ts` (NEW — the pure gate-detection parser, testable); `packages/opencode/src/kilocode/cli/cmd/tui/routes/session/gate-card.tsx` (NEW — the inline card render, modeled on `routes/session/permission.tsx` / `question.tsx`); wire it into the session thread (`routes/session/index.tsx` inline-footer-prompts region ~L1414-1443 OR the `ToolPart` renderer — shared, `// kilocode_change`); test `test/kilocode/cli/gate-card.test.ts`.
+
+- [ ] **RED — gate parser test.** `gate-card.ts` exports `parseGate(toolPart: { tool: string; state: { status: string; output?: string } }): { runID?: string; stage: string; deliverable?: string; budgetNote?: string } | undefined` — returns a card model when the part is a completed `org_advance` whose JSON `output` has `action === "human_gate"` (or `pending_gate`), else `undefined`. Test: a human_gate output → parsed card; a normal `org_advance` `run_tasks` output → undefined; a non-`org_advance` tool → undefined; malformed JSON → undefined (no throw). Run → FAIL.
+- [ ] **GREEN — gate-card.ts** (pure, defensive JSON parse). Then `gate-card.tsx`: an inline card showing stage / deliverable / budgetNote / cumulative cost with a/n/r controls (a→approve, n→no-go, r→revise-with-note-input), modeled on `permission.tsx`'s a/n/r keybind UX. On action: send a CEO-instruction message via `sdk.client.session.prompt` (the same call the composer uses) — `"approve run <runID>"` / `"reject run <runID>: no-go"` / `"revise run <runID>: <note>"` — so the CEO calls `org_decision` + `org_advance` (guardCeo/withRunLock/audit/postmortem untouched; NO new endpoint). Detect the gate ToolPart in the thread (the `AssistantMessage` `ToolPart` stream) and render the card when `parseGate` returns non-undefined and the run is still awaiting.
+- [ ] Verify (gate parser test green; typecheck; annotations; manual: a human_gate in the thread renders the card; a/n/r sends the CEO instruction) + commit: `feat(chat): inline gate card — parse org_advance human_gate + a/n/r drives org_decision via CEO message`.
+
+## Task 7.5 — Exit test + review-prep
+
+**Files:** test `test/kilocode/organization/epic7-exit.test.ts`; `.changeset/epic7-tui-chat.md`.
+
+- [ ] **Exit test (the acceptance, server-side end-to-end):** start a run; `org_note` a note to `@analyst`; drive `advance` so the analyst-owned stage instructs → assert the instruct contains the note; assert the run reaches its gate and `org_decision(approve)` + `advance` progresses it; assert a parallel no-note run has IDENTICAL status/cost/gate sequence (determinism). Also assert `parseGate` recognizes the run's real `org_advance` human_gate output (ties the 7.4 parser to a real gate). Run → GREEN.
+- [ ] **`.changeset/epic7-tui-chat.md`** (`"@ilura/northstar": minor`) — TUI Chat: org slash commands, org roster in the agent selector, @mention side-channel notes (org_note), inline gate card.
+- [ ] Verify (exit + org + note + gate + roster suites green; typecheck; guards; changeset) + commit: `test(chat): EPIC 7 exit — side-channel note surfaces + determinism preserved + gate card drives decision`.
+
+## Self-review
+- composer org commands → 7.1 ✓ · roster in selector → 7.2 ✓ · @mention side-channel → 7.3 ✓ · inline gate card → 7.4 ✓ · exit (run → note → gate → advance, determinism) → 7.5 ✓.
+- **Testable cores (TDD-pinned):** `OrgNote.append`+`stagePromptFor` surfacing + **determinism invariant** (7.3), `buildAgentOptions` (7.2), `parseGate` (7.4), end-to-end acceptance (7.5). Renders (composer, selector, gate card) manual-verifiable, modeled on cited components.
+- **Reuse (~80%):** composer/slash/`@`-mention/agent+model chips/Tab-cycle (all exist), `org_decision` protocol, `escapeFence`, `withRunLock`/`guardCeo`, W3 org-runs poll, permission.tsx a/n/r UX, `sync.data.agent` org metadata, `session.prompt` send.
+- **Risk:** (a) 7.3 must NOT perturb the deterministic runner — additive read-only notes only; the determinism test is the guard; (b) chat→run binding uses the CEO-message convention (no new index) — the CEO protocol line is load-bearing for the note/gate flow; (c) 7.2 Tab-cycle must stay on primaries (skip org subagents) or cycling breaks. Sequence 7.3 (core) → 7.1 → 7.2 → 7.4 → 7.5.
+- **Security:** `org_note` CEO-scoped + run-locked + fence-escaped; no secrets; `config/variable.ts` untouched; determinism pin green.
