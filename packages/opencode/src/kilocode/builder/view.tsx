@@ -6,8 +6,8 @@
  * nav (Models / Agents / Organization) and a right-hand content panel.
  * Escape navigates back to the previous route.
  *
- * The section panels are stubs for now — Task 6.1/6.2/6.3 replace them with
- * real screens.
+ * Models (Task 6.1) is a real screen (`ModelsScreen`); Agents/Organization
+ * remain stubs until Task 6.2/6.3 replace them.
  */
 
 import { createSignal, createMemo, Switch, Match } from "solid-js"
@@ -15,6 +15,7 @@ import { useRoute } from "@tui/context/route"
 import { useDialog } from "@tui/ui/dialog"
 import { useTheme } from "@tui/context/theme"
 import { useBindings } from "@tui/keymap"
+import { ModelsScreen } from "./models-screen"
 
 type Section = "models" | "agents" | "organization"
 
@@ -89,9 +90,7 @@ export function BuilderView() {
       <box flexGrow={1} paddingLeft={2} paddingTop={1}>
         <Switch>
           <Match when={section() === "models"}>
-            <box>
-              <text fg={theme.textMuted}>Models — coming in 6.1</text>
-            </box>
+            <ModelsScreen />
           </Match>
           <Match when={section() === "agents"}>
             <box>
