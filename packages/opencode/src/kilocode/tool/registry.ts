@@ -43,6 +43,8 @@ import { InstanceState } from "@/effect/instance-state"
 import { KiloMemory } from "@kilocode/kilo-memory/effect"
 import { MemoryPaths } from "@kilocode/kilo-memory/effect/paths"
 import { OrgSchema } from "@/kilocode/organization/schema"
+import { TOOLPACK_BY_TOOL_ID } from "@/kilocode/tool/toolpacks"
+import { parse as parseJsonc, type ParseError } from "jsonc-parser"
 
 const log = Log.create({ service: "kilocode-tool-registry" })
 type Deps = { agent: Agent.Interface; truncate: Truncate.Interface; indexing?: boolean }
@@ -462,15 +464,73 @@ export namespace KiloToolRegistry {
     })
   }
 
-  /** Hide Kilo memory tools from the model when project memory is disabled, and hide org_* tools
-   * from projects that have no organization config. */
+  // Re-keyed to `${root}::${pack}` so a project can independently opt into multiple toolpacks.
+  const toolpackEnabledCache = new Map<string, { enabled: boolean; deadline: number }>()
+  const TOOLPACK_ENABLED_CACHE_MAX = 512
+  const TOOLPACK_ENABLED_TTL_MS = 5_000
+
+  /** Per-turn cache of whether `pack` is opted into via `.kilo/organization.jsonc`'s `toolpacks`
+   * array, keyed by `${projectDirectory}::${pack}`, with a short TTL so the step-loop coalesces
+   * probes inside a single turn. Independent of `orgToolsEnabled` (which only checks the file's
+   * EXISTENCE): a project can have organization.jsonc without opting into any toolpack. No
+   * organization.jsonc, an unreadable file, or invalid JSONC all resolve to `false` (tools
+   * hidden) - never a throw. Deliberately does a light JSONC read of just the `toolpacks` array
+   * rather than the full `OrgSchema.loadOrganization` validation, so an org that is otherwise
+   * incomplete/invalid can still gate this independently. */
+  export function toolpackEnabled(input: { ctx: { directory: string } }, pack: string) {
+    return Effect.gen(function* () {
+      const root = input.ctx.directory
+      const key = `${root}::${pack}`
+      const cached = toolpackEnabledCache.get(key)
+      if (cached && cached.deadline > Date.now()) return cached.enabled
+      const enabled = yield* Effect.tryPromise({
+        try: async () => {
+          const text = await Bun.file(OrgSchema.organizationPath(root))
+            .text()
+            .catch(() => undefined)
+          if (text === undefined) return false
+          const parseErrors: ParseError[] = []
+          const raw: unknown = parseJsonc(text, parseErrors, { allowTrailingComma: true })
+          if (parseErrors.length) return false
+          const toolpacks = (raw as { toolpacks?: unknown } | undefined)?.toolpacks
+          return Array.isArray(toolpacks) && toolpacks.includes(pack)
+        },
+        catch: (err) => err,
+      }).pipe(
+        Effect.catch((err) =>
+          Effect.sync(() => {
+            log.warn("toolpack visibility unavailable", { pack, error: String(err) })
+            return false
+          }),
+        ),
+      )
+      toolpackEnabledCache.set(key, { enabled, deadline: Date.now() + TOOLPACK_ENABLED_TTL_MS })
+      if (toolpackEnabledCache.size > TOOLPACK_ENABLED_CACHE_MAX) {
+        const oldest = toolpackEnabledCache.keys().next().value
+        if (oldest !== undefined) toolpackEnabledCache.delete(oldest)
+      }
+      return enabled
+    })
+  }
+
+  /** Hide Kilo memory tools from the model when project memory is disabled, hide org_* tools
+   * from projects that have no organization config, and hide each toolpack's tools (see
+   * `kilocode/tool/toolpacks.ts`) until the loaded org opts in via `toolpacks: [...]`. The
+   * toolpack gate is independent of the org_* gate: one keys off organization.jsonc's existence,
+   * the other off its `toolpacks` content. */
   export const applyVisibility = Effect.fn("KiloToolRegistry.applyVisibility")(function* (tools: Tool.Def[]) {
     const ctx = yield* InstanceState.context
     const memoryEnabled = yield* memoryToolsEnabled({ ctx })
     const orgEnabled = yield* orgToolsEnabled({ ctx })
+    const packEnabled = new Map<string, boolean>()
+    for (const pack of new Set(TOOLPACK_BY_TOOL_ID.values())) {
+      packEnabled.set(pack, yield* toolpackEnabled({ ctx }, pack))
+    }
     return tools.filter((tool) => {
       if (tool.id.startsWith("kilo_memory_")) return memoryEnabled
       if (tool.id.startsWith("org_")) return orgEnabled
+      const pack = TOOLPACK_BY_TOOL_ID.get(tool.id)
+      if (pack !== undefined) return packEnabled.get(pack) ?? false
       return true
     })
   })
