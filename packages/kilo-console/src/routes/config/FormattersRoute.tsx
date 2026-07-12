@@ -268,7 +268,7 @@ export function FormattersRoute() {
           <CountTag>{state.builtinFmt().length + state.customFmt().length}</CountTag>
         </span>
       }
-      description="Control native and custom formatters Kilo can run after editing files."
+      description="Control native and custom formatters Northstar can run after editing files."
       actions={
         <>
           <Button

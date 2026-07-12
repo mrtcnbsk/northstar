@@ -28,7 +28,7 @@ export function LoadingLogo(props: { class?: string }) {
       ref={(node) => (canvas = node)}
       class={`console-loading-logo${props.class ? ` ${props.class}` : ""}`}
       role="img"
-      aria-label="Kilo loading animation"
+      aria-label="Northstar loading animation"
     />
   )
 }

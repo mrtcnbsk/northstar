@@ -134,9 +134,9 @@ export function LoginRoute() {
     <section class="route-empty">
       <div class="profile-login-page">
         <header class="profile-login-header">
-          <p class="eyebrow">Kilo Login</p>
-          <h1>Login to Kilo</h1>
-          <p>Authorize this Kilo Console through the same device auth flow used by the editor clients.</p>
+          <p class="eyebrow">Northstar Login</p>
+          <h1>Login to Northstar</h1>
+          <p>Authorize this Northstar Console through the same device auth flow used by the editor clients.</p>
         </header>
 
         <Show when={!server.query() && server.discoverable()}>
@@ -145,8 +145,8 @@ export function LoginRoute() {
 
         <Show when={!server.query() && !server.discoverable()}>
           <Card class="profile-login-card" variant="warning">
-            <strong>Kilo server not found</strong>
-            <p>Start a local Kilo server or pass a server URL with ?server=.</p>
+            <strong>Northstar server not found</strong>
+            <p>Start a local Northstar server or pass a server URL with ?server=.</p>
             <a class="profile-link-button" href={profile()}>
               Back to Profile
             </a>

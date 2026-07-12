@@ -128,7 +128,7 @@ export function ProjectsRoute() {
           <h1>
             Projects <span class="count-tag">{rows().length}</span>
           </h1>
-          <p>Projects opened with this Kilo server. Selecting a project opens its console.</p>
+          <p>Projects opened with this Northstar server. Selecting a project opens its console.</p>
         </header>
 
         <Show when={!query() && discoverable()}>
@@ -149,14 +149,14 @@ export function ProjectsRoute() {
         <SearchField label="Filter projects" value={filter()} placeholder="Filter projects..." onValue={setFilter} />
 
         <Show when={query() && !items.loading && rows().length === 0 && !items.error}>
-          <Card class="empty">No projects have been opened with this Kilo server yet.</Card>
+          <Card class="empty">No projects have been opened with this Northstar server yet.</Card>
         </Show>
 
         <Show when={query() && !items.loading && rows().length > 0 && filtered().length === 0 && !items.error}>
           <Card class="empty">No matches. Clear the filter or open a project from the CLI.</Card>
         </Show>
 
-        <ul class="project-list" aria-label="Kilo projects">
+        <ul class="project-list" aria-label="Northstar projects">
           <For each={filtered()}>
             {(item) => (
               <li>

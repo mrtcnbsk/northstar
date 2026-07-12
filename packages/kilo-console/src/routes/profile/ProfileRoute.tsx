@@ -3,6 +3,7 @@ import { Button } from "@kilocode/kilo-web-ui/button"
 import { Card } from "@kilocode/kilo-web-ui/card"
 import { Icon } from "@kilocode/kilo-web-ui/icon"
 import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js"
+import { ACCOUNT_NAME } from "../../brand"
 import { LoadingScreen } from "../../components/LoadingScreen"
 import { loadKiloProfile, logoutKilo, setKiloOrganization, type KiloProfileData, type ProjectQuery } from "../../client"
 import { errMsg } from "../../shared/utils"
@@ -154,9 +155,9 @@ export function ProfileRoute() {
           <Show when={!disconnected()}>
             <header class="profile-header">
               <div>
-                <p class="eyebrow">Kilo Account</p>
+                <p class="eyebrow">{ACCOUNT_NAME}</p>
                 <h1>Your Profile</h1>
-                <p>Manage your Kilo identity, account context, credits, and billing shortcuts.</p>
+                <p>Manage your Northstar identity, account context, credits, and billing shortcuts.</p>
               </div>
               <div class="profile-actions">
                 <Button variant="secondary" type="button" onClick={refresh} disabled={data.loading || !server.query()}>
@@ -192,9 +193,9 @@ export function ProfileRoute() {
                 KG
               </span>
               <div class="profile-connect-copy">
-                <p class="eyebrow">Kilo Account</p>
-                <h1>Connect your Kilo account</h1>
-                <p>Sign in to view your credits, organizations, and account details in Kilo Console.</p>
+                <p class="eyebrow">{ACCOUNT_NAME}</p>
+                <h1>Connect your Northstar account</h1>
+                <p>Sign in to view your credits, organizations, and account details in Northstar Console.</p>
               </div>
               <A
                 class="profile-primary-link"
@@ -210,8 +211,8 @@ export function ProfileRoute() {
 
           <Show when={!server.query() && !server.discoverable()}>
             <Card class="profile-banner" variant="warning">
-              <strong>Kilo server not found</strong>
-              <span>Start Kilo Console from a running Kilo server or pass a server URL with ?server=.</span>
+              <strong>Northstar server not found</strong>
+              <span>Start Northstar Console from a running Northstar server or pass a server URL with ?server=.</span>
             </Card>
           </Show>
 
@@ -283,7 +284,7 @@ export function ProfileRoute() {
                       </span>
                       <span class="profile-org-body">
                         <strong>Personal Account</strong>
-                        <span>Your personal Kilo credits and settings</span>
+                        <span>Your personal Northstar credits and settings</span>
                       </span>
                       <span class="profile-org-state">{!info().currentOrgId ? "Current" : "Use"}</span>
                     </button>

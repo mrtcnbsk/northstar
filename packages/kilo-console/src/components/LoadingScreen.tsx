@@ -1,4 +1,5 @@
 import { LoadingLogo } from "./LoadingLogo"
+import { CONSOLE_NAME } from "../brand"
 
 type Variant = "fullscreen" | "content"
 
@@ -12,7 +13,7 @@ export function LoadingScreen(props: { variant: Variant }) {
       }}
       role="status"
       aria-live="polite"
-      aria-label="Loading Kilo Console"
+      aria-label={`Loading ${CONSOLE_NAME}`}
     >
       <LoadingLogo />
     </section>

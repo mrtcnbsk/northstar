@@ -423,13 +423,13 @@ export async function load(input: Query): Promise<Snapshot> {
 }
 
 export async function loadEmbeddingModels(input: Query): Promise<KiloEmbeddingModelCatalog> {
-  return demand("Kilo embedding models", await client(input).indexing.models())
+  return demand("Northstar embedding models", await client(input).indexing.models())
 }
 
 export async function loadKiloProfile(input: ProjectQuery): Promise<KiloProfileData> {
   const sdk = client(input)
   const result = await sdk.kilo.profile(directory(input))
-  return demand("Kilo profile", result)
+  return demand("Northstar profile", result)
 }
 
 export async function loadOrgRuns(input: ProjectQuery): Promise<OrgRunsListResponse> {
@@ -452,21 +452,21 @@ export async function loadOrgRunDetail(input: ProjectQuery, runID: string): Prom
 export async function setKiloOrganization(input: ProjectQuery, organizationId: string | null) {
   const sdk = client(input)
   const result = await sdk.kilo.organization.set({ ...directory(input), organizationId })
-  demand("Switch Kilo account", result)
+  demand("Switch Northstar account", result)
   await sdk.global.dispose()
 }
 
 export async function logoutKilo(input: ProjectQuery) {
   const sdk = client(input)
   const result = await sdk.auth.remove({ providerID: "kilo" })
-  demand("Log out of Kilo", result)
+  demand("Log out of Northstar", result)
   await sdk.global.dispose()
 }
 
 export async function startKiloLogin(input: ProjectQuery): Promise<ProviderAuthAuthorization> {
   const sdk = client(input)
   const result = await sdk.provider.oauth.authorize({ ...directory(input), providerID: "kilo", method: 0 })
-  return demand("Start Kilo login", result)
+  return demand("Start Northstar login", result)
 }
 
 export async function completeKiloLogin(input: ProjectQuery, signal?: AbortSignal) {
@@ -475,7 +475,7 @@ export async function completeKiloLogin(input: ProjectQuery, signal?: AbortSigna
     { ...directory(input), providerID: "kilo", method: 0 },
     signal ? { signal } : undefined,
   )
-  demand("Complete Kilo login", result)
+  demand("Complete Northstar login", result)
   await sdk.global.dispose()
 }
 
@@ -644,7 +644,7 @@ export async function loadProjectDiffFile(input: Query, dir: string, file: strin
   return demand("Worktree diff file", result)
 }
 
-export async function createProjectPty(input: Query, dir: string, title = "Kilo session"): Promise<ProjectPtyInfo> {
+export async function createProjectPty(input: Query, dir: string, title = "Northstar session"): Promise<ProjectPtyInfo> {
   const sdk = client({ url: input.url, dir })
   const result = await sdk.pty.create({ directory: dir, command: "kilo", cwd: dir, title })
   return demand("Create terminal", result)

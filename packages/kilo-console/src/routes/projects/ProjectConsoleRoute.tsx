@@ -9,6 +9,7 @@ import { Spinner } from "@kilocode/kilo-web-ui/spinner"
 import { File } from "@kilocode/kilo-web-ui/file"
 import { FileComponentProvider } from "@kilocode/kilo-web-ui/context/file"
 import { SessionReview, type SessionReviewDiffStyle } from "@kilocode/kilo-web-ui/session-review"
+import { CLI_NAME } from "../../brand"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { LoadingScreen } from "../../components/LoadingScreen"
 import { PromptDialog } from "../../components/PromptDialog"
@@ -460,7 +461,7 @@ export function ProjectConsoleRoute() {
     const base = query()
     if (!base || !item) return
     const input = { url: base.url, dir: item.dir, scope: "project" as const }
-    const label = `Kilo ${terminalsFor(item.dir).length + 1}`
+    const label = `Northstar ${terminalsFor(item.dir).length + 1}`
     setSaving("Creating session")
     setFailure(undefined)
     void createProjectPty(input, item.dir, label)
@@ -939,7 +940,7 @@ export function ProjectConsoleRoute() {
         <Show when={!terminal() && !snap.loading && !snap.error && !failure()}>
           <div class="project-terminal-empty">
             <strong>No terminal session selected</strong>
-            <span>Use + next to a worktree to start Kilo CLI.</span>
+            <span>Use + next to a worktree to start {CLI_NAME}.</span>
           </div>
         </Show>
       </main>

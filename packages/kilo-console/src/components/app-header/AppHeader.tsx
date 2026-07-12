@@ -1,11 +1,12 @@
 import { IconButton } from "@kilocode/kilo-web-ui/icon-button"
 import { A } from "@solidjs/router"
+import { CONSOLE_NAME } from "../../brand"
 import { OmniSearch } from "./OmniSearch"
 
 export function AppHeader() {
   return (
     <header class="app-header">
-      <A class="header-brand" href="/projects" aria-label="Kilo Console home">
+      <A class="header-brand" href="/projects" aria-label={`${CONSOLE_NAME} home`}>
         <img class="header-mark header-mark-logo" src={`${import.meta.env.BASE_URL}kilo-logo.svg`} alt="" width="28" height="28" />
         <span class="header-title">
           <span>Console</span>

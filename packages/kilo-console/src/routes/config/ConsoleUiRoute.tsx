@@ -22,7 +22,7 @@ export function ConsoleUiRoute() {
   return (
     <ConfigPage
       title="Console UI"
-      description="Configure the local Kilo Console interface. These preferences are saved in your user config."
+      description="Configure the local Northstar Console interface. These preferences are saved in your user config."
       actions={
         <>
           <Show when={state.configured()}>
