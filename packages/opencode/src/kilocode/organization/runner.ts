@@ -23,6 +23,11 @@ export namespace OrgRunner {
     taskPrompt: string
     /** Present when the same chief session should be resumed (revise / retry). */
     resumeTaskID?: string
+    /** kilocode_change - wave-close review Findings 1+2 (EPIC 7): ids of the side-channel notes
+     * (Task 7.3) rendered into `taskPrompt` by `stagePromptFor`. Every `InstructItem` is delivered
+     * UNCONDITIONALLY by tools.ts (`run_tasks` always sends `prompt: item.taskPrompt`), so `advance`
+     * marks exactly these ids `consumedByStage` — once, in a single post-fan-out write. */
+    noteIds: string[]
   }
 
   export type GateItem = {
@@ -41,6 +46,13 @@ export namespace OrgRunner {
     chief?: string
     /** Full stage prompt (same instruct-path builder, no reviseNote), for briefing a fresh chief session when unresumable. */
     taskPrompt?: string
+    /** kilocode_change - wave-close review Finding 1 (EPIC 7): ids of the side-channel notes (Task
+     * 7.3) rendered into `taskPrompt`. Delivery of an IncompleteItem's prompt is CONDITIONAL —
+     * tools.ts's standalone `resume_chief` action drops it entirely (sends only `resume_task_id`)
+     * whenever the prior chief session is resumable — so `advance` deliberately NEVER consumes
+     * these ids. Leaving them unconsumed lets the note re-surface on the next actual delivery
+     * instead of being silently lost. */
+    noteIds?: string[]
   }
 
   /**
@@ -220,15 +232,25 @@ export namespace OrgRunner {
    * it (with the stage's persisted reviseNote) to brief a fresh chief session when the
    * resumeTaskID turns out unresumable.
    *
-   * kilocode_change start - Task 7.3 (EPIC 7): side-channel notes are surfaced HERE, and ONLY
-   * here - the single place every stage prompt (instruct, revise re-instruct, incomplete
-   * resume-briefing) is built. Matched notes are rendered into the prompt, then marked
-   * `consumedByStage` via ONE standalone `OrgState.update` that touches ONLY `run.notes` - it is
-   * NOT part of (and runs strictly after/independent of) the atomic cost+ceiling+escalation
-   * `OrgState.update` in `settleRunningStage`, so it can never affect status/cost/gate/readiness.
-   * This is the CRITICAL INVARIANT the whole feature rests on: notes are read-only at instruct
+   * kilocode_change start - Task 7.3 (EPIC 7), fixed by wave-close review Findings 1+2: side-channel
+   * notes are surfaced HERE, and ONLY here - the single place every stage prompt (instruct, revise
+   * re-instruct, incomplete resume-briefing) is built. This function is READ-ONLY: it performs NO
+   * state write. It returns the matched note ids alongside the prompt so the CALLER can decide
+   * whether/when consumption is safe - because delivery of the two callers' prompts is NOT
+   * symmetric. `instruct`'s prompt is always delivered (tools.ts sends `prompt: item.taskPrompt`
+   * unconditionally for every `run_tasks` task), so its notes are safe to consume. An
+   * `IncompleteItem`'s prompt is delivered CONDITIONALLY - tools.ts's standalone `resume_chief`
+   * action drops it entirely (sends only `resume_task_id`) whenever the prior chief session is
+   * resumable - so `advance` never consumes an IncompleteItem's noteIds; it lets the note re-surface
+   * on the next actual delivery instead of marking it consumed and losing it (Finding 1: the old
+   * code eagerly consumed here regardless of delivery). The ONLY write to `run.notes` is a single,
+   * serial `OrgState.update` in `advance`, strictly AFTER the fan-out's `Promise.all` completes and
+   * AFTER `settleRunningStage`'s atomic cost+ceiling+escalation update - never concurrent with it
+   * (Finding 2: the old per-call unlocked read-modify-write raced across a `Promise.all` fan-out,
+   * making `consumedByStage` last-writer-wins for a broadcast/shared-worker note). This is the
+   * CRITICAL INVARIANT the whole feature rests on: notes are read-only at instruct/prompt-build
    * time and cannot perturb the deterministic runner state machine (see org-note.test.ts's
-   * determinism pin). When nothing matches, this is a pure no-op - no extra write, no extra I/O.
+   * determinism pin). When nothing matches, `noteIds` is simply empty - no extra write, no extra I/O.
    */
   async function stagePromptFor(
     projectDir: string,
@@ -236,7 +258,7 @@ export namespace OrgRunner {
     run: OrgState.Run,
     stage: string,
     reviseNote?: string,
-  ): Promise<string> {
+  ): Promise<{ prompt: string; noteIds: string[] }> {
     const dept = org.departments[stage]
     const matched = matchingNotes(org, run, stage)
     const prompt = OrgPrompts.stagePrompt({
@@ -250,15 +272,7 @@ export namespace OrgRunner {
       workerCapabilities: await workerCapabilitiesFor(projectDir, dept.workers),
       notes: matched.length > 0 ? matched.map((n) => ({ target: n.target, text: n.text, from: n.from })) : undefined,
     })
-    if (matched.length > 0) {
-      const ids = new Set(matched.map((n) => n.id))
-      await OrgState.update(projectDir, run.runID, (s) => {
-        for (const note of s.notes ?? []) {
-          if (ids.has(note.id) && !note.consumedByStage) note.consumedByStage = stage
-        }
-      })
-    }
-    return prompt
+    return { prompt, noteIds: matched.map((n) => n.id) }
   }
   // kilocode_change end
 
@@ -269,11 +283,13 @@ export namespace OrgRunner {
     stage: string,
     opts: { reviseNote?: string; resumeTaskID?: string } = {},
   ): Promise<InstructItem> {
+    const { prompt, noteIds } = await stagePromptFor(projectDir, org, run, stage, opts.reviseNote)
     return {
       stage,
       chief: org.departments[stage].chief,
       resumeTaskID: opts.resumeTaskID,
-      taskPrompt: await stagePromptFor(projectDir, org, run, stage, opts.reviseNote),
+      taskPrompt: prompt,
+      noteIds,
     }
   }
 
@@ -461,12 +477,16 @@ export namespace OrgRunner {
       const now = (deps.now ?? Date.now)()
       const timedOut =
         pipelineStage.timeoutMs !== undefined && started !== undefined && now - started > pipelineStage.timeoutMs
+      const neverProduced = await stagePromptFor(projectDir, org, run, stage, record.reviseNote)
       const incomplete: IncompleteItem = {
         stage,
         reason: validation.reason,
         resumeTaskID: record.taskID,
         chief: org.departments[stage].chief,
-        taskPrompt: await stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+        taskPrompt: neverProduced.prompt,
+        // kilocode_change - Finding 1: deliberately NOT consumed here (see stagePromptFor's doc
+        // comment) — this item's prompt is only conditionally delivered by tools.ts.
+        noteIds: neverProduced.noteIds,
       }
       // Shares incompleteAttempts with the revise-unchanged site below, but means something
       // different: here the deliverable was never produced (first-pass chief stall) — or, when
@@ -481,12 +501,16 @@ export namespace OrgRunner {
       // different: here the deliverable exists and is valid, the chief just re-emitted the same
       // content in a revise loop. incompleteAttempts was reset when this revise iteration began
       // (in decide), so revise churn gets its own fresh retry budget.
+      const unchanged = await stagePromptFor(projectDir, org, run, stage, record.reviseNote)
       return retryOrFail(deps, projectDir, org, runID, run, stage, "revise-unchanged", {
         stage,
         reason: `deliverable unchanged since revise was requested (${OrgArtifacts.deliverablePath(projectDir, runID, stage)})`,
         resumeTaskID: record.taskID,
         chief: org.departments[stage].chief,
-        taskPrompt: await stagePromptFor(projectDir, org, run, stage, record.reviseNote),
+        taskPrompt: unchanged.prompt,
+        // kilocode_change - Finding 1: deliberately NOT consumed here (see stagePromptFor's doc
+        // comment) — this item's prompt is only conditionally delivered by tools.ts.
+        noteIds: unchanged.noteIds,
       })
     }
     const cost = record.taskID ? await deps.costOf(record.taskID) : undefined
@@ -769,6 +793,40 @@ export namespace OrgRunner {
       // skip(s) freed.
       if (toSkip.length === 0) break
     }
+
+    // kilocode_change start - wave-close review Findings 1+2 (EPIC 7): the ONLY write this
+    // function makes to `run.notes` — consume every note delivered via a `batch.instruct` item,
+    // exactly once, in ONE serial `OrgState.update` here. This point is strictly AFTER both the
+    // toSettle loop's revise re-instructs and this fan-out's ready-stage instructs have been
+    // collected into `batch.instruct`, and strictly outside `settleRunningStage`'s atomic
+    // cost/ceiling/escalation update (that update ran, per stage, inside the toSettle loop above;
+    // this one touches only `run.notes` and runs once per `advance` call, never concurrently).
+    // Safe because tools.ts delivers EVERY `batch.instruct` item's prompt unconditionally
+    // (`run_tasks` always sends `prompt: item.taskPrompt`) — unlike `batch.incomplete`, whose
+    // noteIds are never collected here (see stagePromptFor's + IncompleteItem's doc comments).
+    // A single serial update also fixes Finding 2: the old code did an unlocked read-modify-write
+    // PER stage inside a `Promise.all` fan-out, so a broadcast/shared-worker note's
+    // `consumedByStage` was last-writer-wins across concurrent branches. Building the full
+    // note-id -> stage map before the (single) write makes the "first stage in batch.instruct
+    // order wins" tie-break deterministic instead of a data race. If this call halted earlier in
+    // the toSettle loop, it already returned above (see the `r.kind === "halted"` branch) and this
+    // code is never reached — a halted batch's instruct items, if any, are dropped by tools.ts's
+    // `if (batch.halted)` short-circuit and were never delivered, so they must never be consumed.
+    const noteConsumers = new Map<string, string>()
+    for (const item of batch.instruct) {
+      for (const id of item.noteIds) {
+        if (!noteConsumers.has(id)) noteConsumers.set(id, item.stage)
+      }
+    }
+    if (noteConsumers.size > 0) {
+      run = await OrgState.update(projectDir, runID, (s) => {
+        for (const note of s.notes ?? []) {
+          const consumingStage = noteConsumers.get(note.id)
+          if (consumingStage && !note.consumedByStage) note.consumedByStage = consumingStage
+        }
+      })
+    }
+    // kilocode_change end
 
     // Attach the single serialized blocker (if any).
     if (blocker?.kind === "gate") batch.gate = blocker.item

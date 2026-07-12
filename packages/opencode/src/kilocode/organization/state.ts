@@ -277,8 +277,13 @@ export namespace OrgState {
  * other org mutator uses); it never touches `run.stages`/`run.status`/`run.escalated` or any other
  * field the runner's state machine reads, so appending a note can never perturb a run's
  * deterministic progression (see `OrgRunner.stagePromptFor`'s surfacing + org-note.test.ts's
- * determinism pin). A note is read-only at instruct time — it is consumed (marked
- * `consumedByStage`) only when `OrgRunner.stagePromptFor` actually surfaces it into a prompt.
+ * determinism pin). A note is read-only at prompt-build time: `OrgRunner.stagePromptFor` only
+ * SURFACES a matching note into a prompt (and returns its id); it performs no write. Consumption
+ * (marking `consumedByStage`) happens in exactly one place — `OrgRunner.advance`, once per call, in
+ * a single serial update strictly after its fan-out settles, and ONLY for notes delivered via a
+ * guaranteed-delivered `batch.instruct` item (wave-close review Findings 1+2, EPIC 7: a note only
+ * ever RENDERED into a conditionally-delivered `batch.incomplete` prompt is deliberately left
+ * unconsumed, so a dropped resume_chief prompt can never silently lose it).
  */
 export namespace OrgNote {
   /**
