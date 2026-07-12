@@ -250,6 +250,26 @@ export namespace OrgSchema {
     return path.join(projectDir, ".kilo", "organization.jsonc")
   }
 
+  /**
+   * Serializes an Organization to plain JSON text. Plain JSON is valid JSONC, so
+   * `loadOrganization`/`parseJsonc` reads it back unchanged - but a Builder-authored save always
+   * loses any comments a hand-edited organization.jsonc had (JSON.stringify has no comment
+   * concept to preserve). Accepted trade-off: the TUI editor (Task 6.3) only ever round-trips
+   * structured data, never raw text.
+   */
+  export function serialize(org: Organization): string {
+    return JSON.stringify(org, null, 2) + "\n"
+  }
+
+  /**
+   * Writes `org` to `<projectDir>/.kilo/organization.jsonc`. `Bun.write` creates any missing
+   * intermediate directories (including `.kilo/`) on its own, so no separate mkdir step is needed
+   * - mirrors `loadOrganization`'s use of `Bun.file` for reads, keeping this module fs/promises-free.
+   */
+  export async function writeOrganization(projectDir: string, org: Organization): Promise<void> {
+    await Bun.write(organizationPath(projectDir), serialize(org))
+  }
+
   export async function loadOrganization(projectDir: string): Promise<Organization> {
     const file = organizationPath(projectDir)
     const text = await Bun.file(file)
