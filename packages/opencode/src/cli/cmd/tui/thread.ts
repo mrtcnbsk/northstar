@@ -139,16 +139,16 @@ export const TuiThreadCommand = cmd({
         type: "string",
         describe: "prompt to use",
       })
-      .option("agent", {
-        type: "string",
-        describe: "agent to use",
-      })
       // kilocode_change start - Task 8.3 (EPIC 8): --dry-run preflight
       .option("dry-run", {
         type: "boolean",
         describe: "validate .kilo/organization.jsonc + agent roster and exit (no interactive session)",
+      })
+      // kilocode_change end
+      .option("agent", {
+        type: "string",
+        describe: "agent to use",
       }),
-  // kilocode_change end
   handler: async (args) => {
     // kilocode_change start - Task 8.3 (EPIC 8): --dry-run preflight. Handled BEFORE any of the
     // daemon/worker/CTRL+C-guard machinery below -- --dry-run never opens an interactive session,
