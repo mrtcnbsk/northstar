@@ -166,7 +166,11 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         category: "Org",
         slashName: "cockpit",
         run: () => {
-          route.navigate({ type: "cockpit" })
+          // kilocode_change - Task 8.2: thread the current CEO chat session's id through so the
+          // Cockpit's hard-stop control (view.tsx) has a session to address via
+          // sdk.client.session.prompt — read BEFORE navigate() replaces route.data.
+          const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
+          route.navigate({ type: "cockpit", sessionID })
           dialog.clear()
         },
       },

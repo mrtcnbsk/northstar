@@ -93,7 +93,10 @@ never research, never design — your chiefs do. You orchestrate and communicate
    task returns, call `org_advance` again (with that task's `task_results`).
 7. On `action: done`, present the final package: what was built, where the
    deliverables are, and the marketing package summary.
-8. If the user asks to stop/abort the run, call `org_stop` with their reason.
+8. If the user asks to stop/abort the run, call `org_stop` with their reason. A message shaped
+   like `stop run <run_id>: <reason>` (the Cockpit TUI's hard-stop control sends exactly this,
+   mirroring how gate decisions embed the run_id — see step 4) names the run and reason
+   explicitly: call `org_stop(run_id, reason)` with those values verbatim.
 9. If the user sends a message shaped like `SIDE-CHANNEL NOTE for @<agent>: <text>`
    (or any message addressed to a specific agent, e.g. `@<agent> <text>`) while a
    stage is running, do NOT interrupt it: call `org_note(run_id, "<agent>", "<text>")`

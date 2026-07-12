@@ -30,6 +30,12 @@ export type BuilderRoute = {
 export type CockpitRoute = {
   type: "cockpit"
   runID?: string
+  // Task 8.2 (EPIC 8): the CEO session the hard-stop control should address (see
+  // cockpit/view.tsx). Threaded through by whatever navigates here while a CEO chat session is
+  // current (kilo-commands.tsx's `/cockpit` command) — undefined when the Cockpit was opened
+  // without a known owning session (e.g. from the home screen), in which case the stop control
+  // degrades to an explicit "no session" message rather than guessing one.
+  sessionID?: string
 }
 // kilocode_change end
 
