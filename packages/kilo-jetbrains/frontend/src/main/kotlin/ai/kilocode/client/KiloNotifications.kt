@@ -7,7 +7,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 
 object KiloNotifications {
-    private const val GROUP = "Kilo Code"
+    const val GROUP_ID = "Kilo Code"
 
     fun error(title: String, content: String? = null) {
         val project = ProjectManager.getInstance().openProjects.firstOrNull { !it.isDefault }
@@ -16,9 +16,9 @@ object KiloNotifications {
 
     fun error(project: Project?, title: String, content: String? = null) {
         val notification = NotificationGroupManager.getInstance()
-            .getNotificationGroup(GROUP)
+            .getNotificationGroup(GROUP_ID)
             ?.createNotification(title, content ?: "", NotificationType.ERROR)
-            ?: Notification(GROUP, title, content ?: "", NotificationType.ERROR)
+            ?: Notification(GROUP_ID, title, content ?: "", NotificationType.ERROR)
         notification.notify(project)
     }
 }

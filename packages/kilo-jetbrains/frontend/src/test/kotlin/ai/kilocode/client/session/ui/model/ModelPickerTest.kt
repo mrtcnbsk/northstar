@@ -45,7 +45,7 @@ class ModelPickerTest : BasePlatformTestCase() {
         val rows = modelPickerRows(listOf(
             item("gpt-4o", "GPT 4o", "openai", "OpenAI"),
             item("claude", "Claude Sonnet", "anthropic", "Anthropic", 1.0),
-            item("auto", "Kilo Auto", "kilo", "Kilo", 0.0),
+            item("auto", "Northstar Auto", "kilo", "Northstar", 0.0),
         ), listOf(ModelSelectionDto("openai", "gpt-4o")), "")
 
         assertEquals("Favorites", modelPickerSectionTitle(rows, 0))
@@ -102,11 +102,11 @@ class ModelPickerTest : BasePlatformTestCase() {
     fun `test kilo provider group is first and other providers keep source order`() {
         val rows = modelPickerRows(listOf(
             item("gpt", "GPT", "openai", "OpenAI"),
-            item("auto", "Auto", "kilo", "Kilo"),
+            item("auto", "Auto", "kilo", "Northstar"),
             item("claude", "Claude", "anthropic", "Anthropic"),
         ), emptyList(), "")
 
-        assertEquals(listOf("Kilo", "OpenAI", "Anthropic"), rows.indices.mapNotNull { modelPickerSectionTitle(rows, it) })
+        assertEquals(listOf("Northstar", "OpenAI", "Anthropic"), rows.indices.mapNotNull { modelPickerSectionTitle(rows, it) })
     }
 
     fun `test index prefers favorite row over normal duplicate`() {
@@ -186,8 +186,8 @@ class ModelPickerTest : BasePlatformTestCase() {
 
     fun `test small rows are included only when requested`() {
         val items = listOf(
-            item("auto-small", "Small", "kilo", "Kilo"),
-            item("auto", "Auto", "kilo", "Kilo"),
+            item("auto-small", "Small", "kilo", "Northstar"),
+            item("auto", "Auto", "kilo", "Northstar"),
         )
 
         val default = modelPickerRows(items, emptyList(), "")
@@ -246,7 +246,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     fun `test kilo selected model remains unprefixed`() {
         val picker = ModelPicker()
 
-        picker.setItems(listOf(item("auto", "Kilo Auto", "kilo", "Kilo")))
+        picker.setItems(listOf(item("auto", "Northstar Auto", "kilo", "Northstar")))
 
         assertEquals("Auto ▾", picker.text)
     }
@@ -298,9 +298,9 @@ class ModelPickerTest : BasePlatformTestCase() {
         )
         val item = ModelPicker.Item(
             id = "auto",
-            display = "Kilo Auto",
+            display = "Northstar Auto",
             provider = "kilo",
-            providerName = "Kilo",
+            providerName = "Northstar",
             releaseDate = "2026-06-01",
             latest = true,
             free = false,
@@ -337,7 +337,7 @@ class ModelPickerTest : BasePlatformTestCase() {
             id = "paid",
             display = "Paid",
             provider = "kilo",
-            providerName = "Kilo",
+            providerName = "Northstar",
             cost = ModelCostDto(1.0, 2.0, ModelCacheCostDto(0.0, 0.5)),
         ))
 
@@ -354,7 +354,7 @@ class ModelPickerTest : BasePlatformTestCase() {
             id = "first",
             display = "First",
             provider = "kilo",
-            providerName = "Kilo",
+            providerName = "Northstar",
             cost = ModelCostDto(1.0, 2.0, ModelCacheCostDto(0.1, 0.5)),
             options = ModelOptionsDto("First https://kilocode.ai"),
         )
@@ -380,7 +380,7 @@ class ModelPickerTest : BasePlatformTestCase() {
             id = "first",
             display = "First",
             provider = "kilo",
-            providerName = "Kilo",
+            providerName = "Northstar",
             attachment = true,
             capabilities = ModelCapabilitiesDto(
                 reasoning = true,
@@ -400,7 +400,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     fun `test selected paid model with training flag indicates data collection`() {
         val picker = ModelPicker()
 
-        picker.setItems(listOf(item("paid", "Paid", "kilo", "Kilo", training = true)))
+        picker.setItems(listOf(item("paid", "Paid", "kilo", "Northstar", training = true)))
 
         assertFalse(picker.text.contains("Data may be used for training"))
         assertSame(ModelPickerRenderer.DATA_COLLECTED, picker.icon)
@@ -410,7 +410,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     fun `test selected free model without training flag does not indicate data collection`() {
         val picker = ModelPicker()
 
-        picker.setItems(listOf(item("free", "Free", "kilo", "Kilo", free = true)))
+        picker.setItems(listOf(item("free", "Free", "kilo", "Northstar", free = true)))
 
         assertNull(picker.icon)
         assertEquals("Select model", picker.toolTipText)
@@ -445,14 +445,14 @@ class ModelPickerTest : BasePlatformTestCase() {
     }
 
     fun `test display parts sanitize free suffix`() {
-        val parts = ModelText.parts(item("auto", "Auto Free (free)", "kilo", "Kilo"))
+        val parts = ModelText.parts(item("auto", "Auto Free (free)", "kilo", "Northstar"))
 
         assertNull(parts.provider)
         assertEquals("Auto Free", parts.model)
     }
 
     fun `test renderer shows empty favorite star only for selected row`() {
-        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Kilo"), "Kilo", false)
+        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Northstar"), "Northstar", false)
         val model = CollectionListModel(listOf(row))
         val renderer = ModelPickerRenderer(model, { null }, { emptySet() })
         val list = JBList(model)
@@ -465,7 +465,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     }
 
     fun `test renderer keeps favorite star visible`() {
-        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Kilo"), "Kilo", false)
+        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Northstar"), "Northstar", false)
         val model = CollectionListModel(listOf(row))
         val renderer = ModelPickerRenderer(model, { null }, { setOf("kilo/auto") })
         val list = JBList(model)
@@ -476,7 +476,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     }
 
     fun `test renderer updates favorite star after favorites change`() {
-        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Kilo"), "Kilo", false)
+        val row = ModelPickerRow(item("auto", "Auto", "kilo", "Northstar"), "Northstar", false)
         val model = CollectionListModel(listOf(row))
         val fav = mutableSetOf<String>()
         val renderer = ModelPickerRenderer(model, { null }, { fav })
@@ -516,7 +516,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     }
 
     fun `test renderer shows free badge for free model`() {
-        val row = ModelPickerRow(ModelPicker.Item("auto", "Auto", "kilo", "Kilo", free = true), "Kilo", false)
+        val row = ModelPickerRow(ModelPicker.Item("auto", "Auto", "kilo", "Northstar", free = true), "Northstar", false)
         val model = CollectionListModel(listOf(row))
         val renderer = ModelPickerRenderer(model, { null }, { emptySet() })
         val list = JBList(model)
@@ -529,7 +529,7 @@ class ModelPickerTest : BasePlatformTestCase() {
     }
 
     fun `test renderer shows data collection warning for paid training model`() {
-        val row = ModelPickerRow(item("paid", "Paid", "kilo", "Kilo", training = true), "Kilo", false)
+        val row = ModelPickerRow(item("paid", "Paid", "kilo", "Northstar", training = true), "Northstar", false)
         val model = CollectionListModel(listOf(row))
         val renderer = ModelPickerRenderer(model, { null }, { emptySet() })
         val list = JBList(model)
@@ -543,8 +543,8 @@ class ModelPickerTest : BasePlatformTestCase() {
 
     fun `test renderer shows BYOK instead of free when both are available`() {
         val row = ModelPickerRow(
-            ModelPicker.Item("claude", "Claude", "kilo", "Kilo", free = true, byok = true),
-            "Kilo",
+            ModelPicker.Item("claude", "Claude", "kilo", "Northstar", free = true, byok = true),
+            "Northstar",
             false,
         )
         val model = CollectionListModel(listOf(row))

@@ -7,7 +7,7 @@ class ModelSettingPickerTest : BasePlatformTestCase() {
 
     fun `test picker re-enables after ready state follows disabled state`() {
         val picker = ModelSettingPicker()
-        val items = listOf(ModelPicker.Item("auto", "Auto", "kilo", "Kilo"))
+        val items = listOf(ModelPicker.Item("auto", "Auto", "kilo", "Northstar"))
 
         picker.setItems(emptyList(), null)
         picker.isEnabled = false

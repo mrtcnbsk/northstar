@@ -429,7 +429,7 @@ class AgentsSettingsUiTest : BasePlatformTestCase() {
     }
 
     private fun providers() = ProvidersDto(
-        providers = listOf(ProviderDto("kilo", "Kilo", models = mapOf("gpt-5" to ModelDto("gpt-5", "GPT-5")))),
+        providers = listOf(ProviderDto("kilo", "Northstar", models = mapOf("gpt-5" to ModelDto("gpt-5", "GPT-5")))),
         connected = listOf("kilo"),
         defaults = emptyMap(),
     )

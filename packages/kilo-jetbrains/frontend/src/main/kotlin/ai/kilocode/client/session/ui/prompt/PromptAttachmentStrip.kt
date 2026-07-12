@@ -78,7 +78,7 @@ private class PromptAttachmentChip(
                 ApplicationManager.getApplication().invokeLater {
                     if (project.isDisposed) return@invokeLater
                     if (file == null) {
-                        Notification("Kilo Code", KiloBundle.message("prompt.attachment.missing", item.name), NotificationType.WARNING).notify(project)
+                        Notification("Northstar", KiloBundle.message("prompt.attachment.missing", item.name), NotificationType.WARNING).notify(project)
                         return@invokeLater
                     }
                     FileEditorManager.getInstance(project).openFile(file, true)

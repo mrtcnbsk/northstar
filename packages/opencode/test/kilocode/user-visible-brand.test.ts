@@ -54,6 +54,26 @@ describe("user-visible Northstar brand boundary", () => {
     ).toEqual([])
   })
 
+  test("keeps stable JetBrains extension IDs", () => {
+    expect(
+      scanVisibleBrand([
+        {
+          file: "packages/kilo-jetbrains/frontend/src/main/resources/kilo.jetbrains.frontend.xml",
+          text: '<toolWindow id="Kilo Code"/>\n<notificationGroup id="Kilo Code"/>',
+        },
+        {
+          file: "packages/kilo-jetbrains/frontend/src/main/kotlin/example.kt",
+          text: [
+            'const val GROUP_ID = "Kilo Code"',
+            'manager.getToolWindow("Kilo Code")',
+            'manager.getNotificationGroup("Kilo Code")',
+            'check(note.groupId == "Kilo Code")',
+          ].join("\n"),
+        },
+      ]),
+    ).toEqual([])
+  })
+
   test("ignores test and spec source files", () => {
     expect(
       scanVisibleBrand([

@@ -56,7 +56,7 @@ class KiloVirtualFileSystem : VirtualFileSystem(), NonPhysicalFileSystem {
     override fun createChildDirectory(requestor: Any?, file: VirtualFile, name: String): VirtualFile = unsupported()
     override fun copyFile(requestor: Any?, file: VirtualFile, newParent: VirtualFile, copyName: String): VirtualFile = unsupported()
 
-    private fun unsupported(): Nothing = throw UnsupportedOperationException("Kilo virtual files are read-only")
+    private fun unsupported(): Nothing = throw UnsupportedOperationException("Northstar virtual files are read-only")
 
     companion object {
         const val PROTOCOL = "kilo"

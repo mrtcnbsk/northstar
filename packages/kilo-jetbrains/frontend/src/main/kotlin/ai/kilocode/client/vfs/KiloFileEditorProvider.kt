@@ -21,9 +21,9 @@ class KiloFileEditorProvider : FileEditorProvider, DumbAware {
 
     override fun createEditor(project: Project, file: VirtualFile): FileEditor {
         ensureAttachmentEditorKind()
-        val path = path(file) ?: error("Invalid Kilo virtual file: ${file.path}")
+        val path = path(file) ?: error("Invalid Northstar virtual file: ${file.path}")
         val kilo = file as? KiloVirtualFile ?: KiloVirtualFile(path)
-        val kind = service<KiloEditorKindRegistry>().get(kilo.path.kind) ?: error("Unknown Kilo editor kind: ${kilo.path.kind}")
+        val kind = service<KiloEditorKindRegistry>().get(kilo.path.kind) ?: error("Unknown Northstar editor kind: ${kilo.path.kind}")
         return KiloFileEditor(project, file, kilo, kind)
     }
 

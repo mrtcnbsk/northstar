@@ -2,6 +2,7 @@ package ai.kilocode.client.settings.agents
 
 import ai.kilocode.cli.KiloCliParser
 import ai.kilocode.client.app.KiloAppService
+import ai.kilocode.client.KiloNotifications
 import ai.kilocode.client.plugin.KiloBundle
 import ai.kilocode.client.session.ui.style.SessionUiStyle
 import ai.kilocode.client.session.ui.model.ModelPicker
@@ -343,9 +344,9 @@ internal class AgentEditDialog(
     private fun notify(type: NotificationType, title: String, content: String? = null) {
         ApplicationManager.getApplication().invokeLater {
             val notification = NotificationGroupManager.getInstance()
-                .getNotificationGroup("Kilo Code")
+                .getNotificationGroup(KiloNotifications.GROUP_ID)
                 ?.createNotification(title, content.orEmpty(), type)
-                ?: Notification("Kilo Code", title, content.orEmpty(), type)
+                ?: Notification(KiloNotifications.GROUP_ID, title, content.orEmpty(), type)
             notification.notify(ProjectManager.getInstance().openProjects.firstOrNull { !it.isDefault })
         }
     }

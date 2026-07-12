@@ -304,21 +304,21 @@ class ModelsSettingsUiTest : BasePlatformTestCase() {
         workspaceRpc.models = ModelsWorkspaceDto(providers = providers())
         edt { ui = ModelsSettingsUi(uiScope, app, workspaces, directory = "/test") }
         val panel = requireUi()
-        flushUntil { text(panel).contains("Old") && text(panel).contains("Sign in to Kilo Code") }
+        flushUntil { text(panel).contains("Old") && text(panel).contains("Sign in to Northstar") }
         val banner = edt { components(panel.top).filterIsInstance<InlineBanner>().single() }
         rpc.configUpdateGate = CompletableDeferred()
 
         edt {
             select(panel, "new")
             panel.applyDraft()
-            assertTrue(text(panel).contains("Sign in to Kilo Code"))
+            assertTrue(text(panel).contains("Sign in to Northstar"))
             assertSame(banner, components(panel.top).filterIsInstance<InlineBanner>().single())
         }
 
         rpc.configUpdateGate?.complete(Unit)
         flushUntil { rpc.configPatches.isNotEmpty() }
         edt {
-            assertTrue(text(panel).contains("Sign in to Kilo Code"))
+            assertTrue(text(panel).contains("Sign in to Northstar"))
             assertSame(banner, components(panel.top).filterIsInstance<InlineBanner>().single())
         }
     }
@@ -335,7 +335,7 @@ class ModelsSettingsUiTest : BasePlatformTestCase() {
         providers = listOf(
             ProviderDto(
                 id = "kilo",
-                name = "Kilo",
+                name = "Northstar",
                 models = mapOf(
                     "old" to ModelDto(id = "old", name = "Old", attachment = true),
                     "new" to ModelDto(id = "new", name = "New"),
@@ -354,7 +354,7 @@ class ModelsSettingsUiTest : BasePlatformTestCase() {
 
     private fun select(panel: ModelsSettingsUi, id: String) {
         val picker = pickers(panel).first()
-        picker.onSelect(ModelPicker.Item(id, id.replaceFirstChar { it.titlecase() }, "kilo", "Kilo"))
+        picker.onSelect(ModelPicker.Item(id, id.replaceFirstChar { it.titlecase() }, "kilo", "Northstar"))
     }
 
     private fun assertSelected(panel: ModelsSettingsUi, key: String) {

@@ -401,9 +401,9 @@ class PromptPanelTest : BasePlatformTestCase() {
             editor.document.insertString(0, "hello")
         }
 
-        invokeComponentAction("Kilo Session Undo", editor)
+        invokeComponentAction("Northstar Session Undo", editor)
         assertEquals("", editor.document.text)
-        invokeComponentAction("Kilo Session Redo", editor)
+        invokeComponentAction("Northstar Session Redo", editor)
         assertEquals("hello", editor.document.text)
     }
 
@@ -1217,7 +1217,7 @@ class PromptPanelTest : BasePlatformTestCase() {
 
     private fun invokeCompletionAction(editor: Editor) {
         val action = ActionUtil.getActions(editor.contentComponent).first { item ->
-            item.templatePresentation.text == "Kilo Prompt Completion"
+            item.templatePresentation.text == "Northstar Prompt Completion"
         }
         val event = event(action, editor)
         ActionUtil.updateAction(action, event)

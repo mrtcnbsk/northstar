@@ -184,7 +184,7 @@ intellijPlatform {
 
     pluginConfiguration {
         id = "ai.kilocode.jetbrains"
-        name = "Kilo Code"
+        name = "Northstar"
         version = provider { ver }
         changeNotes = notes
 
@@ -193,7 +193,7 @@ intellijPlatform {
         }
 
         vendor {
-            name = "Kilo Code"
+            name = "Northstar"
             url = "https://kilo.ai"
         }
     }

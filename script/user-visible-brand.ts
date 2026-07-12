@@ -63,6 +63,10 @@ function ignored(line: string, start: number, end: number) {
   if (/['"](?:X-Title|x-title|User-Agent|X-Cerebras-3rd-Party-Integration)['"]\s*:/.test(line)) return true
   if (/\buses:\s*Kilo-Org\//.test(line)) return true
   if (line.slice(start).startsWith("Kilo-Org/")) return true
+  if (/<(?:toolWindow|notificationGroup)\b[^>]*\bid\s*=/.test(line)) return true
+  if (/\bGROUP_ID\s*=\s*["']Kilo Code["']/.test(line)) return true
+  if (/\.get(?:ToolWindow|NotificationGroup)\(["']Kilo Code["']\)/.test(line)) return true
+  if (/\bgroupId\s*==\s*["']Kilo Code["']/.test(line)) return true
   if (line.slice(Math.max(0, start - 1), start) === "." || line.slice(end, end + 1) === ".") return true
   if (line.includes("[Kilo New]")) return true
   return false

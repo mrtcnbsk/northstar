@@ -965,7 +965,7 @@ class SessionModelTest : BasePlatformTestCase() {
             id = "gpt-5",
             display = "GPT-5",
             provider = "kilo",
-            providerName = "Kilo",
+            providerName = "Northstar",
             recommendedIndex = null,
             free = false,
             variants = emptyList(),

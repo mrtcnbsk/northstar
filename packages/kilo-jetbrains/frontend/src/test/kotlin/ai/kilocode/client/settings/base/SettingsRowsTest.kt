@@ -105,7 +105,7 @@ class SettingsRowsTest : BasePlatformTestCase() {
 
         top.showNotLoggedIn {}
 
-        assertTrue(text(top).contains("Sign in to Kilo Code"))
+        assertTrue(text(top).contains("Sign in to Northstar"))
         assertTrue(top.isVisible)
     }
 
@@ -115,8 +115,8 @@ class SettingsRowsTest : BasePlatformTestCase() {
         panel.top.showNotLoggedIn {}
         panel.showProgress("Loading models...")
 
-        assertTrue(text(panel.content).contains("Sign in to Kilo Code"))
-        assertFalse(text(panel.overlay).contains("Sign in to Kilo Code"))
+        assertTrue(text(panel.content).contains("Sign in to Northstar"))
+        assertFalse(text(panel.overlay).contains("Sign in to Northstar"))
         assertTrue(panel.overlay.components.any { it === panel.progress })
         assertTrue(text(panel.progress).contains("Loading models..."))
         val scroll = components(panel.content).filterIsInstance<JScrollPane>().single()

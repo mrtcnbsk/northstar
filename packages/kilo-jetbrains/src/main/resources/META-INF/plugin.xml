@@ -1,6 +1,6 @@
 <idea-plugin>
-    <name>Kilo Code</name>
-    <vendor url="https://kilo.ai">Kilo Code</vendor>
+    <name>Northstar</name>
+    <vendor url="https://kilo.ai">Northstar</vendor>
 
     <description><![CDATA[
         Open Source AI coding agent that generates code from natural language, automates tasks,

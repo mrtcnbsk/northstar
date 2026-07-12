@@ -24,7 +24,7 @@ object KiloFrontendUnloadCleanup {
     private val log = KiloLog.create(KiloFrontendUnloadCleanup::class.java)
 
     fun cleanup(isUpdate: Boolean) {
-        log.info("Cleaning up Kilo frontend for plugin unload (isUpdate=$isUpdate)")
+        log.info("Cleaning up Northstar frontend for plugin unload (isUpdate=$isUpdate)")
         runEdt {
             ProjectManager.getInstance().openProjects.forEach { project ->
                 if (project.isDisposed) return@forEach

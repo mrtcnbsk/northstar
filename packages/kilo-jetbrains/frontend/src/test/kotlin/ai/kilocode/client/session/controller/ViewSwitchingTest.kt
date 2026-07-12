@@ -453,7 +453,7 @@ class ViewSwitchingTest : SessionControllerTestBase() {
             profile = ProfileDto(
                 email = "user@example.com",
                 currentOrgId = "org_1",
-                organizations = listOf(ProfileOrganizationDto("org_1", "Kilo", "OWNER")),
+                organizations = listOf(ProfileOrganizationDto("org_1", "Northstar", "OWNER")),
             ),
         )
         val m = controller()

@@ -76,7 +76,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("kilo-auto/free" to ModelDto(id = "kilo-auto/free", name = "Auto")),
                 ),
                 ProviderDto(
@@ -117,7 +117,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("kilo-auto/free" to ModelDto(id = "kilo-auto/free", name = "Auto")),
                 ),
                 ProviderDto(
@@ -145,7 +145,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("kilo-auto/free" to ModelDto(id = "kilo-auto/free", name = "Auto")),
                 ),
                 ProviderDto(
@@ -176,7 +176,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("kilo-auto/free" to ModelDto(id = "kilo-auto/free", name = "Auto")),
                 ),
                 ProviderDto(
@@ -211,7 +211,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("kilo-auto/free" to ModelDto(id = "kilo-auto/free", name = "Auto")),
                 ),
                 ProviderDto(
@@ -283,7 +283,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf("gpt-5" to ModelDto(id = "gpt-5", name = "GPT-5")),
                 ),
                 ProviderDto(
@@ -311,7 +311,7 @@ class ConfigSelectionTest : SessionControllerTestBase() {
             providers = listOf(
                 ProviderDto(
                     id = "kilo",
-                    name = "Kilo",
+                    name = "Northstar",
                     models = mapOf(
                         "gpt-5" to ModelDto(id = "gpt-5", name = "GPT-5", variants = listOf("low", "medium", "high")),
                     ),

@@ -69,7 +69,7 @@ internal class ProfileUi(
             browse(TOP_UP_URL)
         },
         pass = {
-            telemetry("Kilo Pass Opened", mapOf("surface" to "settings"))
+            telemetry("Northstar Pass Opened", mapOf("surface" to "settings"))
             browse(PASS_URL)
         },
         logout = ::logout,

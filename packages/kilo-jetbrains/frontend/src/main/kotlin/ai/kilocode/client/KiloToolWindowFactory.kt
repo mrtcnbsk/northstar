@@ -61,7 +61,7 @@ internal class KiloToolWindowSetupService(
             }
         } catch (e: Exception) {
             Telemetry.send("Tool Window Setup Failed", mapOf("stage" to "create", "errorClass" to e::class.java.name))
-            LOG.error("Failed to create Kilo tool window content", e)
+            LOG.error("Failed to create Northstar tool window content", e)
         }
     }
 
@@ -87,7 +87,7 @@ internal class KiloToolWindowSetupService(
             toolWindow.setTitleActions(actions)
         } catch (e: Exception) {
             Telemetry.send("Tool Window Setup Failed", mapOf("stage" to "setup", "errorClass" to e::class.java.name))
-            LOG.error("Failed to set up Kilo tool window content", e)
+            LOG.error("Failed to set up Northstar tool window content", e)
         }
     }
 }
