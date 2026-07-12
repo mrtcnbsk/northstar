@@ -65,7 +65,7 @@ export function FormatError(input: unknown): string | undefined {
       `Model not found: ${stringField(providerModelNotFound, "providerID")}/${stringField(providerModelNotFound, "modelID")}`,
       ...(suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
       ...(providerModelNotFound.modelsEmpty === true ? ["No models are currently available."] : []), // kilocode_change
-      `Try: \`kilo models\` to list available models`, // kilocode_change
+      `Try: \`northstar models\` to list available models`, // kilocode_change
       `Or check your kilo.json provider/model names`, // kilocode_change
     ].join("\n")
   }

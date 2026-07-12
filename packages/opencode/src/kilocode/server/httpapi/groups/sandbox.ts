@@ -64,7 +64,7 @@ export const SandboxApi = HttpApi.make("sandbox")
           }),
         ),
       )
-      .annotateMerge(OpenApi.annotations({ title: "sandbox", description: "Kilo session sandbox routes." }))
+      .annotateMerge(OpenApi.annotations({ title: "sandbox", description: "Northstar session sandbox routes." }))
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),
@@ -73,6 +73,6 @@ export const SandboxApi = HttpApi.make("sandbox")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

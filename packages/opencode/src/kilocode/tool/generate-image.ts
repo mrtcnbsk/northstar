@@ -175,7 +175,7 @@ export const GenerateImageTool = Tool.define(
             return {
               title: "Image generation unavailable",
               output:
-                "No image generation provider available. Log in to Kilo or set OPENROUTER_API_KEY, then try again.",
+                "No image generation provider available. Log in to Northstar or set OPENROUTER_API_KEY, then try again.",
               metadata: { error: "no-provider" } as Meta,
             }
           }

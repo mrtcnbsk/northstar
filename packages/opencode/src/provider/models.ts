@@ -85,7 +85,7 @@ export const layer: Layer.Layer<Service, never, Core.Service | Config.Service | 
         const models = yield* cache.fetch("kilo", fetch).pipe(Effect.catch(() => Effect.succeed({})))
         providers.kilo = {
           id: "kilo",
-          name: "Kilo Gateway",
+          name: "Northstar Gateway",
           env: ["KILO_API_KEY"],
           api: KILO_OPENROUTER_BASE.endsWith("/") ? KILO_OPENROUTER_BASE : `${KILO_OPENROUTER_BASE}/`,
           npm: "@kilocode/kilo-gateway",

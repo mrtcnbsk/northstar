@@ -39,7 +39,7 @@ type EmbeddingProvider = NonNullable<IndexingConfig["provider"]>
 const log = Log.create({ service: "indexing-model-select" })
 
 const PROVIDER_LABELS: Record<EmbeddingProvider, string> = {
-  kilo: "Kilo",
+  kilo: "Northstar",
   openai: "OpenAI",
   ollama: "Ollama (local)",
   "openai-compatible": "OpenAI-Compatible",
@@ -225,7 +225,7 @@ function KiloModelSelect(props: SubDialogProps) {
     const state = `${catalog.state}:${cfg?.models.length ?? 0}`
     if (seen.state === state) return
     seen.state = state
-    log.info("Kilo embedding model resource changed", {
+    log.info("Northstar embedding model resource changed", {
       state: catalog.state,
       models: cfg?.models.length ?? 0,
       current: currentKiloModel(cfg, indexing.model),
@@ -238,13 +238,13 @@ function KiloModelSelect(props: SubDialogProps) {
 
   return (
     <DialogSelect
-      title="Kilo Embedding Model"
+      title="Northstar Embedding Model"
       options={options()}
       current={current()}
       renderFilter={(catalog()?.models.length ?? 0) > 0}
       onSelect={async (option) => {
         if (!option.value || !catalog()?.models.some((model) => model.id === option.value)) return
-        log.info("selected Kilo embedding model", { model: option.value, scope: props.scope })
+        log.info("selected Northstar embedding model", { model: option.value, scope: props.scope })
         await saveScopedIndexing(
           sdk,
           sync,
@@ -559,7 +559,7 @@ export function DialogIndexing(props: DialogIndexingProps) {
         title: "Embedding Model",
         category: "Embedding",
         description: mark(
-          indexing.provider === "kilo" ? (indexing.model ?? "Kilo catalog") : (indexing.model ?? "default"),
+          indexing.provider === "kilo" ? (indexing.model ?? "Northstar catalog") : (indexing.model ?? "default"),
           [["model"]],
         ),
       },
@@ -569,7 +569,7 @@ export function DialogIndexing(props: DialogIndexingProps) {
         category: "Embedding",
         description:
           indexing.provider === "kilo"
-            ? "provided by Kilo"
+            ? "provided by Northstar"
             : mark(indexing.dimension ? String(indexing.dimension) : "auto", [["dimension"]]),
         disabled: indexing.provider === "kilo",
       },

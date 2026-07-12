@@ -1,14 +1,17 @@
 // kilocode_change - new file
 import { describe, expect, test } from "bun:test"
-import { scanVisibleBrand } from "../../../../script/user-visible-brand"
+import { rewriteVisibleBrand, scanVisibleBrand } from "../../../../script/user-visible-brand"
 
 describe("user-visible Northstar brand boundary", () => {
   test("rejects old product copy and executable examples", () => {
     expect(
       scanVisibleBrand([
-        { file: "packages/opencode/src/visible.ts", text: 'const a = "Ask Kilo"\nconst b = "kilo run"' },
+        {
+          file: "packages/opencode/src/visible.ts",
+          text: 'const a = "Ask Kilo"\nconst b = "kilo run"\nconst c = "kilo --continue"',
+        },
       ]).map((hit) => hit.pattern),
-    ).toEqual(["Kilo", "kilo run"])
+    ).toEqual(["Kilo", "kilo run", "kilo --continue"])
   })
 
   test("keeps compatibility identifiers and backend URLs", () => {
@@ -22,12 +25,18 @@ describe("user-visible Northstar brand boundary", () => {
     ).toEqual([])
   })
 
-  test("keeps source comments and stable action IDs", () => {
+  test("keeps source comments, protocol metadata, and stable action IDs", () => {
     expect(
       scanVisibleBrand([
         {
           file: "packages/kilo-jetbrains/frontend/src/main/example.kt",
-          text: '// Kilo compatibility\nconst val ID = "Kilo.NewSession"',
+          text: [
+            '// Kilo compatibility',
+            'const val ID = "Kilo.NewSession" // Kilo compatibility action',
+            'const headers = { "X-Title": "Kilo Code", "User-Agent": "Kilo-Code/1.0" }',
+            'const integration = { "X-Cerebras-3rd-Party-Integration": "Kilo Code" }',
+            'uses: Kilo-Org/kilocode/github@latest',
+          ].join("\n"),
         },
       ]),
     ).toEqual([])
@@ -48,5 +57,14 @@ describe("user-visible Northstar brand boundary", () => {
       line: 2,
       pattern: "Kilo CLI",
     })
+  })
+
+  test("rewrites only classified display copy, even beside a stable action ID", () => {
+    expect(
+      rewriteVisibleBrand({
+        file: "visible.ts",
+        text: 'const id = "Kilo.NewSession"; const title = "Kilo CLI"; const command = "kilo run"',
+      }),
+    ).toBe('const id = "Kilo.NewSession"; const title = "Northstar"; const command = "northstar run"')
   })
 })

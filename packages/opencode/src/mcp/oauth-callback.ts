@@ -14,7 +14,7 @@ const HTML_SUCCESS = `<!DOCTYPE html>
 <html>
 <head>
   <!-- kilocode_change start -->
-  <title>Kilo - Authorization Successful</title>
+  <title>Northstar - Authorization Successful</title>
   <!-- kilocode_change end -->
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }
@@ -38,7 +38,7 @@ const HTML_ERROR = (error: string) => `<!DOCTYPE html>
 <html>
 <head>
   <!-- kilocode_change start -->
-  <title>Kilo - Authorization Failed</title>
+  <title>Northstar - Authorization Failed</title>
   <!-- kilocode_change end -->
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }

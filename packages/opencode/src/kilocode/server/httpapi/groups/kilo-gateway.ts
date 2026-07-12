@@ -287,19 +287,19 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.profile",
-            summary: "Get Kilo Gateway profile",
-            description: "Fetch user profile and organizations from Kilo Gateway",
+            summary: "Get Northstar Gateway profile",
+            description: "Fetch user profile and organizations from Northstar Gateway",
           }),
         ),
         HttpApiEndpoint.get("authStatus", KiloGatewayPaths.authStatus, {
           query: WorkspaceRoutingQuery,
-          success: described(AuthStatus, "Kilo authentication status"),
+          success: described(AuthStatus, "Northstar authentication status"),
           error: HttpApiError.BadRequest,
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.authStatus",
-            summary: "Get Kilo authentication status",
-            description: "Check whether a locally stored Kilo credential can authenticate Gateway requests",
+            summary: "Get Northstar authentication status",
+            description: "Check whether a locally stored Northstar credential can authenticate Gateway requests",
           }),
         ),
         HttpApiEndpoint.get("modes", KiloGatewayPaths.modes, {
@@ -321,7 +321,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
           OpenApi.annotations({
             identifier: "kilo.fim",
             summary: "FIM completion",
-            description: "Proxy a Fill-in-the-Middle completion request to the Kilo Gateway",
+            description: "Proxy a Fill-in-the-Middle completion request to the Northstar Gateway",
           }),
         ),
         HttpApiEndpoint.post("edit", KiloGatewayPaths.edit, {
@@ -347,7 +347,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
           OpenApi.annotations({
             identifier: "kilo.audio.transcriptions",
             summary: "Speech to text transcription",
-            description: "Proxy an audio transcription request to the Kilo Gateway",
+            description: "Proxy an audio transcription request to the Northstar Gateway",
           }),
         ),
         HttpApiEndpoint.get("imageModels", KiloGatewayPaths.imageModels, {
@@ -358,7 +358,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
           OpenApi.annotations({
             identifier: "kilo.models.images",
             summary: "Image generation models",
-            description: "List image-capable models from the Kilo Gateway OpenRouter passthrough",
+            description: "List image-capable models from the Northstar Gateway OpenRouter passthrough",
           }),
         ),
         HttpApiEndpoint.get("notifications", KiloGatewayPaths.notifications, {
@@ -368,8 +368,8 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.notifications",
-            summary: "Get Kilo notifications",
-            description: "Fetch notifications from Kilo Gateway for CLI display",
+            summary: "Get Northstar notifications",
+            description: "Fetch notifications from Northstar Gateway for CLI display",
           }),
         ),
         HttpApiEndpoint.post("organization", KiloGatewayPaths.organization, {
@@ -380,8 +380,8 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.organization.set",
-            summary: "Update Kilo Gateway organization",
-            description: "Switch to a different Kilo Gateway organization",
+            summary: "Update Northstar Gateway organization",
+            description: "Switch to a different Northstar Gateway organization",
           }),
         ),
         HttpApiEndpoint.get("clawStatus", KiloGatewayPaths.clawStatus, {
@@ -397,15 +397,15 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         ),
         HttpApiEndpoint.get("clawChatCredentials", KiloGatewayPaths.clawChatCredentials, {
           query: WorkspaceRoutingQuery,
-          success: described(ClawChatCredentials, "Kilo Chat credentials or null"),
+          success: described(ClawChatCredentials, "Northstar Chat credentials or null"),
           error: HttpApiError.Unauthorized,
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.claw.chatCredentials",
             summary: "Get KiloClaw chat credentials",
             description:
-              "Returns the bearer token and endpoint URLs the client uses to talk to the Kilo Chat worker " +
-              "and the Event Service. The bearer is the user's existing long-lived Kilo JWT — kilo-chat and " +
+              "Returns the bearer token and endpoint URLs the client uses to talk to the Northstar Chat worker " +
+              "and the Event Service. The bearer is the user's existing long-lived Northstar JWT — kilo-chat and " +
               "event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.",
           }),
         ),
@@ -422,7 +422,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
           OpenApi.annotations({
             identifier: "kilo.cloudSessions",
             summary: "Get cloud sessions",
-            description: "Fetch cloud CLI sessions from Kilo API",
+            description: "Fetch cloud CLI sessions from Northstar API",
           }),
         ),
         HttpApiEndpoint.get("cloudSession", KiloGatewayPaths.cloudSession, {
@@ -434,7 +434,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
           OpenApi.annotations({
             identifier: "kilo.cloud.session.get",
             summary: "Get cloud session",
-            description: "Fetch full session data from the Kilo cloud for preview",
+            description: "Fetch full session data from the Northstar cloud for preview",
           }),
         ),
         HttpApiEndpoint.post("cloudSessionImport", KiloGatewayPaths.cloudSessionImport, {
@@ -453,7 +453,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
       .annotateMerge(
         OpenApi.annotations({
           title: "kilo",
-          description: "Kilo Gateway routes.",
+          description: "Northstar Gateway routes.",
         }),
       )
       .middleware(InstanceContextMiddleware)
@@ -464,6 +464,6 @@ export const KiloGatewayApi = HttpApi.make("kilo")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

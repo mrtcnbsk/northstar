@@ -60,7 +60,7 @@ export const NetworkApi = HttpApi.make("network")
       .annotateMerge(
         OpenApi.annotations({
           title: "network",
-          description: "Kilo network routes.",
+          description: "Northstar network routes.",
         }),
       )
       .middleware(InstanceContextMiddleware)
@@ -71,6 +71,6 @@ export const NetworkApi = HttpApi.make("network")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

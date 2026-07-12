@@ -46,7 +46,7 @@ export const UpgradeCommand = {
     const target = args.target ? args.target.replace(/^v/, "") : await Installation.latest(method) // kilocode_change
 
     if (InstallationVersion === target) {
-      prompts.log.warn(`kilo upgrade skipped: ${target} is already installed`) // kilocode_change
+      prompts.log.warn(`northstar upgrade skipped: ${target} is already installed`) // kilocode_change
       prompts.outro("Done")
       return
     }

@@ -533,7 +533,7 @@ export function Prompt(props: PromptProps) {
       // kilocode_change start
       {
         title: "Cost alert",
-        desc: "Set Kilo's cost alert",
+        desc: "Set Northstar's cost alert",
         name: "cost_alert",
         category: "Session",
         slashName: "cost-alert",

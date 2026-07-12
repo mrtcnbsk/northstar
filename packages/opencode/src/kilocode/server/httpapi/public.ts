@@ -140,9 +140,9 @@ function rebrand(value: unknown): void {
       continue
     }
     ;(value as Record<string, unknown>)[key] = item
-      .replaceAll("OpenCode", "Kilo")
+      .replaceAll("OpenCode", "Northstar")
       .replaceAll("opencode.local", "kilo.local")
-      .replaceAll("opencode serve", "kilo serve")
+      .replaceAll("opencode serve", "northstar serve")
       .replaceAll("https://opencode.ai/", "https://kilo.ai/")
   }
 }

@@ -9,7 +9,7 @@ This document explains how Kilocode configurations are automatically migrated to
 - [Rules Migration](#rules-migration)
 - [Workflows Migration](#workflows-migration)
 - [MCP Migration](#mcp-migration)
-- [Kilo Notifications](#kilo-notifications)
+- [Northstar Notifications](#kilo-notifications)
 
 ---
 
@@ -188,11 +188,11 @@ The following Kilocode features are not yet migrated:
 
 # Skills Discovery
 
-Kilocode skills are automatically discovered and made available in Opencode. This is **not a migration** - skills remain in their original locations and can be managed independently by the Kilo VSCode extension.
+Kilocode skills are automatically discovered and made available in Opencode. This is **not a migration** - skills remain in their original locations and can be managed independently by the Northstar VSCode extension.
 
 ## How It Works
 
-Kilo scans canonical `.kilo/skill/` and `.kilo/skills/` directories alongside legacy `.kilocode/` equivalents. The `KilocodePaths.skillDirectories()` function provides these paths.
+Northstar scans canonical `.kilo/skill/` and `.kilo/skills/` directories alongside legacy `.kilocode/` equivalents. The `KilocodePaths.skillDirectories()` function provides these paths.
 
 ## Source Locations
 
@@ -281,7 +281,7 @@ Skills can be symlinked from a shared location:
 .kilo/skill/shared-skill -> ...       # Canonical symlink
 ```
 
-The scanner follows symlinks, so a skill installed once can be available to both Kilo VSCode and Opencode CLI.
+The scanner follows symlinks, so a skill installed once can be available to both Northstar VSCode and Opencode CLI.
 
 ## Related Files
 
@@ -343,11 +343,11 @@ Use a top-level `"mcp"` object. Each key is the server name. For a local server,
 
 # Kilo Notifications
 
-When connected to Kilo Gateway, the CLI fetches and displays notifications from the Kilo API. This allows Kilo to communicate important announcements, feature updates, and tips to users.
+When connected to Northstar Gateway, the CLI fetches and displays notifications from the Northstar API. This allows Northstar to communicate important announcements, feature updates, and tips to users.
 
 ## How It Works
 
-1. **On startup**, if the user is authenticated with Kilo Gateway, the CLI fetches notifications from `https://api.kilo.ai/api/users/notifications`
+1. **On startup**, if the user is authenticated with Northstar Gateway, the CLI fetches notifications from `https://api.kilo.ai/api/users/notifications`
 2. **Filtering**: Only notifications with `showIn` containing `"cli"` (or no `showIn` restriction) are displayed
 3. **Display**: The first notification is shown as a toast notification after a 2-second delay
 
@@ -378,8 +378,8 @@ Action: Learn More -> https://docs.kilo.ai/skills
 
 | Condition | Notifications Shown |
 |---|---|
-| Connected to Kilo Gateway | Yes |
-| Not connected to Kilo | No |
+| Connected to Northstar Gateway | Yes |
+| Not connected to Northstar | No |
 | No notifications from API | No |
 
 ## Related Files

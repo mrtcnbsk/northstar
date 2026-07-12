@@ -334,7 +334,7 @@ export class EventServiceClient {
       return
     }
     if (m.type === "error") {
-      console.warn("[Kilo] event-service server error", m)
+      console.warn("[Northstar] event-service server error", m)
     }
   }
 

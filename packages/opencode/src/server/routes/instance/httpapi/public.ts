@@ -94,7 +94,7 @@ const PathParameterSchemas: Record<string, OpenApiSchema> = {
 
 const LegacyComponentDescriptions: Record<string, string> = {
   LogLevel: "Log level",
-  ServerConfig: "Server configuration for the kilo serve command", // kilocode_change
+  ServerConfig: "Server configuration for the northstar serve command", // kilocode_change
   LayoutConfig: "@deprecated Always uses stretch layout.",
 }
 

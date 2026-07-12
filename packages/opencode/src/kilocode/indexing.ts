@@ -103,13 +103,13 @@ async function model(input: ReturnType<typeof toIndexingConfigInput>, auth: Kilo
 
   if (!found) {
     if (input.modelId || input.modelDimension) {
-      log.warn("ignoring unsupported Kilo embedding model configuration", { model: input.modelId })
+      log.warn("ignoring unsupported Northstar embedding model configuration", { model: input.modelId })
     }
     return { ...input, modelId: undefined, modelDimension: undefined }
   }
 
   if (input.modelId && !chosen) {
-    log.warn("using default Kilo embedding model instead of unsupported configuration", {
+    log.warn("using default Northstar embedding model instead of unsupported configuration", {
       model: input.modelId,
       fallback: found.id,
     })
@@ -494,7 +494,7 @@ export namespace KiloIndexing {
       const fallback = await fetchKiloEmbeddingModelCatalog()
       return fallback.models.length > 0 ? fallback : catalog
     } catch (err) {
-      log.warn("falling back to public Kilo embedding model catalog", { err })
+      log.warn("falling back to public Northstar embedding model catalog", { err })
       return fetchKiloEmbeddingModelCatalog()
     }
   }

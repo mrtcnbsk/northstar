@@ -66,7 +66,7 @@ const HTML_CALLBACK = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Kilo - DigitalOcean Authorization</title>
+    <title>Northstar - DigitalOcean Authorization</title>
     <style>
       body { font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #0b1220; color: #e8eef9; }
       .container { text-align: center; padding: 2rem; max-width: 32rem; }
@@ -349,7 +349,7 @@ export async function DigitalOceanAuthPlugin(input: PluginInput): Promise<Hooks>
             return {
               url,
               instructions:
-                "Sign in to DigitalOcean in your browser. Kilo will use your DigitalOcean API token directly for inference and load your Inference Routers. Re-run /connect to refresh routers later.", // kilocode_change
+                "Sign in to DigitalOcean in your browser. Northstar will use your DigitalOcean API token directly for inference and load your Inference Routers. Re-run /connect to refresh routers later.", // kilocode_change
               method: "auto" as const,
               async callback() {
                 try {

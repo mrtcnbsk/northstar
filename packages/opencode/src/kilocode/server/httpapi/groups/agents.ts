@@ -83,6 +83,6 @@ export const AgentsApi = HttpApi.make("agents")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

@@ -234,11 +234,11 @@ export namespace KilocodeConfigSources {
       {
         kind: "cloud-org",
         scope: "cloud",
-        label: "Kilo Cloud organization config",
+        label: "Northstar Cloud organization config",
         source: `${account.url}/api/config`,
         exists: true,
         editable: false,
-        reason: "Active organization config is managed by Kilo Cloud; values are not exposed here.",
+        reason: "Active organization config is managed by Northstar Cloud; values are not exposed here.",
       },
     ]
   }

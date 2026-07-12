@@ -87,7 +87,7 @@ export const InteractiveTerminalApi = HttpApi.make("interactive-terminal")
       .annotateMerge(
         OpenApi.annotations({
           title: "interactive-terminal",
-          description: "Kilo human-driven interactive terminal routes.",
+          description: "Northstar human-driven interactive terminal routes.",
         }),
       )
       .middleware(InstanceContextMiddleware)
@@ -98,6 +98,6 @@ export const InteractiveTerminalApi = HttpApi.make("interactive-terminal")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

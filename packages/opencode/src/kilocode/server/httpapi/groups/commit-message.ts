@@ -54,7 +54,7 @@ export const CommitMessageApi = HttpApi.make("commit-message")
       .annotateMerge(
         OpenApi.annotations({
           title: "commit-message",
-          description: "Kilo commit message routes.",
+          description: "Northstar commit message routes.",
         }),
       )
       .middleware(InstanceContextMiddleware)
@@ -65,6 +65,6 @@ export const CommitMessageApi = HttpApi.make("commit-message")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

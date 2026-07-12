@@ -28,7 +28,7 @@ export const ConfigApi = HttpApi.make("config")
           OpenApi.annotations({
             identifier: "config.get",
             summary: "Get configuration",
-            description: "Retrieve the current Kilo configuration settings and preferences.", // kilocode_change
+            description: "Retrieve the current Northstar configuration settings and preferences.", // kilocode_change
           }),
         ),
         HttpApiEndpoint.patch("update", root, {
@@ -40,7 +40,7 @@ export const ConfigApi = HttpApi.make("config")
           OpenApi.annotations({
             identifier: "config.update",
             summary: "Update configuration",
-            description: "Update Kilo configuration settings and preferences.", // kilocode_change
+            description: "Update Northstar configuration settings and preferences.", // kilocode_change
           }),
         ),
         // kilocode_change start

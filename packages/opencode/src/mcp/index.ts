@@ -411,7 +411,7 @@ export const layer = Layer.effect(
                 return bus
                   .publish(TuiEvent.ToastShow, {
                     title: "MCP Authentication Required",
-                    message: `Server "${key}" requires authentication. Run: kilo mcp auth ${key}`, // kilocode_change
+                    message: `Server "${key}" requires authentication. Run: northstar mcp auth ${key}`, // kilocode_change
                     variant: "warning",
                     duration: 8000,
                   })

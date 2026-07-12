@@ -79,7 +79,7 @@ export const AgentBuilderApi = HttpApi.make("agent-builder")
           }),
         ),
       )
-      .annotateMerge(OpenApi.annotations({ title: "agent-builder", description: "Kilo agent builder routes." }))
+      .annotateMerge(OpenApi.annotations({ title: "agent-builder", description: "Northstar agent builder routes." }))
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),
@@ -88,6 +88,6 @@ export const AgentBuilderApi = HttpApi.make("agent-builder")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

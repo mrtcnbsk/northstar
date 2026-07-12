@@ -51,7 +51,7 @@ interface Args {
 
 export const ProfileCommand = cmd({
   command: "profile",
-  describe: "show Kilo account profile",
+  describe: "show Northstar account profile",
   builder: (yargs: Argv) =>
     yargs.option("json", {
       describe: "output profile as JSON",
@@ -70,7 +70,7 @@ export async function handle(args: Args) {
   const exit = args.exit ?? ((code: number) => (process.exitCode = code))
 
   if (!auth || auth.type !== "oauth") {
-    error("Not authenticated with Kilo Gateway")
+    error("Not authenticated with Northstar Gateway")
     exit(1)
     return
   }

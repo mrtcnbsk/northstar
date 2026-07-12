@@ -72,7 +72,7 @@ function show(out: string) {
 
 let cli = yargs(args) // kilocode_change
   .parserConfiguration({ "populate--": true })
-  .scriptName("kilo") // kilocode_change
+  .scriptName("northstar") // kilocode_change
   .wrap(100)
   .help("help", "show help")
   .alias("help", "h")

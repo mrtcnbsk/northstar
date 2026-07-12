@@ -50,12 +50,12 @@ function print(input: Daemon.Status, json?: boolean) {
     return
   }
   if (!input.running) {
-    console.log(input.stale ? `kilo daemon stale: ${input.reason}` : `kilo daemon not running`)
+    console.log(input.stale ? `northstar daemon stale: ${input.reason}` : `northstar daemon not running`)
     console.log(`state: ${input.file}`)
     if (input.state?.log) console.log(`log: ${input.state.log}`)
     return
   }
-  console.log(`kilo daemon running`)
+  console.log(`northstar daemon running`)
   if (input.state?.urls) {
     const urls = input.state.urls
     console.log(`local:   ${urls.local}`)
@@ -77,7 +77,7 @@ async function hold(enabled: boolean, json: boolean, run: (signal?: AbortSignal)
   }
   await Daemon.foreground(async (signal) => {
     const state = await run(signal)
-    if (!signal.aborted && !json) console.log("Press Ctrl+C to stop the Kilo daemon.")
+    if (!signal.aborted && !json) console.log("Press Ctrl+C to stop the Northstar daemon.")
     return state
   })
 }
@@ -85,7 +85,7 @@ async function hold(enabled: boolean, json: boolean, run: (signal?: AbortSignal)
 function start(command: string) {
   return cmd({
     command,
-    describe: "start the local kilo daemon",
+    describe: "start the local northstar daemon",
     builder: (yargs) => withForeground(withJson(withNetworkOptions(yargs))),
     handler: async (args) => {
       await hold(Boolean(args.foreground), Boolean(args.json), async (signal) => {
@@ -94,16 +94,16 @@ function start(command: string) {
         const daemon = await Daemon.ensure(opts, explicitNetworkOptions())
         const result = daemon.result
         const state = result.state
-        if (!state) throw new Error("Kilo daemon did not provide process state")
+        if (!state) throw new Error("Northstar daemon did not provide process state")
         if (signal?.aborted) return state
         if (args.json) print(result, true)
         if (!args.json) {
           console.log(
             result.reused
-              ? "kilo daemon already running"
+              ? "northstar daemon already running"
               : daemon.restarted
-                ? "kilo daemon restarted"
-                : "kilo daemon started",
+                ? "northstar daemon restarted"
+                : "northstar daemon started",
           )
           print(result)
         }
@@ -118,7 +118,7 @@ const StartCommand = start("start")
 
 const StatusCommand = cmd({
   command: "status",
-  describe: "show local kilo daemon status",
+  describe: "show local northstar daemon status",
   builder: (yargs) => withJson(yargs),
   handler: async (args) => {
     print(await Daemon.status(), Boolean(args.json))
@@ -127,7 +127,7 @@ const StatusCommand = cmd({
 
 export const StopCommand = cmd({
   command: "stop",
-  describe: "stop the local kilo daemon",
+  describe: "stop the local northstar daemon",
   builder: (yargs) => withJson(yargs),
   handler: async (args) => {
     const result = await Daemon.stop()
@@ -135,13 +135,13 @@ export const StopCommand = cmd({
       print(result, true)
       return
     }
-    console.log(result.stopped ? "kilo daemon stopped" : "kilo daemon not running")
+    console.log(result.stopped ? "northstar daemon stopped" : "northstar daemon not running")
   },
 })
 
 const RestartCommand = cmd({
   command: "restart",
-  describe: "restart the local kilo daemon",
+  describe: "restart the local northstar daemon",
   builder: (yargs) => withForeground(withJson(withNetworkOptions(yargs))),
   handler: async (args) => {
     await hold(Boolean(args.foreground), Boolean(args.json), async (signal) => {
@@ -149,11 +149,11 @@ const RestartCommand = cmd({
       warnPort(opts.port)
       const result = await Daemon.restart(opts)
       const state = result.state
-      if (!state) throw new Error("Kilo daemon did not provide process state")
+      if (!state) throw new Error("Northstar daemon did not provide process state")
       if (signal?.aborted) return state
       if (args.json) print(result, true)
       if (!args.json) {
-        console.log("kilo daemon restarted")
+        console.log("northstar daemon restarted")
         print(result)
       }
       return state
@@ -163,7 +163,7 @@ const RestartCommand = cmd({
 
 export const DaemonCommand = cmd({
   command: "daemon",
-  describe: "manage the local kilo daemon",
+  describe: "manage the local northstar daemon",
   builder: (yargs: Argv) =>
     yargs
       .command(DefaultCommand)

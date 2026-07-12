@@ -93,8 +93,8 @@ export function make(input: {
     const started = performance.now()
     // kilocode_change start
     const authMethod: AuthMethod = {
-      description: "Run `kilo auth login` in the terminal",
-      name: "Login with Kilo",
+      description: "Run `northstar auth login` in the terminal",
+      name: "Login with Northstar",
       id: AuthMethodID,
     }
     // kilocode_change end
@@ -104,7 +104,7 @@ export function make(input: {
         "terminal-auth": {
           command: "opencode",
           args: ["auth", "login"],
-          label: "Kilo Login",
+          label: "Northstar Login",
         },
       }
     }
@@ -130,7 +130,7 @@ export function make(input: {
       },
       authMethods: [authMethod],
       agentInfo: {
-        name: "Kilo",
+        name: "Northstar",
         version: InstallationVersion,
       },
     }

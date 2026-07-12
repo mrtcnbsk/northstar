@@ -57,7 +57,7 @@ export namespace KilocodeSystemPrompt {
       const blocks = project?.blocks ?? []
       // Emit the memory guidance once per prompt, not repeated per injected block.
       const guidance = [
-        "The following Kilo memory blocks are saved project memory from this project's previous sessions. You do have this prior-session context; never claim you lack memory of earlier work here while these blocks are present.",
+        "The following Northstar memory blocks are saved project memory from this project's previous sessions. You do have this prior-session context; never claim you lack memory of earlier work here while these blocks are present.",
         "The latest_session_digest record is the most recent session; prefer it for continuity unless the request clearly refers to older or different work.",
         "When the user asks about prior work, where things stopped, what was happening, or wants to continue — however they phrase it — answer directly from latest_session_digest or the newest relevant session_digest record below.",
         "Use saved memory when it is directly relevant to the user's request, especially matching corrections, constraints, conventions, and prior decisions.",

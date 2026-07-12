@@ -77,7 +77,7 @@ export const AnacondaDesktopApi = HttpApi.make("anaconda-desktop")
             identifier: "anacondaDesktop.sync",
             summary: "Synchronize Anaconda Desktop provider",
             description:
-              "Discover the active local inference server and replace Kilo provider authentication metadata.",
+              "Discover the active local inference server and replace Northstar provider authentication metadata.",
           }),
         ),
       )
@@ -95,6 +95,6 @@ export const AnacondaDesktopApi = HttpApi.make("anaconda-desktop")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

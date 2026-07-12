@@ -181,7 +181,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         name: "kilo.claw",
         title: "KiloClaw",
         desc: "Open KiloClaw chat & dashboard",
-        category: "Kilo",
+        category: "Northstar",
         slashName: "kiloclaw",
         slashAliases: ["claw"],
         enabled: isKiloConnected(),
@@ -221,7 +221,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         name: "remote.toggle",
         title: "Toggle remote",
         desc: "Enable or disable remote session relay",
-        category: "Kilo",
+        category: "Northstar",
         slashName: "remote",
         enabled: isKiloConnected(),
         hidden: !isKiloConnected(),
@@ -259,8 +259,8 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
       {
         name: "kilo.profile",
         title: "Profile",
-        desc: "View your Kilo Gateway profile",
-        category: "Kilo",
+        desc: "View your Northstar Gateway profile",
+        category: "Northstar",
         slashName: "profile",
         slashAliases: ["me", "whoami"],
         enabled: isKiloConnected(),
@@ -274,7 +274,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
               dialog.replace(() => (
                 <DialogAlert
                   title="Error"
-                  message="Failed to fetch profile. Please ensure you're authenticated with Kilo Gateway."
+                  message="Failed to fetch profile. Please ensure you're authenticated with Northstar Gateway."
                 />
               ))
               return
@@ -296,7 +296,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
               name: "kilo.indexing",
               title: "Indexing",
               desc: "Configure codebase indexing",
-              category: "Kilo",
+              category: "Northstar",
               slashName: "indexing",
               slashAliases: ["index", "embedding"],
               run: () => {
@@ -310,8 +310,8 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
       {
         name: "kilo.teams",
         title: "Teams",
-        desc: "Switch between Kilo Gateway teams",
-        category: "Kilo",
+        desc: "Switch between Northstar Gateway teams",
+        category: "Northstar",
         slashName: "teams",
         slashAliases: ["team", "org", "orgs"],
         enabled: isKiloConnected(),
@@ -325,7 +325,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
               dialog.replace(() => (
                 <DialogAlert
                   title="Error"
-                  message="Failed to fetch teams. Please ensure you're authenticated with Kilo Gateway."
+                  message="Failed to fetch teams. Please ensure you're authenticated with Northstar Gateway."
                 />
               ))
               return

@@ -520,7 +520,7 @@ export namespace KilocodeConfig {
       id: OPENCODE_NOTIFICATION_ID,
       title: "Move your opencode configuration",
       message:
-        `Kilo no longer falls back to opencode configuration. ` +
+        `Northstar no longer falls back to opencode configuration. ` +
         `Found opencode config at ${found[0]}${suffix}. ` +
         `Move it into a .kilo directory (project) or ${Global.Path.config} (global).`,
       action: { actionText: "Learn more", actionURL: CONFIG_DOCS_URL },

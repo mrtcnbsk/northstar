@@ -95,7 +95,7 @@ function message(providerID: ProviderID, e: APICallError) {
     // provide a human-readable message instead of dumping raw markup
     if (/^\s*<!doctype|^\s*<html/i.test(e.responseBody)) {
       if (e.statusCode === 401) {
-        return "Unauthorized: request was blocked by a gateway or proxy. Your authentication token may be missing or expired — try running `kilo auth login <your provider URL>` to re-authenticate." // kilocode_change
+        return "Unauthorized: request was blocked by a gateway or proxy. Your authentication token may be missing or expired — try running `northstar auth login <your provider URL>` to re-authenticate." // kilocode_change
       }
       if (e.statusCode === 403) {
         return "Forbidden: request was blocked by a gateway or proxy. You may not have permission to access this resource — check your account and provider settings."

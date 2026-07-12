@@ -20,7 +20,7 @@ const rules: BrandRule[] = [
   { pattern: /Kilo Code/g, label: "Kilo Code" },
   { pattern: /Kilo CLI/g, label: "Kilo CLI" },
   {
-    pattern: /\bkilo (?:run|serve|upgrade|auth|models|mcp|agent|github|debug|tui|daemon)\b/g,
+    pattern: /\bkilo (?:--[a-z-]+|run|serve|upgrade|auth|models|mcp|agent|github|debug|tui|daemon)\b/g,
     label: "kilo command",
   },
   { pattern: /\bKilo\b/g, label: "Kilo" },
@@ -36,14 +36,20 @@ function ignored(line: string, start: number, end: number) {
   ) {
     return true
   }
+  const comment = [line.indexOf("//"), line.indexOf("/*")].filter((index) => index >= 0)
+  if (comment.some((index) => index <= start)) return true
   if (/^(?:import|export .* from)\b/.test(trimmed)) return true
+  if (/['"](?:X-Title|x-title|User-Agent|X-Cerebras-3rd-Party-Integration)['"]\s*:/.test(line)) return true
+  if (/\buses:\s*Kilo-Org\//.test(line)) return true
   if (line.slice(Math.max(0, start - 1), start) === "." || line.slice(end, end + 1) === ".") return true
   if (line.includes("[Kilo New]")) return true
   return false
 }
 
-export function scanVisibleBrand(sources: BrandSource[]): BrandHit[] {
-  const hits: (BrandHit & { start: number; end: number })[] = []
+type Candidate = BrandHit & { start: number; end: number }
+
+function candidates(sources: BrandSource[]) {
+  const hits: Candidate[] = []
   for (const source of sources) {
     if (/(?:^|\/)(?:__tests__\/|[^/]+\.(?:test|spec)\.)/.test(source.file)) continue
     const lines = source.text.split("\n")
@@ -67,7 +73,22 @@ export function scanVisibleBrand(sources: BrandSource[]): BrandHit[] {
       }
     }
   }
-  return hits
-    .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.start - b.start)
-    .map((hit) => ({ file: hit.file, line: hit.line, pattern: hit.pattern }))
+  return hits.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.start - b.start)
+}
+
+export function scanVisibleBrand(sources: BrandSource[]): BrandHit[] {
+  return candidates(sources).map((hit) => ({ file: hit.file, line: hit.line, pattern: hit.pattern }))
+}
+
+export function rewriteVisibleBrand(source: BrandSource) {
+  const lines = source.text.split("\n")
+  const hits = candidates([source]).sort((a, b) => b.line - a.line || b.start - a.start)
+  for (const hit of hits) {
+    const index = hit.line - 1
+    const line = lines[index]
+    if (line === undefined) continue
+    const replacement = hit.pattern.startsWith("kilo ") ? `northstar ${hit.pattern.slice(5)}` : "Northstar"
+    lines[index] = line.slice(0, hit.start) + replacement + line.slice(hit.end)
+  }
+  return lines.join("\n")
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { plain, session, supports, tui } from "../../src/kilocode/cli/logo"
 
-describe("kilocode logo", () => {
+describe("Northstar logo", () => {
   test("allows remote terminals", () => {
     expect(supports({ SSH_TTY: "/dev/pts/0" }, "linux")).toBe(true)
     expect(supports({ SSH_CLIENT: "127.0.0.1 12345 22" }, "linux")).toBe(true)
@@ -34,6 +34,8 @@ describe("kilocode logo", () => {
 
   test("formats child session exit logo", () => {
     const out = session("Title", "ses_test", "<dim>", "<reset>", {}, "win32")
+    expect(out).toContain("NORTHSTAR")
+    expect(out).toContain("northstar -s ses_test")
     expect(out).toContain("<dim>Title<reset>")
     expect(out).not.toContain("🬺🬏")
   })

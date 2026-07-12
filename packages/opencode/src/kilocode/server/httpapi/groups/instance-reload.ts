@@ -26,14 +26,14 @@ export const InstanceReloadApi = HttpApi.make("instance-reload")
             identifier: "instance.reload",
             summary: "Reload instance",
             description:
-              "Atomically dispose and reboot the current Kilo instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.",
+              "Atomically dispose and reboot the current Northstar instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.",
           }),
         ),
       )
       .annotateMerge(
         OpenApi.annotations({
           title: "instance-reload",
-          description: "Kilo instance reload route.",
+          description: "Northstar instance reload route.",
         }),
       )
       .middleware(InstanceContextMiddleware)
@@ -44,6 +44,6 @@ export const InstanceReloadApi = HttpApi.make("instance-reload")
     OpenApi.annotations({
       title: "kilo HttpApi",
       version: "0.0.1",
-      description: "Kilo HttpApi surface.",
+      description: "Northstar HttpApi surface.",
     }),
   )

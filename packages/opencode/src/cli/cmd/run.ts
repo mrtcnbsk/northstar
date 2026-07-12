@@ -1,5 +1,5 @@
-// kilocode_change start - use Kilo CLI branding
-// CLI entry point for `kilo run`.
+// kilocode_change start - use Northstar branding
+// CLI entry point for `northstar run`.
 //
 // Handles three modes:
 //   1. Non-interactive (default): sends a single prompt, streams events to
@@ -7,7 +7,7 @@
 //   2. Interactive local (`--interactive`): boots the split-footer direct mode
 //      with an in-process server (no external HTTP).
 //   3. Interactive attach (`--interactive --attach`): connects to a running
-//      kilo server and runs interactive mode against it.
+//      Northstar server and runs interactive mode against it.
 // kilocode_change end
 //
 // Also supports `--command` for slash-command execution, `--format json` for

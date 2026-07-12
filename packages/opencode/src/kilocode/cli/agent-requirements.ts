@@ -93,7 +93,7 @@ export function format(input: ErrorData | RequirementError) {
       "",
       "VS Code extensions:",
       ...info.vscode_extensions.map((ext) => `- ${ext.name} (${ext.id})`),
-      "This agent requires VS Code extensions and is not supported in this CLI environment. Use the Kilo VS Code extension instead.",
+      "This agent requires VS Code extensions and is not supported in this CLI environment. Use the Northstar VS Code extension instead.",
     )
   }
 

@@ -823,7 +823,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       if (!apiToken) {
         throw new Error(
           "CLOUDFLARE_API_TOKEN (or CF_AIG_TOKEN) is required for Cloudflare AI Gateway. " +
-            "Set it via environment variable or run `kilo auth cloudflare-ai-gateway`.", // kilocode_change
+            "Set it via environment variable or run `northstar auth cloudflare-ai-gateway`.", // kilocode_change
         )
       }
 

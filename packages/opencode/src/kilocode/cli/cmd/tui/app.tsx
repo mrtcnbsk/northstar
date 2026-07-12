@@ -241,7 +241,7 @@ export function init() {
         name: "background_process.list",
         title: "Background processes",
         desc: "List and manage tracked background processes",
-        category: "Kilo",
+        category: "Northstar",
         slashName: "process",
         slashAliases: ["processes"],
         run: () => {

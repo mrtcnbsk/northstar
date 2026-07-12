@@ -160,7 +160,7 @@ const HTML_SUCCESS = `<!doctype html>
 <html>
   <head>
     <!-- kilocode_change start -->
-    <title>Kilo - Codex Authorization Successful</title>
+    <title>Northstar - Codex Authorization Successful</title>
     <!-- kilocode_change end -->
     <style>
       body {
@@ -206,7 +206,7 @@ const HTML_ERROR = (error: string) => `<!doctype html>
 <html>
   <head>
     <!-- kilocode_change start -->
-    <title>Kilo - Codex Authorization Failed</title>
+    <title>Northstar - Codex Authorization Failed</title>
     <!-- kilocode_change end -->
     <style>
       body {

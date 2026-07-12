@@ -181,7 +181,7 @@ export const Info = Schema.Struct({
   }),
   logLevel: Schema.optional(LogLevelRef).annotate({ description: "Log level" }),
   server: Schema.optional(ConfigServer.Server).annotate({
-    description: "Server configuration for the kilo serve command", // kilocode_change
+    description: "Server configuration for the northstar serve command", // kilocode_change
   }),
   command: Schema.optional(Schema.Record(Schema.String, ConfigCommand.Info)).annotate({
     description: "Command configuration, see https://kilo.ai/docs/customize/workflows", // kilocode_change
@@ -223,7 +223,7 @@ export const Info = Schema.Struct({
   // apps/web/src/app/config.json/extras.ts in the cloud repo, otherwise
   // $schema: https://app.kilo.ai/config.json will not recognize it.
   remote_control: Schema.optional(Schema.Boolean).annotate({
-    description: "Enable remote control of sessions via Kilo Cloud. Equivalent to running /remote on startup.",
+    description: "Enable remote control of sessions via Northstar Cloud. Equivalent to running /remote on startup.",
   }),
   auto_collapse_reasoning: Schema.optional(Schema.Boolean).annotate({
     description: "Automatically collapse reasoning blocks after the agent finishes writing them",
@@ -233,14 +233,14 @@ export const Info = Schema.Struct({
     Schema.Struct({
       context_sidebar_width: Schema.optional(
         Schema.Int.check(Schema.isBetween({ minimum: 250, maximum: 800 })).annotate({
-          description: "Width of the Kilo Console project context sidebar in pixels",
+          description: "Width of the Northstar Console project context sidebar in pixels",
         }),
       ),
       diff_style: Schema.optional(Schema.Literals(["unified", "split"])).annotate({
-        description: "Default diff layout in Kilo Console project reviews",
+        description: "Default diff layout in Northstar Console project reviews",
       }),
     }),
-  ).annotate({ description: "Kilo Console user interface configuration" }),
+  ).annotate({ description: "Northstar Console user interface configuration" }),
   terminal_command_display: Schema.optional(Schema.Literals(["expanded", "collapsed"])).annotate({
     description: "Controls whether terminal command blocks are expanded or collapsed by default in the VS Code chat UI",
   }),
@@ -249,7 +249,7 @@ export const Info = Schema.Struct({
       "Controls whether code edit and diff blocks are expanded or collapsed by default in the VS Code chat UI",
   }),
   hide_prompt_training_models: Schema.optional(Schema.Boolean).annotate({
-    description: "Hide Kilo Gateway models that may train on your prompts from model listings",
+    description: "Hide Northstar Gateway models that may train on your prompts from model listings",
   }),
   sandbox: Schema.optional(SandboxConfig.Info),
   model: Schema.optional(Schema.NullOr(ConfigModelID)).annotate({

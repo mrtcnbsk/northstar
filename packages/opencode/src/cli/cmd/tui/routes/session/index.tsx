@@ -1668,7 +1668,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </text>
         </box>
       </Show>
-      {/* kilocode_change start - Kilo-specific error display */}
+      {/* kilocode_change start - Northstar-specific error display */}
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <KiloErrorBlock
           error={props.message.error!}
