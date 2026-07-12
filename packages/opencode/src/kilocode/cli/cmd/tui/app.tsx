@@ -42,13 +42,13 @@ export { useTuiConfigHotReload } from "@/kilocode/cli/cmd/tui/context/tui-config
 // ---------------------------------------------------------------------------
 
 /** Default terminal window title. */
-export const APP_TITLE = "Kilo CLI"
+export const APP_TITLE = "Northstar"
 
 /** Public docs URL shown in the command palette. */
-export const DOCS_URL = "https://kilo.ai/docs"
+export const DOCS_URL = "https://github.com/mrtcnbsk/northstar#readme"
 
 /** Human-readable product name used in user-facing messages. */
-export const APP_NAME = "Kilo"
+export const APP_NAME = "Northstar"
 
 // ---------------------------------------------------------------------------
 // Utilities
