@@ -95,8 +95,14 @@ export namespace OrgRunner {
     | { run: OrgState.Run; result: { kind: "incomplete"; item: IncompleteItem } }
     | { run: OrgState.Run; result: { kind: "halted"; reason: string } }
 
-  export function start(projectDir: string, org: OrgSchema.Organization, idea: string, mode?: string) {
-    return OrgState.create(projectDir, org, idea, mode)
+  export function start(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    idea: string,
+    mode?: string,
+    ownerSessionID?: string,
+  ) {
+    return OrgState.create(projectDir, org, idea, mode, ownerSessionID)
   }
 
   /**

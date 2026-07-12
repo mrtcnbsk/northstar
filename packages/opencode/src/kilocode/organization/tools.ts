@@ -1,5 +1,6 @@
 // kilocode_change - new file
 import { Effect, Schema } from "effect"
+import { Option } from "effect"
 import * as Log from "@opencode-ai/core/util/log" // kilocode_change - W6.2: best-effort postmortem logging
 import * as Tool from "@/tool/tool"
 import { InstanceState } from "@/effect/instance-state"
@@ -14,6 +15,9 @@ import { OrgState, OrgNote } from "./state"
 import { OrgAudit } from "./audit" // kilocode_change - W6.2: postmortem's gate-decision trail
 import { OrgPostmortem } from "./postmortem" // kilocode_change - W6.2: postrun postmortem hook
 import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson in the org memory pool
+import { OrgDriver } from "./driver" // kilocode_change - SP1 headless loop attachment
+import { Provider } from "@/provider/provider" // kilocode_change - optional evaluator small-model resolver
+import type { TaskPromptOps } from "@/tool/task"
 
 // kilocode_change start - W6.2: postrun postmortem hook.
 const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
@@ -179,7 +183,7 @@ export const OrgStartTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
-          const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea, params.mode))
+          const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea, params.mode, ctx.sessionID))
           return result(`org run ${run.runID}`, {
             run_id: run.runID,
             pipeline: org.pipeline,
@@ -457,6 +461,8 @@ const DecisionParameters = Schema.Struct({
 export const OrgDecisionTool = Tool.define(
   "org_decision",
   Effect.gen(function* () {
+    const sessions = yield* Session.Service
+    const provider = yield* Effect.serviceOption(Provider.Service)
     return {
       description: "Record the user's gate decision for the stage awaiting approval (approve / no-go / revise).",
       parameters: DecisionParameters,
@@ -486,6 +492,30 @@ export const OrgDecisionTool = Tool.define(
               return updated
             }),
           )
+          const promptOps = ctx.extra?.promptOps as TaskPromptOps | undefined
+          if (run.status === "active" && run.auto === true && promptOps) {
+            const bridge = yield* Effect.promise(() => import("./driver-session"))
+            const runtime = OrgDriver.sessionRuntime({
+              ownerSessionID: run.ownerSessionID ?? ctx.sessionID,
+              bridge: bridge.effectSessionBridge({
+                sessions,
+                prompts: promptOps,
+                provider: Option.getOrUndefined(provider),
+              }),
+            })
+            void OrgDriver.attach({
+              projectDir: dir,
+              org,
+              runID: params.run_id,
+              runtime,
+              lock: (fn) => withRunLock(params.run_id, fn),
+            }).catch((error) =>
+              postmortemLog.warn("autonomous driver failed", {
+                runID: params.run_id,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            )
+          }
           return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
         }).pipe(Effect.orDie),
     }

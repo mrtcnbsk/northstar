@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import path from "path"
 import { mkdir } from "node:fs/promises"
 import { ConfigProvider, Layer } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import * as Log from "@opencode-ai/core/util/log"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
+import { OrgDriver } from "../../../src/kilocode/organization/driver"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgState } from "../../../src/kilocode/organization/state"
@@ -125,6 +126,32 @@ describe("HttpApi org-runs commands", () => {
         })
       ).status,
     ).toBe(400)
+  })
+
+  test("plan approval and resume attach the single-flight headless driver when an owner session exists", async () => {
+    await using tmp = await tmpdir()
+    const api = app()
+    const runID = await seedPlanGate(tmp.path)
+    await OrgState.update(tmp.path, runID, (run) => {
+      run.ownerSessionID = "ses_owner"
+    })
+    const attached = spyOn(OrgDriver, "attach").mockResolvedValue({ type: "completed" })
+    try {
+      await post(api, commandPath(OrgRunsPaths.plan, runID), tmp.path, { stages: plan })
+      const approved = await post(api, commandPath(OrgRunsPaths.decision, runID), tmp.path, {
+        decision: "approve",
+        stage: "plan",
+      })
+      expect(approved.status).toBe(200)
+      expect(attached).toHaveBeenCalledTimes(1)
+
+      await OrgRunner.pause(tmp.path, ORG, runID, { kind: "manual", stage: "none", detail: "pause" })
+      const resumed = await post(api, commandPath(OrgRunsPaths.resume, runID), tmp.path, {})
+      expect(resumed.status).toBe(200)
+      expect(attached).toHaveBeenCalledTimes(2)
+    } finally {
+      attached.mockRestore()
+    }
   })
 
   test("maps unknown and traversal-rejected run IDs to 404", async () => {

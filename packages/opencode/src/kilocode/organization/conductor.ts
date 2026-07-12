@@ -43,6 +43,8 @@ export namespace OrgConductor {
     readDeliverable?: (input: { runID: string; stage: string; path: string }) => Promise<string>
     now: () => number
     emit: (event: Event) => void
+    /** Optional per-run transition lock shared with tool/HTTP mutations. */
+    lock?: <A>(fn: () => Promise<A>) => Promise<A>
   }
 
   export type Outcome =
@@ -64,7 +66,8 @@ export namespace OrgConductor {
   async function emit(deps: Deps, runID: string, event: Omit<Event, "ts">) {
     const full = { ...event, ts: deps.now() }
     deps.emit(full)
-    await OrgAudit.appendEvent(deps.projectDir, runID, full)
+    const persist = () => OrgAudit.appendEvent(deps.projectDir, runID, full)
+    await (deps.lock ? deps.lock(persist) : persist())
   }
 
   export async function drive(runID: string, deps: Deps): Promise<Outcome> {
@@ -72,7 +75,8 @@ export namespace OrgConductor {
     let taskResults: Array<{ stage: string; taskID: string }> = []
 
     for (;;) {
-      const batch = await OrgRunner.advance(deps.runnerDeps, deps.projectDir, deps.org, runID, { taskResults })
+      const advance = () => OrgRunner.advance(deps.runnerDeps, deps.projectDir, deps.org, runID, { taskResults })
+      const batch = await (deps.lock ? deps.lock(advance) : advance())
       taskResults = []
 
       if (batch.halted) {
@@ -90,11 +94,13 @@ export namespace OrgConductor {
         const run = await OrgState.read(deps.projectDir, runID)
         if (run.auto !== true) {
           const detail = "run reached a human gate outside autonomous mode"
-          const paused = await OrgRunner.pause(deps.projectDir, deps.org, runID, {
-            kind: "final_gate",
-            stage,
-            detail,
-          })
+          const pause = () =>
+            OrgRunner.pause(deps.projectDir, deps.org, runID, {
+              kind: "final_gate",
+              stage,
+              detail,
+            })
+          const paused = await (deps.lock ? deps.lock(pause) : pause())
           await emit(deps, runID, { type: "final_gate", stage, detail })
           return { type: "paused", ...paused.pausedReason! }
         }
@@ -119,7 +125,8 @@ export namespace OrgConductor {
           pass: verdict.pass,
           detail: verdict.reasons?.join("; ") ?? verdict.summary,
         })
-        const applied = await OrgRunner.applyVerdict(deps.projectDir, deps.org, runID, stage, verdict, deps.now())
+        const apply = () => OrgRunner.applyVerdict(deps.projectDir, deps.org, runID, stage, verdict, deps.now())
+        const applied = await (deps.lock ? deps.lock(apply) : apply())
         if (applied.outcome === "escalated" || applied.outcome === "final_gate") {
           const reason = applied.run.pausedReason!
           await emit(deps, runID, {
@@ -179,13 +186,15 @@ export namespace OrgConductor {
         })),
       )
       for (const item of settled) {
-        await OrgRunner.recordToolUsage(
-          deps.projectDir,
-          deps.org,
-          runID,
-          item.stage,
-          item.result.toolIDs ?? [],
-        )
+        const record = () =>
+          OrgRunner.recordToolUsage(
+            deps.projectDir,
+            deps.org,
+            runID,
+            item.stage,
+            item.result.toolIDs ?? [],
+          )
+        await (deps.lock ? deps.lock(record) : record())
         taskResults.push({ stage: item.stage, taskID: item.result.taskID })
         await emit(deps, runID, {
           type: "deliverable_settled",

@@ -9,6 +9,11 @@ import { OrgSchema } from "@/kilocode/organization/schema"
 import { OrgRunner } from "@/kilocode/organization/runner"
 import { OrgNote } from "@/kilocode/organization/state"
 import { withRunLock } from "@/kilocode/organization/tools"
+import { OrgDriver } from "@/kilocode/organization/driver"
+import { effectSessionBridge } from "@/kilocode/organization/driver-session"
+import { Session } from "@/session/session"
+import * as SessionPrompt from "@/session/prompt"
+import { Provider } from "@/provider/provider"
 import type {
   OrgRunDecisionPayload,
   OrgRunDetailResponse,
@@ -118,6 +123,9 @@ export namespace OrgRunsView {
 
 export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs", (handlers) =>
   Effect.gen(function* () {
+    const sessions = yield* Session.Service
+    const prompts = yield* SessionPrompt.Service
+    const provider = yield* Provider.Service
     const organization = (projectDir: string) =>
       Effect.tryPromise({ try: () => OrgSchema.loadOrganization(projectDir), catch: (error) => error }).pipe(
         Effect.catch((error) => Effect.die(error)),
@@ -136,6 +144,25 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       )
 
     const response = (run: OrgState.Run) => ({ ok: true as const, runID: run.runID, status: run.status })
+
+    const startDriver = (projectDir: string, org: OrgSchema.Organization, run: OrgState.Run) => {
+      if (run.status !== "active" || run.auto !== true || !run.ownerSessionID) return
+      const runtime = OrgDriver.sessionRuntime({
+        ownerSessionID: run.ownerSessionID,
+        bridge: effectSessionBridge({ sessions, prompts, provider }),
+      })
+      void OrgDriver.attach({
+        projectDir,
+        org,
+        runID: run.runID,
+        runtime,
+        lock: (fn) => withRunLock(run.runID, fn),
+      }).catch((error) =>
+        console.warn(
+          `[org-runs] autonomous driver failed for "${run.runID}": ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      )
+    }
 
     const list = Effect.fn("OrgRunsHttpApi.list")(function* () {
       const instance = yield* InstanceState.context
@@ -172,6 +199,7 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       const run = yield* command(() =>
         withRunLock(ctx.params.runID, () => OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages)),
       )
+      startDriver(instance.directory, org, run)
       return response(run)
     })
 
@@ -193,6 +221,7 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
           ),
         ),
       )
+      startDriver(instance.directory, org, run)
       return response(run)
     })
 
@@ -259,6 +288,7 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
           OrgRunner.resume(instance.directory, org, ctx.params.runID, ctx.payload.note),
         ),
       )
+      startDriver(instance.directory, org, run)
       return response(run)
     })
 

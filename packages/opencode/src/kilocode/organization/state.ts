@@ -98,6 +98,8 @@ export namespace OrgState {
     status: z.enum(["active", "paused", "halted", "completed"]),
     haltReason: z.string().optional(),
     auto: z.boolean().optional(),
+    /** Root/CEO session that owns child chief and evaluator sessions for the headless driver. */
+    ownerSessionID: z.string().optional(),
     pausedReason: z
       .object({
         kind: z.enum(["escalation", "final_gate", "manual"]),
@@ -237,6 +239,7 @@ export namespace OrgState {
     org: OrgSchema.Organization,
     idea: string,
     mode?: string,
+    ownerSessionID?: string,
   ): Promise<Run> {
     const now = new Date()
     const runID = `${stamp(now)}-${slugify(idea)}`
@@ -256,6 +259,7 @@ export namespace OrgState {
         ]),
       ),
       mode,
+      ownerSessionID,
     }
     await write(projectDir, run)
     return run
