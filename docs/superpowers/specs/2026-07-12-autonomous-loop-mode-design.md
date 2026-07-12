@@ -210,7 +210,7 @@ The conductor runs as a **headless driver** attached to a run, reusing the `run 
   - **final-gate card** (approve/revise/cancel) → `org_decision`
   - `[p] pause` / `[s] stop` keybinds.
 
-**Write path:** as today, decisions/notes/stop are driven by sending CEO-session messages (the existing convention), OR — cleaner — by adding thin HTTP endpoints for `org_decision`/`org_note`/`org_stop`/pause-resume so Mission Control acts directly. **Decision:** add the HTTP endpoints (removes the fragile "CEO agent must translate a chat message into a tool call" dependency that EPIC 7/8 flagged), guarded and run-scoped, reusing the org-runs handler patterns. Pause/resume is a new endpoint that sets `run.status` and (re)starts the conductor `drive`.
+**Write path:** as today, decisions/notes/stop are driven by sending CEO-session messages (the existing convention), OR — cleaner — by adding thin HTTP endpoints for `plan`/`org_decision`/`org_note`/`org_stop`/pause-resume so Mission Control acts directly. **Decision:** add the HTTP endpoints (removes the fragile "CEO agent must translate a chat message into a tool call" dependency that EPIC 7/8 flagged), guarded and run-scoped, reusing the org-runs handler patterns. Pause/resume is a new endpoint that sets `run.status` and (re)starts the conductor `drive`. The **`plan` endpoint** (`POST /org-runs/:id/plan`) commits the human-approved (and possibly edited) per-stage criteria from the plan-approval card and flips `run.auto=true` — the same effect as the `org_plan` tool, exposed over HTTP so Mission Control (which has no agent identity) can drive plan approval directly.
 
 ## 6. Error handling & safety
 
@@ -226,7 +226,7 @@ The conductor runs as a **headless driver** attached to a run, reusing the `run 
 - **`OrgEvaluator` (pure):** `prompt` shape; `parse` for `pass`, `revise`+reasons, and malformed → fail-safe. No LLM.
 - **`OrgConductor` (deterministic):** inject fake `spawnChief` + fake `evaluate` + fake clock; drive a fixture org through every path — pass-first-try, revise-then-pass, stuck→escalate, irreversible→final-gate, budget→halt, no-go→halt, resume-after-escalation. Assert exact state transitions and emitted events. No LLM, no network.
 - **Schema/state:** criteria/iterations/verdictHistory round-trip; `paused` status; back-compat with existing non-auto runs.
-- **HTTP endpoints:** decision/note/stop/pause-resume — happy path + run-scoped guards + fail-closed on invalid.
+- **HTTP endpoints:** plan/decision/note/stop/pause-resume — happy path + run-scoped guards + fail-closed on invalid.
 - **Mission Control TUI:** pure view-model builders (`buildEvaluatorPanel`, `loopGauge`, timeline annotations) unit-tested; PLUS a render/integration test — **EPIC 8 lesson: pure view-model tests miss render-layer bugs (SolidJS reactive loops, ErrorBoundary crash paths, fetch-failure). The wave-close adversarial review is load-bearing for the render layer.**
 - **End-to-end exit test:** seed a fixture auto-run, drive it with scripted chief/evaluator outputs, assert it reaches completion through the loop and pauses correctly at escalation + final gate.
 
@@ -235,7 +235,7 @@ The conductor runs as a **headless driver** attached to a run, reusing the `run 
 Two coupled sub-projects; the TUI depends on the engine's data model, so the engine ships first. **One spec (this doc), two implementation phases in one plan:**
 
 - **SP1 — Autonomous engine** (backend, headless, fully testable):
-  `OrgEvaluator` → schema/state extensions → `OrgConductor` → `org_plan` + plan-approval handoff → stop conditions → HTTP endpoints (decision/note/stop/pause-resume) → conductor driver + events → engine exit test.
+  `OrgEvaluator` → schema/state extensions → `OrgConductor` → `org_plan` + plan-approval handoff → stop conditions → HTTP endpoints (plan/decision/note/stop/pause-resume) → conductor driver + events → engine exit test.
 - **SP2 — Mission Control TUI** (on top of SP1):
   evaluator panel + loop gauge + timeline annotations (pure builders) → conversation strip (plan/steer/escalation/final-gate cards) → route wiring + polling → live-browser proof → wave-close adversarial review.
 
@@ -251,5 +251,5 @@ Each phase ends with the project discipline: exit test → adversarial wave-clos
 
 ## 10. Interfaces summary (for the plan)
 
-New files: `organization/evaluator.ts`, `organization/conductor.ts`, `organization/irreversible.ts`, cockpit `evaluator-panel` builder, HTTP handlers for decision/note/stop/pause-resume, conversation-strip components.
+New files: `organization/evaluator.ts`, `organization/conductor.ts`, `organization/irreversible.ts`, cockpit `evaluator-panel` builder, HTTP handlers for plan/decision/note/stop/pause-resume, conversation-strip components.
 Changed files: `schema.ts` (+criteria/irreversible/loop), `state.ts` (+auto/paused/criteria/iterations/verdictHistory/selectors), `tools.ts` (+`org_plan`), the org-runs HTTP detail (surface criteria/iterations/verdicts/paused), the cockpit route/view, `run --auto` (wire the conductor), templates (author criteria + irreversible flags on ship stages), CEO agent prompt (`org_plan` protocol).
