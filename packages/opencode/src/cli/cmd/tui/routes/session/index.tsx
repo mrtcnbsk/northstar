@@ -111,6 +111,10 @@ import { RoutedModelMeta } from "@/kilocode/cli/cmd/tui/routes/session/routed-mo
 import { formatMarkdownTables } from "../../util/markdown"
 import { submitFeedback } from "@/kilocode/cli/cmd/tui/feedback"
 import { MemoryMessageMeta, MemorySessionTui } from "@/kilocode/cli/cmd/tui/routes/session/memory" // kilocode_change
+// kilocode_change start - Task 7.4 (EPIC 7): inline gate card for org_advance human_gate
+import { parseGate } from "@/kilocode/cli/cmd/tui/gate-card"
+import { OrgGateCard } from "@/kilocode/cli/cmd/tui/routes/session/gate-card"
+// kilocode_change end
 // kilocode_change end
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
@@ -1895,6 +1899,12 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
   const ctx = use()
   const sync = useSync()
 
+  // kilocode_change start - Task 7.4 (EPIC 7): inline gate card for an org_advance
+  // human_gate. Detected off the part itself (not a synced pending-request map, see
+  // gate-card.tsx's doc comment) so it renders as soon as the completed ToolPart syncs in.
+  const gate = createMemo(() => parseGate(props.part))
+  // kilocode_change end
+
   // Hide tool if showDetails is false and tool completed successfully
   const shouldHide = createMemo(() => {
     if (ctx.showDetails()) return false
@@ -1926,7 +1936,13 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
   }
 
   return (
-    <Show when={!shouldHide()}>
+    // kilocode_change start - Task 7.4 (EPIC 7): wrap in a Fragment so the inline gate
+    // card below can render as a sibling of the (possibly showDetails-hidden) tool Switch,
+    // instead of being nested inside the single <Show when={!shouldHide()}> this function
+    // used to return.
+    <>
+      <Show when={!shouldHide()}>
+        {/* kilocode_change end */}
       <Switch>
         <Match when={props.part.tool === ShellID.ToolID}>
           <Shell {...toolprops} />
@@ -1998,7 +2014,19 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
           <GenericTool {...toolprops} />
         </Match>
       </Switch>
-    </Show>
+      {/* kilocode_change start - Task 7.4 (EPIC 7): inline a/n/r card for an org_advance
+          human_gate. Rendered as a SIBLING of the (possibly hidden) tool-part Switch
+          above, not nested inside it - this is actionable UI, not raw tool output, so it
+          must stay visible even when showDetails is off and the completed org_advance
+          call itself is collapsed. */}
+      </Show>
+      <Show when={gate()} keyed>
+        {(card) => (
+          <OrgGateCard part={props.part} sessionID={props.message.sessionID} agent={props.message.agent} card={card} />
+        )}
+      </Show>
+    </>
+    // kilocode_change end
   )
 }
 
