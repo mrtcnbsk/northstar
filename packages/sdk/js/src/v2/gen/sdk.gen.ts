@@ -253,10 +253,22 @@ import type {
   NotebookResult,
   OrgBuilderSaveErrors,
   OrgBuilderSaveResponses,
+  OrgRunsDecisionErrors,
+  OrgRunsDecisionResponses,
   OrgRunsDetailErrors,
   OrgRunsDetailResponses,
   OrgRunsListErrors,
   OrgRunsListResponses,
+  OrgRunsNoteErrors,
+  OrgRunsNoteResponses,
+  OrgRunsPauseErrors,
+  OrgRunsPauseResponses,
+  OrgRunsPlanErrors,
+  OrgRunsPlanResponses,
+  OrgRunsResumeErrors,
+  OrgRunsResumeResponses,
+  OrgRunsStopErrors,
+  OrgRunsStopResponses,
   OutputFormat,
   Part as Part2,
   PartDeleteErrors,
@@ -630,7 +642,7 @@ export class App extends HeyApiClient {
   /**
    * List agents
    *
-   * Get a list of all available AI agents in the Kilo system.
+   * Get a list of all available AI agents in the Northstar system.
    */
   public agents<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -660,7 +672,7 @@ export class App extends HeyApiClient {
   /**
    * List skills
    *
-   * Get a list of all available skills in the Kilo system.
+   * Get a list of all available skills in the Northstar system.
    */
   public skills<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -692,7 +704,7 @@ export class Config extends HeyApiClient {
   /**
    * Get global configuration
    *
-   * Retrieve the current global Kilo configuration settings and preferences.
+   * Retrieve the current global Northstar configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalConfigGetResponses, GlobalConfigGetErrors, ThrowOnError>({
@@ -704,7 +716,7 @@ export class Config extends HeyApiClient {
   /**
    * Update global configuration
    *
-   * Update global Kilo configuration settings and preferences.
+   * Update global Northstar configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -730,7 +742,7 @@ export class Global extends HeyApiClient {
   /**
    * Get health
    *
-   * Get health information about the Kilo server.
+   * Get health information about the Northstar server.
    */
   public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalHealthResponses, GlobalHealthErrors, ThrowOnError>({
@@ -742,7 +754,7 @@ export class Global extends HeyApiClient {
   /**
    * Get global events
    *
-   * Subscribe to global events from the Kilo system using server-sent events.
+   * Subscribe to global events from the Northstar system using server-sent events.
    */
   public event<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).sse.get<GlobalEventResponses, GlobalEventErrors, ThrowOnError>({
@@ -754,7 +766,7 @@ export class Global extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose all Kilo instances, releasing all resources.
+   * Clean up and dispose all Northstar instances, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).post<GlobalDisposeResponses, GlobalDisposeErrors, ThrowOnError>({
@@ -829,7 +841,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Get configuration
    *
-   * Retrieve the current Kilo configuration settings and preferences.
+   * Retrieve the current Northstar configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -859,7 +871,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Update configuration
    *
-   * Update Kilo configuration settings and preferences.
+   * Update Northstar configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1095,7 +1107,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Get project rules
    *
-   * List project instruction files used by Kilo and return their current contents.
+   * List project instruction files used by Northstar and return their current contents.
    */
   public rules<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1196,7 +1208,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Update model state
    *
-   * Patch TUI-compatible model selections shared with Kilo Console.
+   * Patch TUI-compatible model selections shared with Northstar Console.
    */
   public modelStateUpdate<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1310,7 +1322,7 @@ export class Console extends HeyApiClient {
   /**
    * Switch active Console org
    *
-   * Persist a new active Console account/org selection for the current local Kilo state.
+   * Persist a new active Console account/org selection for the current local Northstar state.
    */
   public switchOrg<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1351,7 +1363,7 @@ export class Session extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all Kilo sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
+   * Get a list of all Northstar sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1839,7 +1851,7 @@ export class Worktree extends HeyApiClient {
   /**
    * List worktrees
    *
-   * List all git worktrees for the current project and whether Kilo manages them.
+   * List all git worktrees for the current project and whether Northstar manages them.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2243,7 +2255,7 @@ export class Instance extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose the current Kilo instance, releasing all resources.
+   * Clean up and dispose the current Northstar instance, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2273,7 +2285,7 @@ export class Instance extends HeyApiClient {
   /**
    * Reload instance
    *
-   * Atomically dispose and reboot the current Kilo instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.
+   * Atomically dispose and reboot the current Northstar instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.
    */
   public reload<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2305,7 +2317,7 @@ export class Path extends HeyApiClient {
   /**
    * Get paths
    *
-   * Retrieve the current working directory and related path information for the Kilo instance.
+   * Retrieve the current working directory and related path information for the Northstar instance.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2507,7 +2519,7 @@ export class Command extends HeyApiClient {
   /**
    * List commands
    *
-   * Get a list of all available commands in the Kilo system.
+   * Get a list of all available commands in the Northstar system.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2908,7 +2920,7 @@ export class Project extends HeyApiClient {
   /**
    * Get current project
    *
-   * Retrieve the currently active project that Kilo is working with.
+   * Retrieve the currently active project that Northstar is working with.
    */
   public current<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -3779,7 +3791,7 @@ export class Session2 extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all Kilo sessions, sorted by most recently updated.
+   * Get a list of all Northstar sessions, sorted by most recently updated.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -3821,7 +3833,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Create session
    *
-   * Create a new Kilo session for interacting with AI assistants and managing conversations.
+   * Create a new Northstar session for interacting with AI assistants and managing conversations.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -3940,7 +3952,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Get session
    *
-   * Retrieve detailed information about a specific Kilo session.
+   * Retrieve detailed information about a specific Northstar session.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters: {
@@ -6556,9 +6568,9 @@ export class Indexing extends HeyApiClient {
   }
 
   /**
-   * List Kilo embedding models
+   * List Northstar embedding models
    *
-   * Retrieve the embedding models available through the active Kilo account.
+   * Retrieve the embedding models available through the active Northstar account.
    */
   public models<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6784,7 +6796,7 @@ export class Audio extends HeyApiClient {
   /**
    * Speech to text transcription
    *
-   * Proxy an audio transcription request to the Kilo Gateway
+   * Proxy an audio transcription request to the Northstar Gateway
    */
   public transcriptions<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6838,7 +6850,7 @@ export class Models extends HeyApiClient {
   /**
    * Image generation models
    *
-   * List image-capable models from the Kilo Gateway OpenRouter passthrough
+   * List image-capable models from the Northstar Gateway OpenRouter passthrough
    */
   public images<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6868,9 +6880,9 @@ export class Models extends HeyApiClient {
 
 export class Organization extends HeyApiClient {
   /**
-   * Update Kilo Gateway organization
+   * Update Northstar Gateway organization
    *
-   * Switch to a different Kilo Gateway organization
+   * Switch to a different Northstar Gateway organization
    */
   public set<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6941,7 +6953,7 @@ export class Claw extends HeyApiClient {
   /**
    * Get KiloClaw chat credentials
    *
-   * Returns the bearer token and endpoint URLs the client uses to talk to the Kilo Chat worker and the Event Service. The bearer is the user's existing long-lived Kilo JWT — kilo-chat and event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.
+   * Returns the bearer token and endpoint URLs the client uses to talk to the Northstar Chat worker and the Event Service. The bearer is the user's existing long-lived Northstar JWT — kilo-chat and event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.
    */
   public chatCredentials<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6977,7 +6989,7 @@ export class Session4 extends HeyApiClient {
   /**
    * Get cloud session
    *
-   * Fetch full session data from the Kilo cloud for preview
+   * Fetch full session data from the Northstar cloud for preview
    */
   public get<ThrowOnError extends boolean = false>(
     parameters: {
@@ -7057,9 +7069,9 @@ export class Cloud extends HeyApiClient {
 
 export class Kilo extends HeyApiClient {
   /**
-   * Get Kilo Gateway profile
+   * Get Northstar Gateway profile
    *
-   * Fetch user profile and organizations from Kilo Gateway
+   * Fetch user profile and organizations from Northstar Gateway
    */
   public profile<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -7087,9 +7099,9 @@ export class Kilo extends HeyApiClient {
   }
 
   /**
-   * Get Kilo authentication status
+   * Get Northstar authentication status
    *
-   * Check whether a locally stored Kilo credential can authenticate Gateway requests
+   * Check whether a locally stored Northstar credential can authenticate Gateway requests
    */
   public authStatus<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -7149,7 +7161,7 @@ export class Kilo extends HeyApiClient {
   /**
    * FIM completion
    *
-   * Proxy a Fill-in-the-Middle completion request to the Kilo Gateway
+   * Proxy a Fill-in-the-Middle completion request to the Northstar Gateway
    */
   public fim<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -7254,9 +7266,9 @@ export class Kilo extends HeyApiClient {
   }
 
   /**
-   * Get Kilo notifications
+   * Get Northstar notifications
    *
-   * Fetch notifications from Kilo Gateway for CLI display
+   * Fetch notifications from Northstar Gateway for CLI display
    */
   public notifications<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -7286,7 +7298,7 @@ export class Kilo extends HeyApiClient {
   /**
    * Get cloud sessions
    *
-   * Fetch cloud CLI sessions from Kilo API
+   * Fetch cloud CLI sessions from Northstar API
    */
   public cloudSessions<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -8124,7 +8136,7 @@ export class AnacondaDesktop extends HeyApiClient {
   /**
    * Synchronize Anaconda Desktop provider
    *
-   * Discover the active local inference server and replace Kilo provider authentication metadata.
+   * Discover the active local inference server and replace Northstar provider authentication metadata.
    */
   public sync<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -8356,6 +8368,241 @@ export class OrgRuns extends HeyApiClient {
       url: "/org-runs/{runID}",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Commit autonomous plan
+   */
+  public plan<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      stages?: Array<{
+        stage: string
+        objective: string
+        criteria: Array<string>
+        agents?: Array<string>
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "stages" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsPlanResponses, OrgRunsPlanErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/plan",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Apply run gate decision
+   */
+  public decision<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      decision?: "approve" | "no-go" | "revise"
+      note?: string
+      stage?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "decision" },
+            { in: "body", key: "note" },
+            { in: "body", key: "stage" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsDecisionResponses, OrgRunsDecisionErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/decision",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Queue run steering note
+   */
+  public note<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      target_agent?: string
+      text?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "target_agent" },
+            { in: "body", key: "text" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsNoteResponses, OrgRunsNoteErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/note",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Stop org run
+   */
+  public stop<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsStopResponses, OrgRunsStopErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/stop",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Pause autonomous run
+   */
+  public pause<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      detail?: string
+      stage?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "detail" },
+            { in: "body", key: "stage" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsPauseResponses, OrgRunsPauseErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/pause",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Resume autonomous run
+   */
+  public resume<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      note?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "note" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrgRunsResumeResponses, OrgRunsResumeErrors, ThrowOnError>({
+      url: "/org-runs/{runID}/resume",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }

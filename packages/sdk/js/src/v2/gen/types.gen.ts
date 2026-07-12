@@ -1182,7 +1182,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for the kilo serve command
+ * Server configuration for the northstar serve command
  */
 export type ServerConfig = {
   port?: number
@@ -1583,7 +1583,7 @@ export type Config = {
   indexing?: IndexingConfig
   console?: {
     /**
-     * Width of the Kilo Console project context sidebar in pixels
+     * Width of the Northstar Console project context sidebar in pixels
      */
     context_sidebar_width?: number
     diff_style?: "unified" | "split"
@@ -2857,7 +2857,7 @@ export type OrgBuilderSaveOutput = {
 export type OrgRunSummary = {
   runID: string
   idea: string
-  status: "active" | "halted" | "completed"
+  status: "active" | "paused" | "halted" | "completed"
   createdAt: string
   totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   stageCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -2885,18 +2885,37 @@ export type OrgRunStage = {
   reviseNote?: string
   startedAt?: string
   completedAt?: string
+  escalationNote?: string
+  invalidatedDownstream?: Array<string>
+  criteria?: Array<string>
+  objective?: string
+  iterations?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  verdictHistory?: Array<{
+    pass: boolean
+    reasons?: Array<string>
+    summary?: string
+    ts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  toolsUsed?: Array<string>
 }
 
 export type OrgRunFull = {
   runID: string
   idea: string
   createdAt: string
-  status: "active" | "halted" | "completed"
+  status: "active" | "paused" | "halted" | "completed"
   haltReason?: string
+  auto?: boolean
+  pausedReason?: {
+    kind: "escalation" | "final_gate" | "manual"
+    stage: string
+    detail: string
+  }
   stages: {
     [key: string]: OrgRunStage
   }
   escalated?: boolean
+  mode?: string
 }
 
 export type OrgAuditEntry = {
@@ -2905,6 +2924,19 @@ export type OrgAuditEntry = {
   decision: string
   note?: string
   deliverableHash?: string
+  event?:
+    | "stage_started"
+    | "deliverable_settled"
+    | "evaluator_verdict"
+    | "revise_iteration"
+    | "escalation"
+    | "final_gate"
+    | "completed"
+    | "halted"
+  iteration?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  pass?: boolean
+  taskID?: string
+  cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type OrgRunStageView = {
@@ -2915,6 +2947,16 @@ export type OrgRunStageView = {
   startedAt: string
   completedAt: string
   decision: "approve" | "no-go" | "revise"
+  criteria?: Array<string>
+  objective?: string
+  iterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  verdictHistory?: Array<{
+    pass: boolean
+    reasons?: Array<string>
+    summary?: string
+    ts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  toolsUsed?: Array<string>
 }
 
 export type OrgRunBudget = {
@@ -2927,12 +2969,24 @@ export type OrgRunBudget = {
   escalated: boolean
 }
 
+export type OrgRunLoop = {
+  maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  evaluatorModel: string
+}
+
 export type OrgRunDetailResponse = {
   run: OrgRunFull
   audit: Array<OrgAuditEntry>
   totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   stages: Array<OrgRunStageView>
   budget?: OrgRunBudget
+  loop?: OrgRunLoop
+}
+
+export type OrgRunCommandResponse = {
+  ok: boolean
+  runID: string
+  status: "active" | "paused" | "halted" | "completed"
 }
 
 export type KilocodeSessionImportResult = {
@@ -10776,7 +10830,7 @@ export type IndexingModelsError = IndexingModelsErrors[keyof IndexingModelsError
 
 export type IndexingModelsResponses = {
   /**
-   * Kilo embedding model catalog
+   * Northstar embedding model catalog
    */
   200: KiloEmbeddingModelCatalog
 }
@@ -11053,7 +11107,7 @@ export type KiloAuthStatusError = KiloAuthStatusErrors[keyof KiloAuthStatusError
 
 export type KiloAuthStatusResponses = {
   /**
-   * Kilo authentication status
+   * Northstar authentication status
    */
   200: {
     authenticated: boolean
@@ -11430,7 +11484,7 @@ export type KiloClawChatCredentialsError = KiloClawChatCredentialsErrors[keyof K
 
 export type KiloClawChatCredentialsResponses = {
   /**
-   * Kilo Chat credentials or null
+   * Northstar Chat credentials or null
    */
   200: {
     token: string
@@ -12165,6 +12219,231 @@ export type OrgRunsDetailResponses = {
 }
 
 export type OrgRunsDetailResponse = OrgRunsDetailResponses[keyof OrgRunsDetailResponses]
+
+export type OrgRunsPlanData = {
+  body?: {
+    stages: Array<{
+      stage: string
+      objective: string
+      criteria: Array<string>
+      agents?: Array<string>
+    }>
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/plan"
+}
+
+export type OrgRunsPlanErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsPlanError = OrgRunsPlanErrors[keyof OrgRunsPlanErrors]
+
+export type OrgRunsPlanResponses = {
+  /**
+   * Committed autonomous plan
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsPlanResponse = OrgRunsPlanResponses[keyof OrgRunsPlanResponses]
+
+export type OrgRunsDecisionData = {
+  body?: {
+    decision: "approve" | "no-go" | "revise"
+    note?: string
+    stage?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/decision"
+}
+
+export type OrgRunsDecisionErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsDecisionError = OrgRunsDecisionErrors[keyof OrgRunsDecisionErrors]
+
+export type OrgRunsDecisionResponses = {
+  /**
+   * Applied run gate decision
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsDecisionResponse = OrgRunsDecisionResponses[keyof OrgRunsDecisionResponses]
+
+export type OrgRunsNoteData = {
+  body?: {
+    target_agent: string
+    text: string
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/note"
+}
+
+export type OrgRunsNoteErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsNoteError = OrgRunsNoteErrors[keyof OrgRunsNoteErrors]
+
+export type OrgRunsNoteResponses = {
+  /**
+   * Queued run steering note
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsNoteResponse = OrgRunsNoteResponses[keyof OrgRunsNoteResponses]
+
+export type OrgRunsStopData = {
+  body?: {
+    reason: string
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/stop"
+}
+
+export type OrgRunsStopErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsStopError = OrgRunsStopErrors[keyof OrgRunsStopErrors]
+
+export type OrgRunsStopResponses = {
+  /**
+   * Stopped run
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsStopResponse = OrgRunsStopResponses[keyof OrgRunsStopResponses]
+
+export type OrgRunsPauseData = {
+  body?: {
+    detail: string
+    stage?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/pause"
+}
+
+export type OrgRunsPauseErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsPauseError = OrgRunsPauseErrors[keyof OrgRunsPauseErrors]
+
+export type OrgRunsPauseResponses = {
+  /**
+   * Paused run
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsPauseResponse = OrgRunsPauseResponses[keyof OrgRunsPauseResponses]
+
+export type OrgRunsResumeData = {
+  body?: {
+    note?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/org-runs/{runID}/resume"
+}
+
+export type OrgRunsResumeErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrgRunsResumeError = OrgRunsResumeErrors[keyof OrgRunsResumeErrors]
+
+export type OrgRunsResumeResponses = {
+  /**
+   * Resumed run
+   */
+  200: OrgRunCommandResponse
+}
+
+export type OrgRunsResumeResponse = OrgRunsResumeResponses[keyof OrgRunsResumeResponses]
 
 export type RemoteEnableData = {
   body?: never
