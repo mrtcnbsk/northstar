@@ -1,5 +1,11 @@
 # kilo-code
 
+## 7.5.0
+
+### Patch Changes
+
+- [`39468b0`](https://github.com/mrtcnbsk/northstar/commit/39468b0441ddb46aa24a27d2efd6d6a2662ef392) - Show effective permission defaults and clarify external-directory approvals in VS Code.
+
 ## 7.4.4
 
 ### Patch Changes
