@@ -10,7 +10,7 @@ import { Config } from "@/config/config"
 import { KiloCostPropagation } from "@/kilocode/session/cost-propagation"
 import { OrgSchema } from "./schema"
 import { OrgRunner } from "./runner"
-import { OrgState } from "./state"
+import { OrgState, OrgNote } from "./state"
 import { OrgAudit } from "./audit" // kilocode_change - W6.2: postmortem's gate-decision trail
 import { OrgPostmortem } from "./postmortem" // kilocode_change - W6.2: postrun postmortem hook
 import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson in the org memory pool
@@ -433,6 +433,46 @@ export const OrgDecisionTool = Tool.define(
     }
   }),
 )
+
+// kilocode_change start - Task 7.3 (EPIC 7): the org_note side-channel tool. Mirrors
+// OrgDecisionTool's shape exactly (guardCeo -> withRunLock -> a single OrgState-backed mutation),
+// but never touches run.stages/status/gate - it only appends to run.notes (OrgNote.append), which
+// OrgRunner.stagePromptFor later surfaces read-only into a matching stage's NEXT instruct. Does
+// NOT interrupt the currently-running stage.
+const NoteParameters = Schema.Struct({
+  run_id: Schema.String,
+  target_agent: Schema.String.annotate({
+    description: 'Agent name to address (a chief/worker name), "*" for every stage, or the ceo agent name',
+  }),
+  text: Schema.String.annotate({ description: "The note text, verbatim from the user" }),
+})
+
+export const OrgNoteTool = Tool.define(
+  "org_note",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Queue a side-channel note for a running organization pipeline. It surfaces read-only inside target_agent's NEXT stage instruction (or every stage's, for \"*\"/the ceo) - it does NOT interrupt the currently-running stage or change any gate/decision. Use for a user message directed at an agent while a pipeline stage is in flight.",
+      parameters: NoteParameters,
+      execute: (params: Schema.Schema.Type<typeof NoteParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const instance = yield* InstanceState.context
+          const dir = instance.directory
+          const org = yield* load(dir)
+          yield* guardCeo(org, ctx.agent)
+          // kilocode_change - W0-R2: serialize against other mutating org tool calls on this run_id
+          // (see withRunLock's doc comment above OrgAdvanceTool).
+          yield* tryOrg(() =>
+            withRunLock(params.run_id, () =>
+              OrgNote.append(dir, org, params.run_id, { target: params.target_agent, text: params.text, from: ctx.agent }),
+            ),
+          )
+          return result(`note queued for ${params.target_agent}`, { ok: true })
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+// kilocode_change end
 
 const StatusParameters = Schema.Struct({
   run_id: Schema.optional(Schema.String),

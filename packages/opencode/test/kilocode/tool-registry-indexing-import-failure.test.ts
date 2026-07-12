@@ -59,6 +59,7 @@ function infos() {
     orgDecision: info("org_decision"),
     orgStatus: info("org_status"),
     orgStop: info("org_stop"),
+    orgNote: info("org_note"),
     orgMemorySave: info("org_memory_save"),
     orgRecall: info("org_recall"),
     orgSearch: info("org_search"),

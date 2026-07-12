@@ -1,6 +1,7 @@
 // kilocode_change - new file
 import path from "path"
 import { readdir } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
 import z from "zod"
 import { Filesystem } from "../../util/filesystem"
 import { OrgSchema } from "./schema"
@@ -53,6 +54,24 @@ export namespace OrgState {
   })
   export type Stage = z.output<typeof Stage>
 
+  /**
+   * A mid-run side-channel note (Task 7.3, EPIC 7): queued via `org_note`, surfaced read-only into
+   * a target agent's NEXT stage instruction by `OrgRunner.stagePromptFor`. `target` is an agent
+   * name (chief or worker), `"*"` (broadcast to every stage), or the org's ceo agent name (also
+   * treated as a broadcast, since the CEO itself never receives a `stagePromptFor` prompt).
+   * `consumedByStage` is set once the note has been surfaced into some stage's prompt, so it is
+   * never repeated on a later instruct of the same or another stage.
+   */
+  export const Note = z.object({
+    id: z.string(),
+    target: z.string(),
+    text: z.string(),
+    from: z.string().optional(),
+    ts: z.string(),
+    consumedByStage: z.string().optional(),
+  })
+  export type Note = z.output<typeof Note>
+
   export const Run = z.object({
     runID: z.string(),
     idea: z.string(),
@@ -64,6 +83,9 @@ export namespace OrgState {
     escalated: z.boolean().optional(),
     /** Optional run-level mode (e.g. "mvp", "full"), set at org_start and consulted by stage `when: {mode}` conditions. */
     mode: z.string().optional(),
+    /** Side-channel notes (Task 7.3). Optional/back-compat: absent on state.json written before
+     * this field existed, and on any run nothing has ever been noted on. */
+    notes: z.array(Note).optional(),
   })
   export type Run = z.output<typeof Run>
 
@@ -246,5 +268,48 @@ export namespace OrgState {
   // Filesystem.write is atomic (unique tmp suffix + rename) and mkdirs the parent on ENOENT.
   async function write(projectDir: string, run: Run): Promise<void> {
     await Filesystem.write(stateFile(projectDir, run.runID), JSON.stringify(run, null, 2))
+  }
+}
+
+/**
+ * Task 7.3 (EPIC 7, TUI Chat): the org_note side-channel core. Appending a note is the ONLY
+ * mutation this namespace performs (via `OrgState.update`, same read-modify-write primitive every
+ * other org mutator uses); it never touches `run.stages`/`run.status`/`run.escalated` or any other
+ * field the runner's state machine reads, so appending a note can never perturb a run's
+ * deterministic progression (see `OrgRunner.stagePromptFor`'s surfacing + org-note.test.ts's
+ * determinism pin). A note is read-only at prompt-build time: `OrgRunner.stagePromptFor` only
+ * SURFACES a matching note into a prompt (and returns its id); it performs no write. Consumption
+ * (marking `consumedByStage`) happens in exactly one place — `OrgRunner.advance`, once per call, in
+ * a single serial update strictly after its fan-out settles, and ONLY for notes delivered via a
+ * guaranteed-delivered `batch.instruct` item (wave-close review Findings 1+2, EPIC 7: a note only
+ * ever RENDERED into a conditionally-delivered `batch.incomplete` prompt is deliberately left
+ * unconsumed, so a dropped resume_chief prompt can never silently lose it).
+ */
+export namespace OrgNote {
+  /**
+   * Append a side-channel note targeting `target` (an agent name, `"*"`, or the org's ceo — see
+   * `OrgState.Note`). `org` is accepted for signature symmetry with the run's other org-aware
+   * mutators (`OrgRunner.decide`, etc.) and as a natural extension point for future target
+   * validation; today `append` accepts any `target` string unconditionally — an unmatched target
+   * is simply never surfaced (see `OrgRunner.stagePromptFor`), never a validation error here, so a
+   * note aimed at a not-yet-reached or renamed stage doesn't reject the call.
+   */
+  export async function append(
+    projectDir: string,
+    org: OrgSchema.Organization,
+    runID: string,
+    input: { target: string; text: string; from?: string },
+  ): Promise<OrgState.Run> {
+    void org
+    const note: OrgState.Note = {
+      id: randomUUID(),
+      target: input.target,
+      text: input.text,
+      from: input.from,
+      ts: new Date().toISOString(),
+    }
+    return OrgState.update(projectDir, runID, (run) => {
+      run.notes = [...(run.notes ?? []), note]
+    })
   }
 }
