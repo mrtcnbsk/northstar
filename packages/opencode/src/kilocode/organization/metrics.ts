@@ -215,7 +215,7 @@ export namespace OrgMetrics {
       console.warn(
         `[metrics] no usable organization.jsonc for ${projectDir}, degrading to an empty org: ${e instanceof Error ? e.message : String(e)}`,
       )
-      return { ceo: "", departments: {}, shared: [], pipeline: [] } as OrgSchema.Organization
+      return { ceo: "", departments: {}, shared: [], pipeline: [], toolpacks: [] } as OrgSchema.Organization
     })
 
     return aggregate(org, runs)

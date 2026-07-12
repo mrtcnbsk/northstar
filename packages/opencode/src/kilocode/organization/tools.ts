@@ -160,7 +160,7 @@ export function result(title: string, body: unknown) {
 }
 
 const StartParameters = Schema.Struct({
-  idea: Schema.String.annotate({ description: "The app idea, verbatim from the user" }),
+  idea: Schema.String.annotate({ description: "The idea/brief, verbatim from the user" }),
   mode: Schema.optional(Schema.String).annotate({
     description: "Optional mode string, e.g. 'mvp', consulted by stage `when` conditions",
   }),
@@ -171,7 +171,7 @@ export const OrgStartTool = Tool.define(
   Effect.gen(function* () {
     return {
       description:
-        "Start a new organization pipeline run from an app idea. Returns the run_id. Then call org_advance to get the first stage instruction.",
+        "Start a new organization pipeline run from an idea/brief. Returns the run_id. Then call org_advance to get the first stage instruction.",
       parameters: StartParameters,
       execute: (params: Schema.Schema.Type<typeof StartParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {

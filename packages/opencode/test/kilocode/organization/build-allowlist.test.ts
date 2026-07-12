@@ -7,7 +7,7 @@ import { Permission } from "../../../src/permission"
 import { BashArity } from "../../../src/permission/arity"
 import type { ConfigPermission } from "../../../src/config/permission"
 
-const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
+const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "templates", "ios-app-factory")
 
 async function loadAgents() {
   return ConfigAgent.load(TEMPLATE)

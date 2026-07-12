@@ -46,6 +46,9 @@ export namespace OrgSchema {
     budget: Budget.optional(),
     /** Max stages the runner will run concurrently per advance() batch. Default 1 (sequential, current behavior). */
     maxConcurrency: z.number().int().positive().optional(),
+    /** Opt-in toolpacks (see `kilocode/tool/toolpacks.ts`) whose tools become visible to every
+     * agent in this org. Generic - not specific to any one pack (e.g. "apple-delivery"). */
+    toolpacks: z.array(z.string()).default([]),
   })
   export type Organization = z.output<typeof Organization>
 
@@ -254,7 +257,7 @@ export namespace OrgSchema {
       .catch((e: unknown) => {
         if ((e as NodeJS.ErrnoException)?.code === "ENOENT") {
           throw new Error(
-            `No organization found: expected ${file}. Copy org-template/ into your project's .kilo/ directory first.`,
+            `No organization found: expected ${file}. Run \`northstar org init --template <name>\` first.`,
           )
         }
         throw new Error(`Failed to read ${file}: ${e instanceof Error ? e.message : String(e)}`, { cause: e })

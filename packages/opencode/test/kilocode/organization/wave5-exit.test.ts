@@ -291,7 +291,7 @@ describe("Wave 5 exit verification", () => {
   test("shipped org-template: review precedes marketing with gate:human/haltOn:no-go, marketing requires review", async () => {
     // Same TEMPLATE path + load idiom as template.test.ts (not OrgSchema.loadOrganization, which
     // expects a project's `.kilo/organization.jsonc`, not the template's own top-level file).
-    const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "org-template")
+    const TEMPLATE = path.resolve(import.meta.dir, "../../../../..", "templates", "ios-app-factory")
     const text = await Bun.file(path.join(TEMPLATE, "organization.jsonc")).text()
     const org = OrgSchema.parse(parseJsonc(text))
 
