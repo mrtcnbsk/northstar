@@ -2848,6 +2848,12 @@ export type AnacondaDesktopOperationError = {
   message: string
 }
 
+export type OrgBuilderSaveOutput = {
+  ok: boolean
+  issues: Array<string>
+  path?: string
+}
+
 export type OrgRunSummary = {
   runID: string
   idea: string
@@ -9909,10 +9915,10 @@ export type AgentBuilderPreviewData = {
     permission?: {
       [key: string]: unknown
     }
-    prompt: string
     subordinates?: Array<string>
     capabilities?: Array<string>
     preferredTypes?: Array<string>
+    prompt: string
   }
   path?: never
   query?: {
@@ -9958,10 +9964,10 @@ export type AgentBuilderSaveData = {
     permission?: {
       [key: string]: unknown
     }
-    prompt: string
     subordinates?: Array<string>
     capabilities?: Array<string>
     preferredTypes?: Array<string>
+    prompt: string
   }
   path: {
     id: string
@@ -12093,11 +12099,7 @@ export type OrgBuilderSaveResponses = {
   /**
    * Fail-closed organization.jsonc write result
    */
-  200: {
-    ok: boolean
-    issues: Array<string>
-    path?: string
-  }
+  200: OrgBuilderSaveOutput
 }
 
 export type OrgBuilderSaveResponse = OrgBuilderSaveResponses[keyof OrgBuilderSaveResponses]
