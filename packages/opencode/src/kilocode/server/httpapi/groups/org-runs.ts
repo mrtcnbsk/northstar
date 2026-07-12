@@ -74,11 +74,28 @@ const OrgRunStageView = Schema.Struct({
   decision: Schema.NullOr(Schema.Literals(["approve", "no-go", "revise"])),
 }).annotate({ identifier: "OrgRunStageView" })
 
+/**
+ * Mirrors the `org_status` tool's budget assembly (organization/tools.ts OrgStatusTool):
+ * OrgSchema.resolveBudget(org) for the ceilings + runSummary(run).totalCost for spend. Optional on
+ * the response because organization.jsonc may be missing/corrupt for an otherwise-healthy run --
+ * see OrgRunsView.detail's graceful degrade (budget omitted, not zero-filled, when the org can't load).
+ */
+const OrgRunBudget = Schema.Struct({
+  run: Schema.Number,
+  stage: Schema.Number,
+  escalationThreshold: Schema.Number,
+  retries: Schema.Number,
+  spent: Schema.Number,
+  remaining: Schema.Number,
+  escalated: Schema.Boolean,
+}).annotate({ identifier: "OrgRunBudget" })
+
 export const OrgRunDetailResponse = Schema.Struct({
   run: OrgRunFull,
   audit: Schema.Array(OrgAuditEntry),
   totalCost: Schema.Number,
   stages: Schema.Array(OrgRunStageView),
+  budget: Schema.optional(OrgRunBudget),
 }).annotate({ identifier: "OrgRunDetailResponse" })
 
 export const OrgRunsPaths = {

@@ -2911,11 +2911,22 @@ export type OrgRunStageView = {
   decision: "approve" | "no-go" | "revise"
 }
 
+export type OrgRunBudget = {
+  run: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  stage: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  escalationThreshold: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  retries: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  spent: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  remaining: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  escalated: boolean
+}
+
 export type OrgRunDetailResponse = {
   run: OrgRunFull
   audit: Array<OrgAuditEntry>
   totalCost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   stages: Array<OrgRunStageView>
+  budget?: OrgRunBudget
 }
 
 export type KilocodeSessionImportResult = {

@@ -15,6 +15,11 @@ import type { EventSource } from "./context/sdk"
 import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { importCloudSession, localSessionID, validateCloudFork } from "@/kilocode/cloud-session" // kilocode_change
 import { createKiloClient } from "@kilocode/sdk/v2" // kilocode_change
+// kilocode_change start - Task 8.3 (EPIC 8): --dry-run preflight
+import { OrgSchema } from "@/kilocode/organization/schema"
+import * as ConfigAgent from "@/config/agent"
+import { dryRunReport } from "@/kilocode/cockpit/cockpit-view"
+// kilocode_change end
 import { writeHeapSnapshot } from "v8"
 import { TuiConfig } from "./config/tui"
 import { KiloTuiThreadDaemon, type StartInput } from "@/kilocode/cli/cmd/tui/thread" // kilocode_change
@@ -134,11 +139,54 @@ export const TuiThreadCommand = cmd({
         type: "string",
         describe: "prompt to use",
       })
+      // kilocode_change start - Task 8.3 (EPIC 8): --dry-run preflight
+      .option("dry-run", {
+        type: "boolean",
+        describe: "validate .kilo/organization.jsonc + agent roster and exit (no interactive session)",
+      })
+      // kilocode_change end
       .option("agent", {
         type: "string",
         describe: "agent to use",
       }),
   handler: async (args) => {
+    // kilocode_change start - Task 8.3 (EPIC 8): --dry-run preflight. Handled BEFORE any of the
+    // daemon/worker/CTRL+C-guard machinery below -- --dry-run never opens an interactive session,
+    // so none of that setup (or teardown) applies. Mirrors `org.ts`'s `handleInit` load -> validate
+    // -> crossCheck sequence: `OrgSchema.loadOrganization` (validates + throws on structural
+    // errors), `ConfigAgent.load` (the .kilo agent roster), then the pure, unit-tested
+    // `dryRunReport` (cockpit-view.ts) for the cross-check + summary counts.
+    if (args.dryRun) {
+      const cwd = resolveThreadDirectory(args.project)
+      try {
+        const org = await OrgSchema.loadOrganization(cwd)
+        const agents = await ConfigAgent.load(path.join(cwd, ".kilo"))
+        const report = dryRunReport(
+          org,
+          Object.fromEntries(
+            Object.entries(agents).map(([name, agent]) => [
+              name,
+              { mode: agent.mode, subordinates: (agent as { subordinates?: readonly string[] }).subordinates },
+            ]),
+          ),
+        )
+        UI.println(
+          `Dry run: ${report.departments} departments, ${report.stages} pipeline stages, ${report.agentCount} agents.`,
+        )
+        if (report.ok) {
+          UI.println("OK: organization and agent roster are consistent.")
+        } else {
+          UI.error(`Invalid organization:\n- ${report.issues.join("\n- ")}`)
+          process.exitCode = 1
+        }
+      } catch (err) {
+        UI.error(err instanceof Error ? err.message : String(err))
+        process.exitCode = 1
+      }
+      return
+    }
+    // kilocode_change end
+
     // Keep ENABLE_PROCESSED_INPUT cleared even if other code flips it.
     // (Important when running under `bun run` wrappers on Windows.)
     const unguard = win32InstallCtrlCGuard()

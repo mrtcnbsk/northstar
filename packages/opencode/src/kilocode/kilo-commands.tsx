@@ -156,6 +156,24 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
           dialog.clear()
         },
       },
+
+      // /cockpit command (Task 8.1b, EPIC 8) — opens the Cockpit dashboard. No runID yet (8.3 adds
+      // a run-list when absent); the view shows "no run selected" until then.
+      {
+        name: "cockpit.open",
+        title: "Open Cockpit",
+        desc: "Open the org-run Cockpit dashboard",
+        category: "Org",
+        slashName: "cockpit",
+        run: () => {
+          // kilocode_change - Task 8.2: thread the current CEO chat session's id through so the
+          // Cockpit's hard-stop control (view.tsx) has a session to address via
+          // sdk.client.session.prompt — read BEFORE navigate() replaces route.data.
+          const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
+          route.navigate({ type: "cockpit", sessionID })
+          dialog.clear()
+        },
+      },
       // kilocode_change end
 
       // /kiloclaw command

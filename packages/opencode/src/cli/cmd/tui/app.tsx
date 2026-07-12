@@ -1121,6 +1121,9 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
             <Match when={route.data.type === "builder"}>
               <KiloApp.BuilderView />
             </Match>
+            <Match when={route.data.type === "cockpit"}>
+              <KiloApp.CockpitView />
+            </Match>
             {/* kilocode_change end */}
           </Switch>
           {plugin()}
