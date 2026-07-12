@@ -37,9 +37,11 @@ type ProviderOption =
   | (ProviderOptionBase & {
       type: "custom"
     })
+  // kilocode_change start - "Add a local provider" (Ollama/LM Studio/custom baseURL)
   | (ProviderOptionBase & {
-      type: "local" // kilocode_change - "Add a local provider" (Ollama/LM Studio/custom baseURL)
+      type: "local"
     })
+// kilocode_change end
 
 export function providerOptions(list: { id: string; name: string }[]): ProviderOption[] {
   return [
