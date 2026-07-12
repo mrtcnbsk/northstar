@@ -243,7 +243,7 @@ export class KiloProviderMemory {
       const startup =
         current && status.state.stats.lastInjectedSessionID === current ? status.state.stats.lastInjectedTokens : 0
       const content = [
-        "# Kilo Memory",
+        "# Northstar Memory",
         "",
         `Root: ${show.root}`,
         `Enabled: ${show.state.enabled ? "yes" : "no"}`,

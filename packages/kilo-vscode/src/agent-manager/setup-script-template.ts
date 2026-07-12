@@ -45,7 +45,7 @@ echo "Setup complete!"
 `
 
 /** Default PowerShell template for worktree setup scripts on Windows. */
-export const SETUP_SCRIPT_TEMPLATE_POWERSHELL = `# Kilo Code Worktree Setup Script
+export const SETUP_SCRIPT_TEMPLATE_POWERSHELL = `# Northstar Worktree Setup Script
 # This script runs before the agent starts in a worktree (new sessions only).
 #
 # Available environment variables:

@@ -25,7 +25,7 @@ export async function startVscodeRunTask(config: RunTaskConfig, done: (exit: Run
     { type: "kilo-worktree-run" },
     vscode.TaskScope.Workspace,
     `Run: ${config.branch}`,
-    "Kilo Code",
+    "Northstar",
     proc,
     [],
   )

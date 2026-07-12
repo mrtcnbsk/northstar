@@ -6,9 +6,9 @@ const session = (title: string | null) => ({ title }) as Session
 
 describe("nativeTitle", () => {
   it("uses the default title without a useful session title", () => {
-    expect(nativeTitle(null)).toBe("Kilo Code")
-    expect(nativeTitle(session(""))).toBe("Kilo Code")
-    expect(nativeTitle(session("New session - 2026-05-06T10:39:00.000Z"))).toBe("Kilo Code")
+    expect(nativeTitle(null)).toBe("Northstar")
+    expect(nativeTitle(session(""))).toBe("Northstar")
+    expect(nativeTitle(session("New session - 2026-05-06T10:39:00.000Z"))).toBe("Northstar")
   })
 
   it("keeps short session titles", () => {

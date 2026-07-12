@@ -69,7 +69,7 @@ export class MarketplacePanelProvider implements vscode.Disposable {
 
     const panel = vscode.window.createWebviewPanel(
       MarketplacePanelProvider.viewType,
-      "Kilo Marketplace",
+      "Northstar Marketplace",
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -331,7 +331,7 @@ export class MarketplacePanelProvider implements vscode.Disposable {
       styleUri: webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "marketplace.css")),
       iconsBaseUri: webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "assets", "icons")),
       workerUri: webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "shiki-worker.js")),
-      title: "Kilo Marketplace",
+      title: "Northstar Marketplace",
       port: this.connection.getServerInfo()?.port,
     })
   }

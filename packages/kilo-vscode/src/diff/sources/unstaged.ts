@@ -46,7 +46,7 @@ function stamp(entry: FileEntry, before: string, after: string): FileEntry {
  * polls on the standard interval.
  */
 export function createUnstagedDiffSource(): DiffSource {
-  const output = vscode.window.createOutputChannel("Kilo Diff: Unstaged")
+  const output = vscode.window.createOutputChannel("Northstar Diff: Unstaged")
   const log = (...args: unknown[]) => appendOutput(output, "UnstagedDiffSource", ...args)
   const git = new GitOps({ log })
 

@@ -1057,7 +1057,7 @@ const usageData = {
 const usageProviders = {
   kilo: {
     id: "kilo",
-    name: "Kilo Gateway",
+    name: "Northstar Gateway",
     models: {
       "qwen/qwen3.7-plus": { id: "qwen/qwen3.7-plus", name: "Qwen: Qwen3.7 Plus (20% off)" },
     },
@@ -1119,8 +1119,8 @@ export const TaskUsageExpanded200: Story = {
 
 const MOCK_NOTIFICATION = {
   id: "notif-1",
-  title: "Try BYOK for Kilo Gateway",
-  message: "Bring your own API key for even more flexibility with Kilo Gateway models.",
+  title: "Try BYOK for Northstar Gateway",
+  message: "Bring your own API key for even more flexibility with Northstar Gateway models.",
   action: { actionText: "Learn more", actionURL: "https://kilo.ai/docs" },
 }
 
@@ -1136,7 +1136,7 @@ const mockServer = {
     profile: {
       email: "dev@kilo.dev",
       name: "Dev User",
-      organizations: [{ id: "org-1", name: "Kilo Org", role: "member" }],
+      organizations: [{ id: "org-1", name: "Northstar Org", role: "member" }],
     },
     balance: { balance: 5.0 },
     currentOrgId: "org-1",

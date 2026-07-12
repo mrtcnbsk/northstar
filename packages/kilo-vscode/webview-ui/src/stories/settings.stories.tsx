@@ -577,7 +577,7 @@ export const IndexingScopeSwitch: Story = {
 }
 
 export const IndexingKiloModelPreset: Story = {
-  name: "IndexingTab - Kilo stale custom model fallback",
+  name: "IndexingTab - Northstar stale custom model fallback",
   render: () => {
     const cfg: Config = {
       indexing: {
@@ -607,7 +607,7 @@ export const IndexingKiloModelPreset: Story = {
 }
 
 export const IndexingKiloCatalogLoading: Story = {
-  name: "IndexingTab - Kilo catalog loading",
+  name: "IndexingTab - Northstar catalog loading",
   render: () => {
     const [saved, setSaved] = createSignal<Record<string, unknown>>({})
     const cfg: Config = {

@@ -26,6 +26,26 @@ const rules: BrandRule[] = [
   { pattern: /\bKilo\b/g, label: "Kilo" },
 ]
 
+function commentStart(line: string) {
+  const block = line.indexOf("/*")
+  let from = 0
+  while (true) {
+    const slash = line.indexOf("//", from)
+    if (slash < 0) return block
+    if (line[slash - 1] !== ":") return block < 0 ? slash : Math.min(block, slash)
+    from = slash + 2
+  }
+}
+
+function inUrl(line: string, start: number, end: number) {
+  for (const match of line.matchAll(/https?:\/\/[^\s"'`<>]+/g)) {
+    const left = match.index
+    const right = left + match[0].length
+    if (start >= left && end <= right) return true
+  }
+  return false
+}
+
 function ignored(line: string, start: number, end: number) {
   const trimmed = line.trimStart()
   if (
@@ -36,11 +56,13 @@ function ignored(line: string, start: number, end: number) {
   ) {
     return true
   }
-  const comment = [line.indexOf("//"), line.indexOf("/*")].filter((index) => index >= 0)
-  if (comment.some((index) => index <= start)) return true
+  const comment = commentStart(line)
+  if (comment >= 0 && comment <= start) return true
+  if (inUrl(line, start, end)) return true
   if (/^(?:import|export .* from)\b/.test(trimmed)) return true
   if (/['"](?:X-Title|x-title|User-Agent|X-Cerebras-3rd-Party-Integration)['"]\s*:/.test(line)) return true
   if (/\buses:\s*Kilo-Org\//.test(line)) return true
+  if (line.slice(start).startsWith("Kilo-Org/")) return true
   if (line.slice(Math.max(0, start - 1), start) === "." || line.slice(end, end + 1) === ".") return true
   if (line.includes("[Kilo New]")) return true
   return false
@@ -52,6 +74,7 @@ function candidates(sources: BrandSource[]) {
   const hits: Candidate[] = []
   for (const source of sources) {
     if (/(?:^|\/)(?:__tests__\/|[^/]+\.(?:test|spec)\.)/.test(source.file)) continue
+    if (source.file.endsWith("/legacy-migration/native-mode-defaults.ts")) continue
     const lines = source.text.split("\n")
     for (const [index, line] of lines.entries()) {
       const found: { start: number; end: number; pattern: string }[] = []

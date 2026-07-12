@@ -45,7 +45,7 @@ export class TokenManager {
       return this.cached
     }
     if (this.lastFailedAt && Date.now() - this.lastFailedAt < RETRY_BACKOFF_MS) {
-      throw new Error("Kilo chat token fetch on cooldown after recent failure")
+      throw new Error("Northstar chat token fetch on cooldown after recent failure")
     }
     if (!this.inflight) {
       this.inflight = this.fetch()
@@ -67,7 +67,7 @@ export class TokenManager {
 
   private async fetch(): Promise<ChatToken> {
     const client = this.getClient()
-    if (!client) throw new Error("Kilo backend not connected")
+    if (!client) throw new Error("Northstar backend not connected")
     const res = await client.kilo.claw.chatCredentials()
     const errResponse = (res as Record<string, unknown> | null)?.error
     if (!res || errResponse || !res.data) {

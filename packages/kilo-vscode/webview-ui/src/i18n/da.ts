@@ -10,14 +10,14 @@ export const anacondaDesktopDict = {
   "provider.anaconda.status.unavailable": "Utilgængelig",
   "provider.anaconda.state.unsupported": "Anaconda Desktop understøttes ikke på {{platform}}.",
   "provider.anaconda.state.notInstalled":
-    "Installer Anaconda Desktop på denne maskine, og vend derefter tilbage hertil. Kilo kører ikke installationsprogrammet for dig.",
+    "Installer Anaconda Desktop på denne maskine, og vend derefter tilbage hertil. Northstar kører ikke installationsprogrammet for dig.",
   "provider.anaconda.state.notRunning":
     "Åbn Anaconda Desktop, færdiggør opsætningen og log ind, og vælg derefter Tjek igen.",
   "provider.anaconda.state.invalidConfig":
     "Opsætningen af Anaconda Desktop er ufuldstændig. Åbn Desktop, færdiggør opsætningen, og genstart den om nødvendigt.",
   "provider.anaconda.state.signedOut": "Åbn Anaconda Desktop og log ind, før du forbinder Kilo.",
   "provider.anaconda.state.unauthorized":
-    "Kilo kunne ikke få adgang til Anaconda Desktop. Åbn Desktop, log ind igen, og genstart den om nødvendigt.",
+    "Northstar kunne ikke få adgang til Anaconda Desktop. Åbn Desktop, log ind igen, og genstart den om nødvendigt.",
   "provider.anaconda.state.unavailable":
     "Anaconda Desktop svarer ikke endnu. Åbn den, og vent på, at applikationen er færdig med at starte.",
   "provider.anaconda.state.noModel":
@@ -29,7 +29,7 @@ export const anacondaDesktopDict = {
   "provider.anaconda.state.unhealthy":
     "Den aktive inferensserver er ikke sund endnu. Tjek den i Anaconda Desktop, og genstart serveren om nødvendigt.",
   "provider.anaconda.state.ready":
-    "Kilo fandt en sund lokal tekstgenereringsserver og kan importere dens aktuelle forbindelsesindstillinger.",
+    "Northstar fandt en sund lokal tekstgenereringsserver og kan importere dens aktuelle forbindelsesindstillinger.",
   "provider.anaconda.server": "Aktiv inferensserver",
   "provider.anaconda.context": "Kontekstvindue",
   "provider.anaconda.contextValue": "{{count}} tokens",
@@ -167,10 +167,10 @@ export const dict = {
   "agentRequirements.action.openMarketplace": "Åbn Marketplace",
   "agentRequirements.error.unknownAgent": "Den valgte agent blev ikke fundet.",
   "agentRequirements.error.malformedDeclaration": "Denne agent har en ugyldig kravdeklaration.",
-  "agentRequirements.error.discoveryFailed": "Kilo kunne ikke kontrollere de tilgængelige skills.",
-  "agentRequirements.error.mcpStatusFailed": "Kilo kunne ikke kontrollere MCP-serverstatus.",
+  "agentRequirements.error.discoveryFailed": "Northstar kunne ikke kontrollere de tilgængelige skills.",
+  "agentRequirements.error.mcpStatusFailed": "Northstar kunne ikke kontrollere MCP-serverstatus.",
   "agentRequirements.error.scopeMismatch": "Denne agentkravskontrol er ikke længere aktiv.",
-  "agentRequirements.error.requestFailed": "Kilo kunne ikke kontrollere agentkravene.",
+  "agentRequirements.error.requestFailed": "Northstar kunne ikke kontrollere agentkravene.",
 
   "palette.search.placeholder": "Søg i filer, kommandoer og sessioner",
   "palette.empty": "Ingen resultater fundet",
@@ -191,7 +191,7 @@ export const dict = {
   "dialog.model.expand": "Udvid",
   "dialog.model.collapse": "Skjul",
 
-  "dialog.model.unpaid.freeModels.title": "Gratis modeller leveret af Kilo",
+  "dialog.model.unpaid.freeModels.title": "Gratis modeller leveret af Northstar",
   "dialog.model.unpaid.addMore.title": "Tilføj flere modeller fra populære udbydere",
 
   "dialog.provider.viewAll": "Vis flere udbydere",
@@ -369,9 +369,9 @@ export const dict = {
   "prompt.action.sandbox.enable": "Aktivér sandbox",
   "prompt.action.sandbox.disable": "Deaktivér sandbox",
   "prompt.action.sandbox.enabled":
-    "Sandbox er aktiveret. Shell-kommandoer for agenten er begrænset til projekt- og Kilo-mapperne.",
+    "Sandbox er aktiveret. Shell-kommandoer for agenten er begrænset til projekt- og Northstar-mapperne.",
   "prompt.action.sandbox.disabled":
-    "Sandbox er deaktiveret. Klik for at begrænse skrivning af shell-kommandoer for agenten til projekt- og Kilo-mapperne.",
+    "Sandbox er deaktiveret. Klik for at begrænse skrivning af shell-kommandoer for agenten til projekt- og Northstar-mapperne.",
   "prompt.action.sandbox.status.enabled": "Sandbox aktiveret",
   "prompt.action.sandbox.status.disabled": "Sandbox deaktiveret",
   "prompt.action.sandbox.filesystem": "Filsystem",
@@ -380,18 +380,18 @@ export const dict = {
   "prompt.action.sandbox.network.blocked": "Blokeret",
   "prompt.action.sandbox.network.allowed": "Tilladt",
   "prompt.action.sandbox.unrestricted": "Ubegrænset",
-  "prompt.action.sandbox.description.enabled": "Skrivning er begrænset til projekt- og Kilo-mapperne.",
+  "prompt.action.sandbox.description.enabled": "Skrivning er begrænset til projekt- og Northstar-mapperne.",
   "prompt.action.sandbox.description.disabled": "Klik for at begrænse skriveadgang til filsystemet og netværksadgang.",
   "prompt.action.sandbox.description.disabledNetworkAllowed":
     "Klik for at begrænse skriveadgang til filsystemet. Netværksadgang er fortsat tilladt ifølge dine sandboxindstillinger.",
 
-  "speechToText.tooltip.start": "Start stemmeinput med Kilo Gateway",
+  "speechToText.tooltip.start": "Start stemmeinput med Northstar Gateway",
   "speechToText.tooltip.starting": "Starter mikrofonen... Vent med at tale.",
   "speechToText.tooltip.stop": "Stop lydoptagelse",
   "speechToText.tooltip.transcribing": "Transskriberer... Klik for at annullere.",
   "speechToText.tooltip.error": "Stemmeinput mislykkedes. Klik for at rydde.",
   "speechToText.error.title": "Stemmeinput mislykkedes",
-  "speechToText.error.loginRequired": "Log ind på Kilo for at bruge stemmeinput.",
+  "speechToText.error.loginRequired": "Log ind på Northstar for at bruge stemmeinput.",
   "speechToText.error.permission": "Mikrofontilladelse blev nægtet.",
   "speechToText.error.microphone": "Kunne ikke starte mikrofonen.",
   "speechToText.error.recording": "Optagelse mislykkedes.",
@@ -429,7 +429,7 @@ export const dict = {
   "dialog.directory.empty": "Ingen mapper fundet",
 
   "dialog.server.title": "Servere",
-  "dialog.server.description": "Skift hvilken Kilo-server denne app forbinder til.",
+  "dialog.server.description": "Skift hvilken Northstar-server denne app forbinder til.",
   "dialog.server.search.placeholder": "Søg servere",
   "dialog.server.empty": "Ingen servere endnu",
   "dialog.server.add.title": "Tilføj en server",
@@ -556,7 +556,7 @@ export const dict = {
   "toast.session.listFailed.title": "Kunne ikke indlæse sessioner for {{project}}",
 
   "toast.update.title": "Opdatering tilgængelig",
-  "toast.update.description": "En ny version af Kilo ({{version}}) er nu tilgængelig til installation.",
+  "toast.update.description": "En ny version af Northstar ({{version}}) er nu tilgængelig til installation.",
   "toast.update.action.installRestart": "Installer og genstart",
   "toast.update.action.notYet": "Ikke endnu",
 
@@ -567,7 +567,7 @@ export const dict = {
   "error.page.action.checking": "Tjekker...",
   "error.page.action.checkUpdates": "Tjek for opdateringer",
   "error.page.action.updateTo": "Opdater til {{version}}",
-  "error.page.report.prefix": "Rapporter venligst denne fejl til Kilo-teamet",
+  "error.page.report.prefix": "Rapporter venligst denne fejl til Northstar-teamet",
   "error.page.report.discord": "på Discord",
   "error.page.version": "Version: {{version}}",
 
@@ -601,7 +601,7 @@ export const dict = {
   "error.chain.didYouMean": "Mente du: {{suggestions}}",
   "error.chain.modelNotFound": "Model ikke fundet: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Tjek dine konfigurations (opencode.json) udbyder/modelnavne",
-  "error.chain.mcpFailed": 'MCP-server "{{name}}" fejlede. Bemærk, Kilo understøtter ikke MCP-godkendelse endnu.',
+  "error.chain.mcpFailed": 'MCP-server "{{name}}" fejlede. Bemærk, Northstar understøtter ikke MCP-godkendelse endnu.',
   "error.chain.providerAuthFailed": "Udbydergodkendelse mislykkedes ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Kunne ikke initialisere udbyder "{{provider}}". Tjek legitimationsoplysninger og konfiguration.',
@@ -774,12 +774,12 @@ export const dict = {
   "sidebar.workspaces.enable": "Aktiver arbejdsområder",
   "sidebar.workspaces.disable": "Deaktiver arbejdsområder",
   "sidebar.gettingStarted.title": "Kom i gang",
-  "sidebar.gettingStarted.line1": "Kilo inkluderer gratis modeller så du kan starte med det samme.",
+  "sidebar.gettingStarted.line1": "Northstar inkluderer gratis modeller så du kan starte med det samme.",
   "sidebar.gettingStarted.line2": "Forbind enhver udbyder for at bruge modeller, inkl. Claude, GPT, Gemini osv.",
   "sidebar.project.recentSessions": "Seneste sessioner",
   "sidebar.project.viewAllSessions": "Vis alle sessioner",
 
-  "app.name.desktop": "Kilo Desktop",
+  "app.name.desktop": "Northstar Desktop",
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
   "settings.tab.general": "Generelt",
@@ -791,11 +791,11 @@ export const dict = {
   "settings.general.section.sounds": "Lydeffekter",
 
   "settings.general.row.language.title": "Sprog",
-  "settings.general.row.language.description": "Ændr visningssproget for Kilo",
+  "settings.general.row.language.description": "Ændr visningssproget for Northstar",
   "settings.general.row.appearance.title": "Udseende",
-  "settings.general.row.appearance.description": "Tilpas hvordan Kilo ser ud på din enhed",
+  "settings.general.row.appearance.description": "Tilpas hvordan Northstar ser ud på din enhed",
   "settings.general.row.theme.title": "Tema",
-  "settings.general.row.theme.description": "Tilpas hvordan Kilo er temabestemt.",
+  "settings.general.row.theme.description": "Tilpas hvordan Northstar er temabestemt.",
   "settings.general.row.font.title": "Skrifttype",
   "settings.general.row.font.description": "Tilpas mono-skrifttypen brugt i kodeblokke",
 
@@ -803,7 +803,7 @@ export const dict = {
   "settings.general.row.releaseNotes.description": 'Vis "Hvad er nyt"-popups efter opdateringer',
 
   "settings.updates.row.startup.title": "Tjek for opdateringer ved opstart",
-  "settings.updates.row.startup.description": "Tjek automatisk for opdateringer, når Kilo starter",
+  "settings.updates.row.startup.description": "Tjek automatisk for opdateringer, når Northstar starter",
   "settings.updates.row.check.title": "Tjek for opdateringer",
   "settings.updates.row.check.description": "Tjek manuelt for opdateringer og installer, hvis tilgængelig",
   "settings.updates.action.checkNow": "Tjek nu",
@@ -918,10 +918,10 @@ export const dict = {
   "settings.indexing.provider.title": "Embedding-udbyder",
   "settings.indexing.provider.description":
     "Vælg udbyderen, der bruges til at generere embeddings til semantisk søgning.",
-  "settings.indexing.kiloModel.title": "Kilo-modelpreset",
-  "settings.indexing.kiloModel.description": "Vælg en understøttet Kilo-hostet embedding-model.",
-  "settings.indexing.kiloSignIn.title": "Kilo-login kræves",
-  "settings.indexing.kiloSignIn.description": "Log ind på Kilo for at bruge hostede embeddings.",
+  "settings.indexing.kiloModel.title": "Northstar-modelpreset",
+  "settings.indexing.kiloModel.description": "Vælg en understøttet Northstar-hostet embedding-model.",
+  "settings.indexing.kiloSignIn.title": "Northstar-login kræves",
+  "settings.indexing.kiloSignIn.description": "Log ind på Northstar for at bruge hostede embeddings.",
   "settings.indexing.model.title": "Embedding-model",
   "settings.indexing.model.description": "Overskriv standard embedding-modellen for den valgte udbyder.",
   "settings.indexing.providerField.description": "Udbyderspecifik forbindelsesindstilling.",
@@ -945,7 +945,7 @@ export const dict = {
   "settings.providers.title": "Udbydere",
   "settings.providers.description": "Udbyderindstillinger vil kunne konfigureres her.",
   "settings.providers.betaNotice":
-    "I øjeblikket kan kun Kilo Gateway-udbyderen konfigureres i indstillingsgrænsefladen. Understøttelse af konfiguration af andre udbydere kommer snart i løbet af betaperioden. I mellemtiden kan du konfigurere udbydere via CLI eller konfigurationsfilen. Vi er dedikerede til at holde Kilo åben, ingen lock-in.",
+    "I øjeblikket kan kun Northstar Gateway-udbyderen konfigureres i indstillingsgrænsefladen. Understøttelse af konfiguration af andre udbydere kommer snart i løbet af betaperioden. I mellemtiden kan du konfigurere udbydere via CLI eller konfigurationsfilen. Vi er dedikerede til at holde Northstar åben, ingen lock-in.",
   "settings.providers.section.connected": "Forbundne udbydere",
   "settings.providers.connected.empty": "Ingen forbundne udbydere",
   "settings.providers.section.popular": "Populære udbydere",
@@ -966,7 +966,7 @@ export const dict = {
     "Standardmodel og ræsonnementsindsats for task-tool-underagenter. Lad den være tom for at nedarve den kaldende agents model.",
   "settings.models.hidePromptTraining.title": "Skjul modeller, der træner på prompts",
   "settings.models.hidePromptTraining.description":
-    "Skjul Kilo Gateway-modeller, hvis udbydere muligvis bruger dine prompts til træning.",
+    "Skjul Northstar Gateway-modeller, hvis udbydere muligvis bruger dine prompts til træning.",
   "settings.providers.modeModels": "Model pr. tilstand",
   "settings.providers.custom.note": "Tilføj en brugerdefineret udbyder via basis-URL.",
   "settings.providers.modeModels.description":
@@ -1071,11 +1071,11 @@ export const dict = {
   "settings.config.status.loadedLegacy": "indlæst forældet konfiguration",
   "settings.config.status.notLoaded": "ikke indlæst",
   "settings.config.status.create": "ikke fundet - opret denne fil",
-  "settings.config.title": "Åbn {{scope}} Kilo konfigurationsfil",
+  "settings.config.title": "Åbn {{scope}} Northstar konfigurationsfil",
   "settings.config.placeholder":
     "Konfigurationsfiler flettes i rækkefølge; filer markeret som indlæst påvirker i øjeblikket indstillingerne.",
-  "settings.config.noWorkspace": "Åbn en arbejdsområdemappe for at redigere den lokale Kilo konfigurationsfil.",
-  "settings.config.openFailed": "Kunne ikke åbne {{scope}} Kilo konfigurationsfil: {{message}}",
+  "settings.config.noWorkspace": "Åbn en arbejdsområdemappe for at redigere den lokale Northstar konfigurationsfil.",
+  "settings.config.openFailed": "Kunne ikke åbne {{scope}} Northstar konfigurationsfil: {{message}}",
   "settings.config.source.xdg": "XDG global konfiguration",
   "settings.config.source.homeKilo": "Home .kilo konfiguration",
   "settings.config.source.homeKilocode": "Home .kilocode konfiguration",
@@ -1159,7 +1159,7 @@ export const dict = {
   "feedback.dialog.github": "Rapportér et problem på GitHub",
   "feedback.dialog.discord": "Deltag i vores Discord-fællesskab",
   "feedback.dialog.support": "Kundesupport",
-  "workStyle.onboarding.welcome": "Velkommen til Kilo",
+  "workStyle.onboarding.welcome": "Velkommen til Northstar",
   "workStyle.onboarding.title": "Vælg, hvordan du vil arbejde",
   "workStyle.onboarding.settingsNote": "Du kan til enhver tid ændre disse valg under",
   "workStyle.onboarding.settings": "Indstillinger.",
@@ -1174,7 +1174,7 @@ export const dict = {
   "workStyle.choice.visibility": "Synlighed",
   "workStyle.choice.human-in-the-loop.eyebrow": "Menneskelig kontrol",
   "workStyle.choice.human-in-the-loop.title": "Gennemgå først",
-  "workStyle.choice.human-in-the-loop.description": "Kilo holder pause og viser dig sin plan undervejs.",
+  "workStyle.choice.human-in-the-loop.description": "Northstar holder pause og viser dig sin plan undervejs.",
   "workStyle.choice.human-in-the-loop.permissions":
     "Spørger om tilladelse, før filer redigeres eller kommandoer køres.",
   "workStyle.choice.human-in-the-loop.bash": "Spørger om tilladelse til alle terminalkommandoer.",
@@ -1222,7 +1222,7 @@ export const dict = {
   "deviceAuth.toast.codeCopied": "Kode kopieret til udklipsholder",
   "deviceAuth.toast.errorCopied": "Fejl kopieret til udklipsholder",
   "deviceAuth.status.initiating": "Starter login...",
-  "deviceAuth.title": "Log ind på Kilo Code",
+  "deviceAuth.title": "Log ind på Northstar",
   "deviceAuth.step1": "Trin 1: Åbn denne URL",
   "deviceAuth.action.copyUrl": "Kopiér URL",
   "deviceAuth.action.openBrowser": "Åbn browser",
@@ -1245,12 +1245,12 @@ export const dict = {
 
   "profile.title": "Profil",
   "profile.notLoggedIn": "Ikke logget ind",
-  "profile.action.login": "Log ind med Kilo Code",
+  "profile.action.login": "Log ind med Northstar",
   "profile.balance.title": "Saldo",
   "profile.balance.refresh": "Opdatér saldo",
   "profile.action.dashboard": "Dashboard",
   "profile.action.topUp": "Fyld op",
-  "profile.pass.subscribe": "Få Kilo Pass for at tilføje kredit og optjene bonusser",
+  "profile.pass.subscribe": "Få Northstar Pass for at tilføje kredit og optjene bonusser",
   "profile.pass.bonus": "Bonus",
   "profile.pass.renews": "Fornyes",
   "profile.action.logout": "Log ud",
@@ -1269,11 +1269,11 @@ export const dict = {
 
   "settings.experimental.title": "Eksperimentelt",
   "settings.language.title": "Sprog",
-  "settings.aboutKiloCode.title": "Om Kilo Code",
+  "settings.aboutKiloCode.title": "Om Northstar",
 
   "session.messages.empty": "Start en samtale ved at skrive en besked nedenfor.",
   "session.messages.welcome":
-    "Kilo Code er en AI-kodningsassistent. Bed den om at bygge funktioner, rette fejl eller forklare din kodebase.",
+    "Northstar er en AI-kodningsassistent. Bed den om at bygge funktioner, rette fejl eller forklare din kodebase.",
   "session.messages.scrollToBottom": "Rul til bunden",
   "session.messages.initializing": "Initialiserer...",
   "session.messages.taskStarting": "Starter...",
@@ -1330,7 +1330,7 @@ export const dict = {
   "settings.aboutKiloCode.port.label": "Port:",
   "settings.aboutKiloCode.versionInfo": "Versionsinformation",
   "settings.aboutKiloCode.version.label": "Version:",
-  "settings.aboutKiloCode.extensionName": "Kilo Code-udvidelse",
+  "settings.aboutKiloCode.extensionName": "Northstar-udvidelse",
   "settings.aboutKiloCode.community": "Fællesskab og support",
   "settings.aboutKiloCode.feedback.prefix":
     "Hvis du har spørgsmål eller feedback, er du velkommen til at åbne en issue på",
@@ -1347,7 +1347,7 @@ export const dict = {
   "settings.aboutKiloCode.exportSettings": "Eksportér",
   "settings.aboutKiloCode.importSettings": "Importér",
   "settings.aboutKiloCode.importSettings.invalidJson": "Ugyldig JSON-fil. Vælg venligst en gyldig indstillingsfil.",
-  "settings.aboutKiloCode.importSettings.invalidConfig": "Filen indeholder ikke gyldige Kilo-indstillinger.",
+  "settings.aboutKiloCode.importSettings.invalidConfig": "Filen indeholder ikke gyldige Northstar-indstillinger.",
   "settings.aboutKiloCode.importSettings.tooLarge": "Filen er for stor. Indstillingsfiler skal være under 1 MB.",
   "settings.aboutKiloCode.importSettings.newerVersion":
     "Denne fil blev eksporteret fra en nyere version af Kilo. Nogle indstillinger kan blive ignoreret.",
@@ -1375,7 +1375,7 @@ export const dict = {
   "settings.browser.headless.title": "Headless-tilstand",
   "settings.browser.headless.description": "Kør i headless-tilstand (intet synligt browservindue).",
 
-  "settings.language.description": 'Vælg sproget til Kilo Code-brugerfladen. "Auto" bruger VS Codes visningssprog.',
+  "settings.language.description": 'Vælg sproget til Northstar-brugerfladen. "Auto" bruger VS Codes visningssprog.',
   "settings.language.auto": "Auto (VS Code-sprog)",
   "settings.language.current": "Nuværende:",
 
@@ -1433,11 +1433,11 @@ export const dict = {
 
   "settings.experimental.speechToText.title": "Tale til tekst",
   "settings.experimental.speechToText.description":
-    "Aktivér stemmeinput i prompt-felter ved hjælp af din Kilo-konto gennem Kilo Gateway.",
+    "Aktivér stemmeinput i prompt-felter ved hjælp af din Northstar-konto gennem Northstar Gateway.",
   "settings.models.speechToText.disabledDescription":
-    "Aktivér og log ind på Kilo-udbyderen for at bruge Speech to Text. Speech to Text understøttes i øjeblikket kun med Kilo Gateway.",
+    "Aktivér og log ind på Northstar-udbyderen for at bruge Speech to Text. Speech to Text understøttes i øjeblikket kun med Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Model til tale til tekst",
-  "settings.models.speechToTextModel.description": "Vælg Kilo Gateway-transskriptionsmodellen til stemmeinput.",
+  "settings.models.speechToTextModel.description": "Vælg Northstar Gateway-transskriptionsmodellen til stemmeinput.",
   "settings.experimental.nativeNotebookTools.title": "Indbyggede notebook-værktøjer",
   "settings.experimental.nativeNotebookTools.description":
     "Aktivér eksperimentelle værktøjer til at læse, redigere og køre VS Code-notebooks",
@@ -1461,7 +1461,7 @@ export const dict = {
   "settings.experimental.mcpTimeout.description": "Timeout for MCP-serveranmodninger i millisekunder",
   "settings.experimental.remote.title": "Remote-styring",
   "settings.experimental.remote.description":
-    "Aktivér Remote-styring af sessioner via Kilo Cloud. Dette vil også påvirke CLI'er på denne maskine.",
+    "Aktivér Remote-styring af sessioner via Northstar Cloud. Dette vil også påvirke CLI'er på denne maskine.",
   "settings.experimental.remote.current": "Nuværende status:",
   "settings.experimental.remote.startup": "Aktivér automatisk ved opstart:",
   "settings.experimental.remote.active": "Aktiv",
@@ -1573,7 +1573,7 @@ export const dict = {
   "settings.agentBehaviour.claudeCompat.heading": "Claude Code-kompatibilitet",
   "settings.agentBehaviour.claudeCompat.title": "Indlæs Claude Code-filer",
   "settings.agentBehaviour.claudeCompat.description":
-    "Indlæs CLAUDE.md-instruktioner og -færdigheder fra din Claude Code-konfigurationsmappe i sessioner. Aktivér dette, hvis du vil have Kilo til at bruge dine Claude Code-instruktioner og -færdigheder. Kræver genstart.",
+    "Indlæs CLAUDE.md-instruktioner og -færdigheder fra din Claude Code-konfigurationsmappe i sessioner. Aktivér dette, hvis du vil have Northstar til at bruge dine Claude Code-instruktioner og -færdigheder. Kræver genstart.",
   "settings.agentBehaviour.mcpDetail.command": "Kommando",
   "settings.agentBehaviour.mcpDetail.args": "Argumenter",
   "settings.agentBehaviour.mcpDetail.env": "Miljø",
@@ -1590,7 +1590,7 @@ export const dict = {
   "settings.agentBehaviour.workflows.detail.template": "Skabelon",
   "settings.sandboxing.enabled.title": "Sandbox",
   "settings.sandboxing.enabled.description":
-    "Kør shell-kommandoer for agenten i en sandbox på operativsystemniveau, der begrænser skrivning til projekt- og Kilo-tilstandsmapperne",
+    "Kør shell-kommandoer for agenten i en sandbox på operativsystemniveau, der begrænser skrivning til projekt- og Northstar-tilstandsmapperne",
 
   "settings.autoApprove.description":
     "Definer, hvordan værktøjer må køre. De fleste værktøjer er som standard indstillet til Tillad. doom_loop og external_directory er som standard indstillet til Spørg.",
@@ -1697,7 +1697,7 @@ export const dict = {
   "settings.display.username.title": "Brugernavn",
   "settings.display.username.description": "Brugerdefineret brugernavn i samtaler",
   "settings.display.fontSize.title": "Skriftstørrelse",
-  "settings.display.fontSize.description": "Juster skriftstørrelsen for Kilo webview UI uafhængigt af VS Code.",
+  "settings.display.fontSize.description": "Juster skriftstørrelsen for Northstar webview UI uafhængigt af VS Code.",
   "settings.display.reasoningAutoCollapse.title": "Skjul ræsonnement automatisk",
   "settings.display.reasoningAutoCollapse.description":
     "Skjuler ræsonnementsblokke, når agenten er færdig med at skrive dem. Lad den være slået fra for at holde ræsonnement udvidet, medmindre du skjuler det manuelt.",
@@ -1734,12 +1734,12 @@ export const dict = {
   "settings.legacyMigration.link": "Migrer fra legacy-version",
   "settings.aboutKiloCode.legacyMigration.title": "Legacy-migrering",
   "settings.aboutKiloCode.legacyMigration.description":
-    "Migrer indstillinger fra en tidligere installation af Kilo Code, herunder udbyder API-nøgler og standardmodel.",
+    "Migrer indstillinger fra en tidligere installation af Northstar, herunder udbyder API-nøgler og standardmodel.",
   "settings.aboutKiloCode.rooImport.description": "Importer samtalehistorik fra en installation af Roo Code.",
   "settings.aboutKiloCode.rooImport.button": "Importer sessioner fra Roo Code",
 
   // Screen 1 — What's New
-  "migration.whatsNew.title": "Nyheder i Kilo Code",
+  "migration.whatsNew.title": "Nyheder i Northstar",
   "migration.whatsNew.subtitle": "Vi har genopbygget udvidelsen på et hurtigere og mere effektivt fundament.",
   "migration.whatsNew.features.performance.title": "Hurtigere agentydelse",
   "migration.whatsNew.features.performance.detail":
@@ -1751,7 +1751,7 @@ export const dict = {
     "En samlet brugerflade til at køre flere agenter parallelt, hver på sit eget worktree — overvåg fremskridt, skift kontekst og gennemgå ændringer ét sted.",
   "migration.whatsNew.features.foundation.title": "Fælles fundament",
   "migration.whatsNew.features.foundation.detail":
-    "Én lille, effektiv kerne på tværs af alle Kilo-produkter. En velkendt oplevelse uanset hvordan du vælger at arbejde.",
+    "Én lille, effektiv kerne på tværs af alle Northstar-produkter. En velkendt oplevelse uanset hvordan du vælger at arbejde.",
   "migration.whatsNew.blogLink": "Læs den fulde meddelelse",
   "migration.whatsNew.docsLink": "Nyheder og ofte stillede spørgsmål",
   "migration.whatsNew.continue": "Fortsæt",
@@ -1851,7 +1851,7 @@ export const dict = {
     "Filer ændret i dit arbejdsbibliotek, men ikke stagede endnu, samt ikke-sporede (nye) filer.",
   "diffViewer.source.session.label": "Session",
   "diffViewer.source.session.tooltip":
-    "Filer ændret af Kilo i den aktuelle session, baseret på snapshots pr. tur. Nulstilles, når du starter en ny session.",
+    "Filer ændret af Northstar i den aktuelle session, baseret på snapshots pr. tur. Nulstilles, når du starter en ny session.",
   "diffViewer.group.session": "Session",
   "diffViewer.group.git": "Git",
   "diffViewer.notice.snapshotsDisabled":

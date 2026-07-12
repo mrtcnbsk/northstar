@@ -271,7 +271,7 @@ async function findFFmpeg(): Promise<string> {
     }
   }
 
-  throw new Error("Speech input needs the bundled FFmpeg helper, but it was not found. Rebuild or reinstall Kilo Code.")
+  throw new Error("Speech input needs the bundled FFmpeg helper, but it was not found. Rebuild or reinstall Northstar Code.")
 }
 
 function bundledPath(): string {

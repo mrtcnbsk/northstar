@@ -331,7 +331,7 @@ export async function loadSessions(ctx: SessionRefreshContext): Promise<string |
   const extra = await Promise.all(
     [...worktreeDirs].map((dir) =>
       list(dir).catch((err: unknown) => {
-        console.error(`[Kilo] Failed to list sessions for ${dir}:`, err)
+        console.error(`[Northstar] Failed to list sessions for ${dir}:`, err)
         failed.add(dir)
         return [] as Session[]
       }),

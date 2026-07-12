@@ -127,7 +127,7 @@ export class TerminalManager {
       const { error } = await client.pty.remove({ directory: entry.cwd, ptyID: entry.ptyID })
       if (error) {
         const msg = error instanceof Error ? error.message : String(error)
-        this.deps.log(`Terminal close failed (${terminalId}): ${msg} — PTY may linger until kilo serve exits`)
+        this.deps.log(`Terminal close failed (${terminalId}): ${msg} — PTY may linger until northstar serve exits`)
         return
       }
       this.deps.log(`Terminal closed: ${terminalId} (pty ${entry.ptyID})`)
@@ -174,7 +174,7 @@ export class TerminalManager {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         this.deps.log(
-          `Terminal dispose: SDK client unavailable (${msg}); relying on kilo serve process-group kill to reap PTYs`,
+          `Terminal dispose: SDK client unavailable (${msg}); relying on northstar serve process-group kill to reap PTYs`,
         )
         return undefined
       }
@@ -204,7 +204,7 @@ export class TerminalManager {
       this.deps.log(`Terminal dispose cleanup failed (${r.entry.terminalId}): ${msg}`)
     }
     if (failed > 0) {
-      this.deps.log(`Terminal dispose: ${failed}/${snapshot.length} PTYs may linger until kilo serve exits`)
+      this.deps.log(`Terminal dispose: ${failed}/${snapshot.length} PTYs may linger until northstar serve exits`)
     }
     this.entries.clear()
   }

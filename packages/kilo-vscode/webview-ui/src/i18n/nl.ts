@@ -10,14 +10,14 @@ export const anacondaDesktopDict = {
   "provider.anaconda.status.unavailable": "Niet beschikbaar",
   "provider.anaconda.state.unsupported": "Anaconda Desktop wordt niet ondersteund op {{platform}}.",
   "provider.anaconda.state.notInstalled":
-    "Installeer Anaconda Desktop op deze machine en kom hier dan terug. Kilo voert het installatieprogramma niet voor je uit.",
+    "Installeer Anaconda Desktop op deze machine en kom hier dan terug. Northstar voert het installatieprogramma niet voor je uit.",
   "provider.anaconda.state.notRunning":
     "Open Anaconda Desktop, voltooi de installatie en meld je aan, kies daarna Opnieuw controleren.",
   "provider.anaconda.state.invalidConfig":
     "De installatie van Anaconda Desktop is onvolledig. Open Desktop, voltooi de installatie en herstart het indien nodig.",
-  "provider.anaconda.state.signedOut": "Open Anaconda Desktop en meld je aan voordat je Kilo verbindt.",
+  "provider.anaconda.state.signedOut": "Open Anaconda Desktop en meld je aan voordat je Northstar verbindt.",
   "provider.anaconda.state.unauthorized":
-    "Kilo kon geen toegang krijgen tot Anaconda Desktop. Open Desktop, meld je opnieuw aan en herstart het indien nodig.",
+    "Northstar kon geen toegang krijgen tot Anaconda Desktop. Open Desktop, meld je opnieuw aan en herstart het indien nodig.",
   "provider.anaconda.state.unavailable":
     "Anaconda Desktop reageert nog niet. Open het en wacht tot de applicatie volledig is opgestart.",
   "provider.anaconda.state.noModel":
@@ -29,7 +29,7 @@ export const anacondaDesktopDict = {
   "provider.anaconda.state.unhealthy":
     "De actieve inferentieserver is nog niet gezond. Controleer deze in Anaconda Desktop en herstart de server indien nodig.",
   "provider.anaconda.state.ready":
-    "Kilo heeft een gezonde lokale tekstgeneratieserver gevonden en kan de huidige verbindingsinstellingen importeren.",
+    "Northstar heeft een gezonde lokale tekstgeneratieserver gevonden en kan de huidige verbindingsinstellingen importeren.",
   "provider.anaconda.server": "Actieve inferentieserver",
   "provider.anaconda.context": "Contextvenster",
   "provider.anaconda.contextValue": "{{count}} tokens",
@@ -168,10 +168,10 @@ export const dict = {
   "agentRequirements.action.openMarketplace": "Marketplace openen",
   "agentRequirements.error.unknownAgent": "De geselecteerde agent kon niet worden gevonden.",
   "agentRequirements.error.malformedDeclaration": "Deze agent heeft een ongeldige vereistenverklaring.",
-  "agentRequirements.error.discoveryFailed": "Kilo kon de beschikbare skills niet controleren.",
-  "agentRequirements.error.mcpStatusFailed": "Kilo kon de MCP-serverstatus niet controleren.",
+  "agentRequirements.error.discoveryFailed": "Northstar kon de beschikbare skills niet controleren.",
+  "agentRequirements.error.mcpStatusFailed": "Northstar kon de MCP-serverstatus niet controleren.",
   "agentRequirements.error.scopeMismatch": "Deze controle van agentvereisten is niet meer actief.",
-  "agentRequirements.error.requestFailed": "Kilo kon de agentvereisten niet controleren.",
+  "agentRequirements.error.requestFailed": "Northstar kon de agentvereisten niet controleren.",
 
   "palette.search.placeholder": "Zoeken naar bestanden, commando's en sessies",
   "palette.empty": "Geen resultaten gevonden",
@@ -192,7 +192,7 @@ export const dict = {
   "dialog.model.expand": "Uitvouwen",
   "dialog.model.collapse": "Samenvouwen",
 
-  "dialog.model.unpaid.freeModels.title": "Gratis modellen aangeboden door Kilo",
+  "dialog.model.unpaid.freeModels.title": "Gratis modellen aangeboden door Northstar",
   "dialog.model.unpaid.addMore.title": "Meer modellen van populaire providers toevoegen",
 
   "dialog.provider.viewAll": "Meer providers tonen",
@@ -372,9 +372,9 @@ export const dict = {
   "prompt.action.sandbox.enable": "Sandbox inschakelen",
   "prompt.action.sandbox.disable": "Sandbox uitschakelen",
   "prompt.action.sandbox.enabled":
-    "Sandbox is ingeschakeld. Shell-opdrachten van de agent zijn beperkt tot de project- en Kilo-mappen.",
+    "Sandbox is ingeschakeld. Shell-opdrachten van de agent zijn beperkt tot de project- en Northstar-mappen.",
   "prompt.action.sandbox.disabled":
-    "Sandbox is uitgeschakeld. Klik om schrijfbewerkingen van shell-opdrachten van de agent te beperken tot de project- en Kilo-mappen.",
+    "Sandbox is uitgeschakeld. Klik om schrijfbewerkingen van shell-opdrachten van de agent te beperken tot de project- en Northstar-mappen.",
   "prompt.action.sandbox.status.enabled": "Sandbox ingeschakeld",
   "prompt.action.sandbox.status.disabled": "Sandbox uitgeschakeld",
   "prompt.action.sandbox.filesystem": "Bestandssysteem",
@@ -383,19 +383,19 @@ export const dict = {
   "prompt.action.sandbox.network.blocked": "Geblokkeerd",
   "prompt.action.sandbox.network.allowed": "Toegestaan",
   "prompt.action.sandbox.unrestricted": "Onbeperkt",
-  "prompt.action.sandbox.description.enabled": "Schrijfbewerkingen zijn beperkt tot de project- en Kilo-mappen.",
+  "prompt.action.sandbox.description.enabled": "Schrijfbewerkingen zijn beperkt tot de project- en Northstar-mappen.",
   "prompt.action.sandbox.description.disabled":
     "Klik om schrijfbewerkingen in het bestandssysteem en netwerktoegang te beperken.",
   "prompt.action.sandbox.description.disabledNetworkAllowed":
     "Klik om schrijfbewerkingen in het bestandssysteem te beperken. Netwerktoegang blijft toegestaan volgens je sandboxinstellingen.",
 
-  "speechToText.tooltip.start": "Spraakinvoer starten met Kilo Gateway",
+  "speechToText.tooltip.start": "Spraakinvoer starten met Northstar Gateway",
   "speechToText.tooltip.starting": "Microfoon wordt gestart... Wacht nog even met spreken.",
   "speechToText.tooltip.stop": "Audio vastleggen stoppen",
   "speechToText.tooltip.transcribing": "Transcriberen... Klik om te annuleren.",
   "speechToText.tooltip.error": "Spraakinvoer mislukt. Klik om te wissen.",
   "speechToText.error.title": "Spraakinvoer mislukt",
-  "speechToText.error.loginRequired": "Meld u aan bij Kilo om spraakinvoer te gebruiken.",
+  "speechToText.error.loginRequired": "Meld u aan bij Northstar om spraakinvoer te gebruiken.",
   "speechToText.error.permission": "Microfoontoegang is geweigerd.",
   "speechToText.error.microphone": "Kon de microfoon niet starten.",
   "speechToText.error.recording": "Opname mislukt.",
@@ -433,7 +433,7 @@ export const dict = {
   "dialog.directory.empty": "Geen mappen gevonden",
 
   "dialog.server.title": "Servers",
-  "dialog.server.description": "Wissel met welke Kilo-server deze app verbinding maakt.",
+  "dialog.server.description": "Wissel met welke Northstar-server deze app verbinding maakt.",
   "dialog.server.search.placeholder": "Servers zoeken",
   "dialog.server.empty": "Nog geen servers",
   "dialog.server.add.title": "Een server toevoegen",
@@ -561,7 +561,7 @@ export const dict = {
   "toast.session.listFailed.title": "Laden van sessies voor {{project}} is mislukt",
 
   "toast.update.title": "Update beschikbaar",
-  "toast.update.description": "Een nieuwe versie van Kilo ({{version}}) is nu beschikbaar om te installeren.",
+  "toast.update.description": "Een nieuwe versie van Northstar ({{version}}) is nu beschikbaar om te installeren.",
   "toast.update.action.installRestart": "Installeren en herstarten",
   "toast.update.action.notYet": "Nog niet",
 
@@ -572,7 +572,7 @@ export const dict = {
   "error.page.action.checking": "Controleren...",
   "error.page.action.checkUpdates": "Controleren op updates",
   "error.page.action.updateTo": "Updaten naar {{version}}",
-  "error.page.report.prefix": "Meld deze fout alsjeblieft aan het Kilo team",
+  "error.page.report.prefix": "Meld deze fout alsjeblieft aan het Northstar team",
   "error.page.report.discord": "op Discord",
   "error.page.version": "Versie: {{version}}",
 
@@ -606,7 +606,7 @@ export const dict = {
   "error.chain.didYouMean": "Bedoelde je: {{suggestions}}",
   "error.chain.modelNotFound": "Model niet gevonden: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Controleer je configuratie (opencode.json) provider/model namen",
-  "error.chain.mcpFailed": 'MCP-server "{{name}}" is mislukt. Let op, Kilo ondersteunt nog geen MCP-authenticatie.',
+  "error.chain.mcpFailed": 'MCP-server "{{name}}" is mislukt. Let op, Northstar ondersteunt nog geen MCP-authenticatie.',
   "error.chain.providerAuthFailed": "Provider-authenticatie mislukt ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Initialiseren van provider "{{provider}}" is mislukt. Controleer referenties en configuratie.',
@@ -783,12 +783,12 @@ export const dict = {
   "sidebar.workspaces.enable": "Werkruimtes inschakelen",
   "sidebar.workspaces.disable": "Werkruimtes uitschakelen",
   "sidebar.gettingStarted.title": "Aan de slag",
-  "sidebar.gettingStarted.line1": "Kilo bevat gratis modellen, zodat je meteen kunt beginnen.",
+  "sidebar.gettingStarted.line1": "Northstar bevat gratis modellen, zodat je meteen kunt beginnen.",
   "sidebar.gettingStarted.line2": "Koppel een provider om modellen te gebruiken, incl. Claude, GPT, Gemini enz.",
   "sidebar.project.recentSessions": "Recente sessies",
   "sidebar.project.viewAllSessions": "Bekijk alle sessies",
 
-  "app.name.desktop": "Kilo Desktop",
+  "app.name.desktop": "Northstar Desktop",
 
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
@@ -801,11 +801,11 @@ export const dict = {
   "settings.general.section.sounds": "Geluidseffecten",
 
   "settings.general.row.language.title": "Taal",
-  "settings.general.row.language.description": "Wijzig de weergavetaal voor Kilo",
+  "settings.general.row.language.description": "Wijzig de weergavetaal voor Northstar",
   "settings.general.row.appearance.title": "Uiterlijk",
-  "settings.general.row.appearance.description": "Pas aan hoe Kilo eruitziet op je apparaat",
+  "settings.general.row.appearance.description": "Pas aan hoe Northstar eruitziet op je apparaat",
   "settings.general.row.theme.title": "Thema",
-  "settings.general.row.theme.description": "Pas het thema van Kilo aan.",
+  "settings.general.row.theme.description": "Pas het thema van Northstar aan.",
   "settings.general.row.font.title": "Lettertype",
   "settings.general.row.font.description": "Pas het mono-lettertype aan dat wordt gebruikt in codeblokken",
 
@@ -813,7 +813,7 @@ export const dict = {
   "settings.general.row.releaseNotes.description": "Toon 'Wat is nieuw' pop-ups na updates",
 
   "settings.updates.row.startup.title": "Controleer op updates bij opstarten",
-  "settings.updates.row.startup.description": "Controleer automatisch op updates wanneer Kilo start",
+  "settings.updates.row.startup.description": "Controleer automatisch op updates wanneer Northstar start",
   "settings.updates.row.check.title": "Controleer op updates",
   "settings.updates.row.check.description": "Controleer handmatig op updates en installeer indien beschikbaar",
   "settings.updates.action.checkNow": "Nu controleren",
@@ -914,7 +914,7 @@ export const dict = {
   "settings.providers.title": "Providers",
   "settings.providers.description": "Provider-instellingen zullen hier configureerbaar zijn.",
   "settings.providers.betaNotice":
-    "Momenteel kan alleen de Kilo Gateway-provider worden geconfigureerd in de instellingeninterface. Ondersteuning voor het configureren van andere providers komt binnenkort tijdens de bèta-periode. In de tussentijd kun je providers configureren met behulp van de CLI of het configuratiebestand. We zijn toegewijd om Kilo open te houden, geen lock-in.",
+    "Momenteel kan alleen de Northstar Gateway-provider worden geconfigureerd in de instellingeninterface. Ondersteuning voor het configureren van andere providers komt binnenkort tijdens de bèta-periode. In de tussentijd kun je providers configureren met behulp van de CLI of het configuratiebestand. We zijn toegewijd om Northstar open te houden, geen lock-in.",
   "settings.providers.section.connected": "Gekoppelde providers",
   "settings.providers.connected.empty": "Geen gekoppelde providers",
   "settings.providers.section.popular": "Populaire providers",
@@ -1030,11 +1030,11 @@ export const dict = {
   "settings.config.status.loadedLegacy": "verouderde configuratie geladen",
   "settings.config.status.notLoaded": "niet geladen",
   "settings.config.status.create": "niet gevonden - maak dit bestand",
-  "settings.config.title": "Open {{scope}} Kilo-configuratiebestand",
+  "settings.config.title": "Open {{scope}} Northstar-configuratiebestand",
   "settings.config.placeholder":
     "Configuratiebestanden worden op volgorde samengevoegd; bestanden gemarkeerd als geladen hebben momenteel invloed op de instellingen.",
-  "settings.config.noWorkspace": "Open een werkruimtemap om het lokale Kilo-configuratiebestand te bewerken.",
-  "settings.config.openFailed": "Kan {{scope}} Kilo-configuratiebestand niet openen: {{message}}",
+  "settings.config.noWorkspace": "Open een werkruimtemap om het lokale Northstar-configuratiebestand te bewerken.",
+  "settings.config.openFailed": "Kan {{scope}} Northstar-configuratiebestand niet openen: {{message}}",
   "settings.config.source.xdg": "XDG globale configuratie",
   "settings.config.source.homeKilo": "Home .kilo-configuratie",
   "settings.config.source.homeKilocode": "Home .kilocode-configuratie",
@@ -1118,7 +1118,7 @@ export const dict = {
   "feedback.dialog.github": "Meld een probleem op GitHub",
   "feedback.dialog.discord": "Word lid van onze Discord community",
   "feedback.dialog.support": "Klantenservice",
-  "workStyle.onboarding.welcome": "Welkom bij Kilo",
+  "workStyle.onboarding.welcome": "Welkom bij Northstar",
   "workStyle.onboarding.title": "Kies hoe je wilt werken",
   "workStyle.onboarding.description":
     "Hiermee stel je de beginwaarden in voor machtigingen, redeneerblokken, terminaluitvoer en de contexttijdlijn. Dit wordt slechts één keer toegepast en slaat instellingen over die je al hebt aangepast.",
@@ -1133,7 +1133,7 @@ export const dict = {
   "workStyle.choice.visibility": "Zichtbaarheid",
   "workStyle.choice.human-in-the-loop.eyebrow": "Menselijke controle",
   "workStyle.choice.human-in-the-loop.title": "Eerst controleren",
-  "workStyle.choice.human-in-the-loop.description": "Kilo pauzeert en toont tijdens het werk zijn plan.",
+  "workStyle.choice.human-in-the-loop.description": "Northstar pauzeert en toont tijdens het werk zijn plan.",
   "workStyle.choice.human-in-the-loop.permissions":
     "Vraagt toestemming voordat bestanden worden bewerkt of opdrachten worden uitgevoerd.",
   "workStyle.choice.human-in-the-loop.bash": "Vraagt toestemming voor elke terminalopdracht.",
@@ -1182,7 +1182,7 @@ export const dict = {
   "deviceAuth.toast.codeCopied": "Code gekopieerd naar klembord",
   "deviceAuth.toast.errorCopied": "Fout gekopieerd naar klembord",
   "deviceAuth.status.initiating": "Inloggen starten...",
-  "deviceAuth.title": "Meld je aan bij Kilo Code",
+  "deviceAuth.title": "Meld je aan bij Northstar",
   "deviceAuth.step1": "Stap 1: Open deze URL",
   "deviceAuth.action.copyUrl": "Kopieer URL",
   "deviceAuth.action.openBrowser": "Open Browser",
@@ -1205,12 +1205,12 @@ export const dict = {
 
   "profile.title": "Profiel",
   "profile.notLoggedIn": "Niet ingelogd",
-  "profile.action.login": "Inloggen met Kilo Code",
+  "profile.action.login": "Inloggen met Northstar",
   "profile.balance.title": "Saldo",
   "profile.balance.refresh": "Saldo vernieuwen",
   "profile.action.dashboard": "Dashboard",
   "profile.action.topUp": "Opwaarderen",
-  "profile.pass.subscribe": "Schaf Kilo Pass aan om tegoed toe te voegen en bonussen te verdienen",
+  "profile.pass.subscribe": "Schaf Northstar Pass aan om tegoed toe te voegen en bonussen te verdienen",
   "profile.pass.bonus": "Bonus",
   "profile.pass.renews": "Vernieuwt",
   "profile.action.logout": "Uitloggen",
@@ -1264,11 +1264,11 @@ export const dict = {
 
   "settings.experimental.title": "Experimenteel",
   "settings.language.title": "Taal",
-  "settings.aboutKiloCode.title": "Over Kilo Code",
+  "settings.aboutKiloCode.title": "Over Northstar",
 
   "session.messages.empty": "Start een gesprek door hieronder een bericht te typen.",
   "session.messages.welcome":
-    "Kilo Code is een AI-codeerassistent. Vraag het om features te bouwen, bugs op te lossen of je codebase uit te leggen.",
+    "Northstar is een AI-codeerassistent. Vraag het om features te bouwen, bugs op te lossen of je codebase uit te leggen.",
   "session.messages.scrollToBottom": "Scroll naar beneden",
   "session.messages.initializing": "Initialiseren...",
   "session.messages.taskStarting": "Starten...",
@@ -1325,7 +1325,7 @@ export const dict = {
   "settings.aboutKiloCode.port.label": "Poort:",
   "settings.aboutKiloCode.versionInfo": "Versie-informatie",
   "settings.aboutKiloCode.version.label": "Versie:",
-  "settings.aboutKiloCode.extensionName": "Kilo Code Extensie",
+  "settings.aboutKiloCode.extensionName": "Northstar Extensie",
   "settings.aboutKiloCode.community": "Community & Ondersteuning",
   "settings.aboutKiloCode.feedback.prefix": "Als je vragen of feedback hebt, voel je vrij om een issue aan te maken op",
   "settings.aboutKiloCode.feedback.or": "of",
@@ -1343,7 +1343,7 @@ export const dict = {
   "settings.aboutKiloCode.importSettings": "Importeren",
   "settings.aboutKiloCode.importSettings.invalidJson":
     "Ongeldig JSON-bestand. Selecteer een geldig instellingenbestand.",
-  "settings.aboutKiloCode.importSettings.invalidConfig": "Het bestand bevat geen geldige Kilo-instellingen.",
+  "settings.aboutKiloCode.importSettings.invalidConfig": "Het bestand bevat geen geldige Northstar-instellingen.",
   "settings.aboutKiloCode.importSettings.tooLarge":
     "Het bestand is te groot. Instellingenbestanden moeten kleiner zijn dan 1 MB.",
   "settings.aboutKiloCode.importSettings.newerVersion":
@@ -1372,7 +1372,7 @@ export const dict = {
   "settings.browser.headless.title": "Headless Modus",
   "settings.browser.headless.description": "Draai in headless modus (geen zichtbaar browservenster).",
 
-  "settings.language.description": 'Kies de taal voor de Kilo Code UI. "Auto" gebruikt je VS Code schermtaal.',
+  "settings.language.description": 'Kies de taal voor de Northstar UI. "Auto" gebruikt je VS Code schermtaal.',
   "settings.language.auto": "Auto (VS Code taal)",
   "settings.language.current": "Huidig:",
 
@@ -1436,11 +1436,11 @@ export const dict = {
 
   "settings.experimental.speechToText.title": "Spraak naar tekst",
   "settings.experimental.speechToText.description":
-    "Schakel spraakinvoer in promptvelden in met uw Kilo-account via Kilo Gateway.",
+    "Schakel spraakinvoer in promptvelden in met uw Northstar-account via Northstar Gateway.",
   "settings.models.speechToText.disabledDescription":
-    "Schakel de Kilo-provider in en meld u aan om Speech to Text te gebruiken. Speech to Text wordt momenteel alleen ondersteund met Kilo Gateway.",
+    "Schakel de Northstar-provider in en meld u aan om Speech to Text te gebruiken. Speech to Text wordt momenteel alleen ondersteund met Northstar Gateway.",
   "settings.models.speechToTextModel.title": "Spraak-naar-tekst-model",
-  "settings.models.speechToTextModel.description": "Kies het Kilo Gateway-transcriptiemodel voor spraakinvoer.",
+  "settings.models.speechToTextModel.description": "Kies het Northstar Gateway-transcriptiemodel voor spraakinvoer.",
   "settings.experimental.nativeNotebookTools.title": "Native notebooktools",
   "settings.experimental.nativeNotebookTools.description":
     "Experimentele tools inschakelen voor het lezen, bewerken en uitvoeren van VS Code-notebooks",
@@ -1465,7 +1465,7 @@ export const dict = {
   "settings.experimental.mcpTimeout.description": "Timeout voor MCP-serververzoeken in milliseconden",
   "settings.experimental.remote.title": "Remote-bediening",
   "settings.experimental.remote.description":
-    "Schakel Remote-bediening van sessies in via Kilo Cloud. Dit heeft ook invloed op CLI's op deze machine.",
+    "Schakel Remote-bediening van sessies in via Northstar Cloud. Dit heeft ook invloed op CLI's op deze machine.",
   "settings.experimental.remote.current": "Huidige status:",
   "settings.experimental.remote.startup": "Automatisch inschakelen bij opstarten:",
   "settings.experimental.remote.active": "Actief",
@@ -1474,7 +1474,7 @@ export const dict = {
   "settings.experimental.toolToggles": "Tool Schakelaars",
   "settings.sandboxing.enabled.title": "Sandbox",
   "settings.sandboxing.enabled.description":
-    "Shell-opdrachten van de agent uitvoeren in een sandbox op besturingssysteemniveau die schrijfbewerkingen beperkt tot de project- en Kilo-statusmappen",
+    "Shell-opdrachten van de agent uitvoeren in een sandbox op besturingssysteemniveau die schrijfbewerkingen beperkt tot de project- en Northstar-statusmappen",
 
   "settings.agentBehaviour.defaultAgent.title": "Standaard Agent",
   "settings.agentBehaviour.defaultAgent.description": "Agent om te gebruiken wanneer er geen is opgegeven",
@@ -1532,7 +1532,7 @@ export const dict = {
   "settings.agentBehaviour.claudeCompat.heading": "Claude Code-compatibiliteit",
   "settings.agentBehaviour.claudeCompat.title": "Claude Code-bestanden laden",
   "settings.agentBehaviour.claudeCompat.description":
-    "Laad CLAUDE.md instructies en vaardigheden uit je Claude Code configuratiemap in sessies. Schakel dit in als je wilt dat Kilo je Claude Code instructies en vaardigheden gebruikt. Herstart vereist.",
+    "Laad CLAUDE.md instructies en vaardigheden uit je Claude Code configuratiemap in sessies. Schakel dit in als je wilt dat Northstar je Claude Code instructies en vaardigheden gebruikt. Herstart vereist.",
   "settings.agentBehaviour.removeMcp.title": "Verwijder MCP-server",
   "settings.agentBehaviour.removeMcp.confirm":
     'MCP-server "{{name}}" verwijderen? Dit zal deze uit je configuratie verwijderen.',
@@ -1674,7 +1674,7 @@ export const dict = {
   "settings.display.username.title": "Gebruikersnaam",
   "settings.display.username.description": "Aangepaste gebruikersnaam weergegeven in gesprekken",
   "settings.display.fontSize.title": "Lettergrootte",
-  "settings.display.fontSize.description": "Pas de lettergrootte van de Kilo webview UI onafhankelijk van VS Code aan.",
+  "settings.display.fontSize.description": "Pas de lettergrootte van de Northstar webview UI onafhankelijk van VS Code aan.",
   "settings.display.reasoningAutoCollapse.title": "Redenering automatisch inklappen",
   "settings.display.reasoningAutoCollapse.description":
     "Klapt redeneerblokken in nadat de agent klaar is met schrijven. Laat uitgeschakeld om redenering uitgeklapt te houden, tenzij je die handmatig inklapt.",
@@ -1698,7 +1698,7 @@ export const dict = {
     "Standaardmodel en redeneerinspanning voor task-tool subagenten. Laat leeg om het model van de aanroepende agent over te nemen.",
   "settings.models.hidePromptTraining.title": "Modellen die prompts voor training gebruiken verbergen",
   "settings.models.hidePromptTraining.description":
-    "Verberg Kilo Gateway-modellen waarvan providers je prompts mogelijk voor training gebruiken.",
+    "Verberg Northstar Gateway-modellen waarvan providers je prompts mogelijk voor training gebruiken.",
   "settings.providers.modeModels": "Model per Modus",
   "settings.providers.modeModels.description":
     "Overschrijf het standaard model voor specifieke modi. Indien niet ingesteld, wordt het globale standaard model gebruikt.",
@@ -1727,12 +1727,12 @@ export const dict = {
   "settings.legacyMigration.link": "Migreer van Legacy Versie",
   "settings.aboutKiloCode.legacyMigration.title": "Legacy Migratie",
   "settings.aboutKiloCode.legacyMigration.description":
-    "Migreer instellingen van een eerdere installatie van Kilo Code, inclusief provider API-sleutels en standaard model.",
+    "Migreer instellingen van een eerdere installatie van Northstar, inclusief provider API-sleutels en standaard model.",
   "settings.aboutKiloCode.rooImport.description": "Importeer gespreksgeschiedenis van een Roo Code installatie.",
   "settings.aboutKiloCode.rooImport.button": "Sessies importeren uit Roo Code",
 
   // Screen 1 — What's New
-  "migration.whatsNew.title": "Wat is er Nieuw in Kilo Code",
+  "migration.whatsNew.title": "Wat is er Nieuw in Northstar",
   "migration.whatsNew.subtitle": "We hebben de extensie opnieuw opgebouwd op een snellere, efficiëntere basis.",
   "migration.whatsNew.features.performance.title": "Snellere Agent Prestaties",
   "migration.whatsNew.features.performance.detail":
@@ -1744,7 +1744,7 @@ export const dict = {
     "Een uniforme interface voor het parallel uitvoeren van meerdere agents, elk op zijn eigen worktree — monitor de voortgang, wissel van context en bekijk wijzigingen op één plek.",
   "migration.whatsNew.features.foundation.title": "Gedeelde Basis",
   "migration.whatsNew.features.foundation.detail":
-    "Één kleine, efficiënte kern voor elk Kilo-product. Een vertrouwde ervaring, hoe je ook wilt werken.",
+    "Één kleine, efficiënte kern voor elk Northstar-product. Een vertrouwde ervaring, hoe je ook wilt werken.",
   "migration.whatsNew.blogLink": "Lees de volledige aankondiging",
   "migration.whatsNew.docsLink": "Wat is er nieuw & veelgestelde vragen",
   "migration.whatsNew.continue": "Doorgaan",
@@ -1834,10 +1834,10 @@ export const dict = {
   "notifications.action.close": "Sluiten",
   "notifications.action.tryModel": "Probeer {{model}}",
   "notifications.action.tryModelGeneric": "Probeer model",
-  "settings.indexing.kiloModel.title": "Kilo-model voorinstelling",
-  "settings.indexing.kiloModel.description": "Kies een ondersteund Kilo-hosted embeddings model.",
-  "settings.indexing.kiloSignIn.title": "Kilo-aanmelding vereist",
-  "settings.indexing.kiloSignIn.description": "Log in op Kilo om hosted embeddings te gebruiken.",
+  "settings.indexing.kiloModel.title": "Northstar-model voorinstelling",
+  "settings.indexing.kiloModel.description": "Kies een ondersteund Northstar-hosted embeddings model.",
+  "settings.indexing.kiloSignIn.title": "Northstar-aanmelding vereist",
+  "settings.indexing.kiloSignIn.description": "Log in op Northstar om hosted embeddings te gebruiken.",
   // Missing translations - English fallbacks until translated
   "settings.agentBehaviour.createMode": "Nieuwe modus aanmaken",
   "settings.agentBehaviour.createMode.button": "Aanmaken",
@@ -1886,7 +1886,7 @@ export const dict = {
     "Bestanden gewijzigd in je werkboom maar nog niet gestaged, plus niet-gevolgde (nieuwe) bestanden.",
   "diffViewer.source.session.label": "Sessie",
   "diffViewer.source.session.tooltip":
-    "Bestanden die door Kilo tijdens de huidige sessie zijn gewijzigd, gebaseerd op snapshots per beurt. Wordt gereset bij het starten van een nieuwe sessie.",
+    "Bestanden die door Northstar tijdens de huidige sessie zijn gewijzigd, gebaseerd op snapshots per beurt. Wordt gereset bij het starten van een nieuwe sessie.",
   "diffViewer.group.session": "Sessie",
   "diffViewer.group.git": "Git",
   "diffViewer.notice.snapshotsDisabled":

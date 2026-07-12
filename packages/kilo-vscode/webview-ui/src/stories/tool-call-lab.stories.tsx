@@ -1188,7 +1188,7 @@ export const SearchPreviews: Story = {
                 <div class="tool-call-lab-example">
                   <span class="tool-call-lab-example-label">CLI startup failure</span>
                   <StartupErrorBanner
-                    errorMessage="Failed to start the Kilo CLI"
+                    errorMessage="Failed to start Northstar CLI"
                     errorDetails="spawn /path/to/kilo ENOENT"
                   />
                 </div>
@@ -1198,7 +1198,7 @@ export const SearchPreviews: Story = {
               <div class="tool-call-lab-panel-header">
                 <span class="tool-call-lab-panel-title">Assistant error families</span>
                 <span class="tool-call-lab-panel-note">
-                  Generic provider errors and Kilo authentication or promotion actions.
+                  Generic provider errors and Northstar authentication or promotion actions.
                 </span>
               </div>
               <div class="tool-call-lab-stack">

@@ -20,7 +20,7 @@ export const KiloLogo = () => {
 
   return (
     <div class="kilo-logo">
-      <img src={`${icons}/${file}`} alt="Kilo Code" />
+      <img src={`${icons}/${file}`} alt="Northstar" />
     </div>
   )
 }

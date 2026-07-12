@@ -617,20 +617,20 @@ export class WorktreeManager {
     const gitDir = await this.resolveGitDir()
     const excludePath = path.join(gitDir, "info", "exclude")
     const items = [
-      [".kilo/worktrees/", "Kilo Code agent worktrees"],
-      [".kilo/agent-manager.json", "Kilo Agent Manager state"],
-      [".kilo/setup-script", "Kilo Code worktree setup script"],
-      [".kilo/setup-script.sh", "Kilo Code worktree setup script"],
-      [".kilo/setup-script.ps1", "Kilo Code worktree setup script"],
-      [".kilo/setup-script.cmd", "Kilo Code worktree setup script"],
-      [".kilo/setup-script.bat", "Kilo Code worktree setup script"],
-      [".kilocode/worktrees/", "Kilo Code legacy agent worktrees"],
-      [".kilocode/agent-manager.json", "Kilo Agent Manager legacy state"],
-      [".kilocode/setup-script", "Kilo Code legacy worktree setup script"],
-      [".kilocode/setup-script.sh", "Kilo Code legacy worktree setup script"],
-      [".kilocode/setup-script.ps1", "Kilo Code legacy worktree setup script"],
-      [".kilocode/setup-script.cmd", "Kilo Code legacy worktree setup script"],
-      [".kilocode/setup-script.bat", "Kilo Code legacy worktree setup script"],
+      [".kilo/worktrees/", "Northstar agent worktrees"],
+      [".kilo/agent-manager.json", "Northstar Agent Manager state"],
+      [".kilo/setup-script", "Northstar worktree setup script"],
+      [".kilo/setup-script.sh", "Northstar worktree setup script"],
+      [".kilo/setup-script.ps1", "Northstar worktree setup script"],
+      [".kilo/setup-script.cmd", "Northstar worktree setup script"],
+      [".kilo/setup-script.bat", "Northstar worktree setup script"],
+      [".kilocode/worktrees/", "Northstar legacy agent worktrees"],
+      [".kilocode/agent-manager.json", "Northstar Agent Manager legacy state"],
+      [".kilocode/setup-script", "Northstar legacy worktree setup script"],
+      [".kilocode/setup-script.sh", "Northstar legacy worktree setup script"],
+      [".kilocode/setup-script.ps1", "Northstar legacy worktree setup script"],
+      [".kilocode/setup-script.cmd", "Northstar legacy worktree setup script"],
+      [".kilocode/setup-script.bat", "Northstar legacy worktree setup script"],
     ] as const
 
     for (const [entry, comment] of items) {

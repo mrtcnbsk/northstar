@@ -8,10 +8,15 @@ describe("user-visible Northstar brand boundary", () => {
       scanVisibleBrand([
         {
           file: "packages/opencode/src/visible.ts",
-          text: 'const a = "Ask Kilo"\nconst b = "kilo run"\nconst c = "kilo --continue"',
+          text: [
+            'const a = "Ask Kilo"',
+            'const b = "kilo run"',
+            'const c = "kilo --continue"',
+            'const d = "https://github.com/Kilo-Org/kilocode"; const e = "Kilo"',
+          ].join("\n"),
         },
       ]).map((hit) => hit.pattern),
-    ).toEqual(["Kilo", "kilo run", "kilo --continue"])
+    ).toEqual(["Kilo", "kilo run", "kilo --continue", "Kilo"])
   })
 
   test("keeps compatibility identifiers and backend URLs", () => {
@@ -19,7 +24,14 @@ describe("user-visible Northstar brand boundary", () => {
       scanVisibleBrand([
         {
           file: "packages/opencode/src/internal.ts",
-          text: 'const id = "kilo"\nconst dir = ".kilo"\nconst url = "https://app.kilo.ai"\nimport x from "@kilocode/sdk"',
+          text: [
+            'const id = "kilo"',
+            'const dir = ".kilo"',
+            'const url = "https://app.kilo.ai"',
+            'const repo = "https://github.com/Kilo-Org/kilocode"',
+            'const slug = "Kilo-Org/kilocode"',
+            'import x from "@kilocode/sdk"',
+          ].join("\n"),
         },
       ]),
     ).toEqual([])
@@ -47,6 +59,17 @@ describe("user-visible Northstar brand boundary", () => {
       scanVisibleBrand([
         { file: "packages/kilo-console/src/brand.test.ts", text: 'expect(copy).toBe("Kilo")' },
         { file: "packages/kilo-vscode/src/brand.spec.ts", text: 'assert.equal(copy, "Kilo Code")' },
+      ]),
+    ).toEqual([])
+  })
+
+  test("keeps frozen legacy migration fixtures", () => {
+    expect(
+      scanVisibleBrand([
+        {
+          file: "packages/kilo-vscode/src/legacy-migration/native-mode-defaults.ts",
+          text: 'const legacy = "You are Kilo Code, an experienced technical leader"',
+        },
       ]),
     ).toEqual([])
   })

@@ -40,9 +40,9 @@ export const ModelSelectorNoProviders: Story = {
 const ACCESSIBLE_MODELS: EnrichedModel[] = [
   {
     id: "kilo-auto/efficient",
-    name: "Kilo Auto Efficient",
+    name: "Northstar Auto Efficient",
     providerID: "kilo",
-    providerName: "Kilo",
+    providerName: "Northstar",
     recommendedIndex: 0,
     options: {
       description:
@@ -51,11 +51,11 @@ const ACCESSIBLE_MODELS: EnrichedModel[] = [
     autoRouting: { models: ["google/gemini-2.5-flash", "anthropic/claude-sonnet-4.6"] },
   },
   { id: "omega", name: "Omega", providerID: "openai", providerName: "OpenAI", recommendedIndex: 1 },
-  { id: "alpha", name: "Alpha", providerID: "kilo", providerName: "Kilo" },
-  { id: "bravo", name: "Bravo", providerID: "kilo", providerName: "Kilo" },
-  { id: "charlie", name: "Charlie", providerID: "kilo", providerName: "Kilo" },
-  { id: "delta", name: "Delta", providerID: "kilo", providerName: "Kilo" },
-  { id: "echo", name: "Echo", providerID: "kilo", providerName: "Kilo" },
+  { id: "alpha", name: "Alpha", providerID: "kilo", providerName: "Northstar" },
+  { id: "bravo", name: "Bravo", providerID: "kilo", providerName: "Northstar" },
+  { id: "charlie", name: "Charlie", providerID: "kilo", providerName: "Northstar" },
+  { id: "delta", name: "Delta", providerID: "kilo", providerName: "Northstar" },
+  { id: "echo", name: "Echo", providerID: "kilo", providerName: "Northstar" },
   { id: "nova", name: "Nova", providerID: "nvidia", providerName: "NVIDIA" },
   { id: "nemotron", name: "Nemotron", providerID: "nvidia", providerName: "NVIDIA" },
 ]

@@ -182,7 +182,7 @@ const ProvidersTab: Component = () => {
                 color: "var(--vscode-foreground)",
               }}
             >
-              Kilo Gateway
+              Northstar Gateway
             </span>
             <Show
               when={kiloLoggedIn()}
