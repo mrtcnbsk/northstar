@@ -89,6 +89,30 @@ export const layer: Layer.Layer<
       modalities: { input: ["text", "image"], output: ["text"] },
     })
 
+    // kilocode_change start - generalized so any openai-compatible endpoint (Apertis, or a
+    // user-added local provider — Ollama/LM Studio/custom baseURL) can reuse the same
+    // `/models` fetch + catalog-model synth (`aperture`). `apiKey` is optional here: local
+    // providers commonly don't require real auth (Ollama ignores the bearer token).
+    const fetchOpenAICompatibleModels = Effect.fn("ModelCache.fetchOpenAICompatibleModels")(function* (
+      baseURL: string,
+      apiKey: string | undefined,
+    ) {
+      const url = `${baseURL.replace(/\/+$/, "")}/models`
+      const request = HttpClientRequest.get(url).pipe(HttpClientRequest.acceptJson)
+      const response = yield* (apiKey ? HttpClientRequest.bearerToken(apiKey)(request) : request).pipe(
+        http.execute,
+        Effect.timeout("10 seconds"),
+      )
+      if (response.status < 200 || response.status >= 300) {
+        log.error("openai-compatible model fetch failed", { baseURL, status: response.status })
+        return {}
+      }
+
+      const json = yield* HttpClientResponse.schemaBodyJson(ApertisResponse)(response)
+      return Object.fromEntries((json.data ?? []).map((item) => [item.id, aperture(item)]))
+    })
+    // kilocode_change end
+
     const fetchApertisModels = Effect.fn("ModelCache.fetchApertisModels")(function* (options: Options) {
       const baseURL = options.baseURL ?? APERTIS_BASE_URL
       if (!options.apiKey) {
@@ -96,20 +120,7 @@ export const layer: Layer.Layer<
         return {}
       }
 
-      const url = `${baseURL.replace(/\/+$/, "")}/models`
-      const response = yield* HttpClientRequest.get(url).pipe(
-        HttpClientRequest.acceptJson,
-        HttpClientRequest.bearerToken(options.apiKey),
-        http.execute,
-        Effect.timeout("10 seconds"),
-      )
-      if (response.status < 200 || response.status >= 300) {
-        log.error("apertis model fetch failed", { status: response.status })
-        return {}
-      }
-
-      const json = yield* HttpClientResponse.schemaBodyJson(ApertisResponse)(response)
-      return Object.fromEntries((json.data ?? []).map((item) => [item.id, aperture(item)]))
+      return yield* fetchOpenAICompatibleModels(baseURL, options.apiKey) // kilocode_change - reuse the generalized fetch
     })
 
     const authOptions = Effect.fn("ModelCache.authOptions")(function* (providerID: string) {
@@ -160,6 +171,13 @@ export const layer: Layer.Layer<
     const fetchModels = (providerID: string, options: Options): Effect.Effect<Result, unknown> => {
       if (providerID === "kilo") return kilo.fetch(options)
       if (providerID === "apertis") return fetchApertisModels(options).pipe(Effect.map((models) => ({ models })))
+      // kilocode_change start - any other providerID with an explicit baseURL is a
+      // user-added local/openai-compatible provider (see `@/kilocode/provider/local-provider`,
+      // which always passes `baseURL` explicitly — never relies on `authOptions` below).
+      if (options.baseURL) {
+        return fetchOpenAICompatibleModels(options.baseURL, options.apiKey).pipe(Effect.map((models) => ({ models })))
+      }
+      // kilocode_change end
       log.debug("provider not implemented", { providerID })
       return Effect.succeed({ models: {} })
     }
