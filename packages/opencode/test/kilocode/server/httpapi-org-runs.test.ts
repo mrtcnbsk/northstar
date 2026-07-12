@@ -170,6 +170,63 @@ describe("HttpApi org-runs", () => {
     expect(planning.decision).toBeNull()
   })
 
+  test("GET detail surfaces autonomous criteria, loop progress, pause reason, and conductor events", async () => {
+    await using tmp = await tmpdir()
+    await fs.mkdir(path.join(tmp.path, ".kilo"), { recursive: true })
+    const autoOrg = OrgSchema.parse({
+      ...ORG,
+      loop: { maxIterations: 6, evaluatorModel: "haiku-fast" },
+      pipeline: [
+        { ...ORG.pipeline[0], criteria: ["Evidence is cited"] },
+        { ...ORG.pipeline[1], criteria: ["Focused tests pass"] },
+      ],
+    })
+    await Bun.write(OrgSchema.organizationPath(tmp.path), JSON.stringify(autoOrg))
+    const run = await OrgState.create(tmp.path, autoOrg, "autonomous telemetry")
+    await OrgState.update(tmp.path, run.runID, (state) => {
+      state.auto = true
+      state.status = "paused"
+      state.pausedReason = { kind: "escalation", stage: "planning", detail: "test proof missing" }
+      state.stages.evaluation.status = "completed"
+      state.stages.planning.status = "awaiting_approval"
+      state.stages.planning.objective = "Prove readiness"
+      state.stages.planning.iterations = 2
+      state.stages.planning.toolsUsed = ["xcode_test"]
+      state.stages.planning.verdictHistory = [
+        { pass: false, reasons: ["test proof missing"], summary: "revise", ts: 1234 },
+      ]
+    })
+    await OrgAudit.append(tmp.path, run.runID, {
+      ts: "2026-07-12T00:00:00.000Z",
+      stage: "planning",
+      decision: "event",
+      event: "evaluator_verdict",
+      pass: false,
+      iteration: 2,
+      note: "test proof missing",
+    })
+
+    const response = await app().request(OrgRunsPaths.detail.replace(":runID", run.runID), {
+      headers: { "x-kilo-directory": tmp.path },
+    })
+    expect(response.status).toBe(200)
+    const body = rec(await response.json())
+    const returned = rec(body.run)
+    expect(returned.auto).toBe(true)
+    expect(returned.pausedReason).toEqual({ kind: "escalation", stage: "planning", detail: "test proof missing" })
+    expect(body.loop).toEqual({ maxIterations: 6, evaluatorModel: "haiku-fast" })
+    const planning = (body.stages as Json[]).find((stage) => stage.stage === "planning")!
+    expect(planning.criteria).toEqual(["Focused tests pass"])
+    expect(planning.objective).toBe("Prove readiness")
+    expect(planning.iterations).toBe(2)
+    expect(planning.toolsUsed).toEqual(["xcode_test"])
+    expect((body.audit as Json[])[0]).toMatchObject({
+      event: "evaluator_verdict",
+      pass: false,
+      iteration: 2,
+    })
+  })
+
   test("GET /org-runs/:unknownID returns 404", async () => {
     await using tmp = await tmpdir()
     const api = app()

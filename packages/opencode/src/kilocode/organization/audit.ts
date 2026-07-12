@@ -17,6 +17,23 @@ export namespace OrgAudit {
     note: z.string().optional(),
     /** sha256 of the deliverable at decision time; omitted when the deliverable was unreadable. */
     deliverableHash: z.string().optional(),
+    /** Typed autonomous conductor event; absent on legacy human-decision entries. */
+    event: z
+      .enum([
+        "stage_started",
+        "deliverable_settled",
+        "evaluator_verdict",
+        "revise_iteration",
+        "escalation",
+        "final_gate",
+        "completed",
+        "halted",
+      ])
+      .optional(),
+    iteration: z.number().int().nonnegative().optional(),
+    pass: z.boolean().optional(),
+    taskID: z.string().optional(),
+    cost: z.number().optional(),
   })
   export type Entry = z.output<typeof Entry>
 
@@ -48,5 +65,32 @@ export namespace OrgAudit {
     entries.push(entry)
     await Filesystem.write(path(projectDir, runID), JSON.stringify(entries, null, 2))
     return entries
+  }
+
+  export async function appendEvent(
+    projectDir: string,
+    runID: string,
+    event: {
+      type: NonNullable<Entry["event"]>
+      ts: number
+      stage?: string
+      detail?: string
+      iteration?: number
+      pass?: boolean
+      taskID?: string
+      cost?: number
+    },
+  ): Promise<Entry[]> {
+    return append(projectDir, runID, {
+      ts: new Date(event.ts).toISOString(),
+      stage: event.stage ?? "none",
+      decision: "event",
+      event: event.type,
+      note: event.detail,
+      iteration: event.iteration,
+      pass: event.pass,
+      taskID: event.taskID,
+      cost: event.cost,
+    })
   }
 }

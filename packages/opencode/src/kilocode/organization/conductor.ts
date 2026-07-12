@@ -1,5 +1,6 @@
 // kilocode_change - SP1 deterministic autonomous loop driver
 import { OrgArtifacts } from "./artifacts"
+import { OrgAudit } from "./audit"
 import { OrgEvaluator } from "./evaluator"
 import { OrgRunner } from "./runner"
 import { OrgSchema } from "./schema"
@@ -60,8 +61,10 @@ export namespace OrgConductor {
     ].join("\n")
   }
 
-  function emit(deps: Deps, event: Omit<Event, "ts">) {
-    deps.emit({ ...event, ts: deps.now() })
+  async function emit(deps: Deps, runID: string, event: Omit<Event, "ts">) {
+    const full = { ...event, ts: deps.now() }
+    deps.emit(full)
+    await OrgAudit.appendEvent(deps.projectDir, runID, full)
   }
 
   export async function drive(runID: string, deps: Deps): Promise<Outcome> {
@@ -73,11 +76,11 @@ export namespace OrgConductor {
       taskResults = []
 
       if (batch.halted) {
-        emit(deps, { type: "halted", detail: batch.halted.reason })
+        await emit(deps, runID, { type: "halted", detail: batch.halted.reason })
         return { type: "halted", reason: batch.halted.reason }
       }
       if (batch.done) {
-        emit(deps, { type: "completed" })
+        await emit(deps, runID, { type: "completed" })
         return { type: "completed" }
       }
       if (batch.paused) return { type: "paused", ...batch.paused }
@@ -92,7 +95,7 @@ export namespace OrgConductor {
             stage,
             detail,
           })
-          emit(deps, { type: "final_gate", stage, detail })
+          await emit(deps, runID, { type: "final_gate", stage, detail })
           return { type: "paused", ...paused.pausedReason! }
         }
         const record = run.stages[stage]
@@ -110,7 +113,7 @@ export namespace OrgConductor {
         })
         const reply = await deps.evaluate({ runID, stage, model: loop.evaluatorModel, prompt }).catch(() => "")
         const verdict = OrgEvaluator.parse(reply)
-        emit(deps, {
+        await emit(deps, runID, {
           type: "evaluator_verdict",
           stage,
           pass: verdict.pass,
@@ -119,11 +122,15 @@ export namespace OrgConductor {
         const applied = await OrgRunner.applyVerdict(deps.projectDir, deps.org, runID, stage, verdict, deps.now())
         if (applied.outcome === "escalated" || applied.outcome === "final_gate") {
           const reason = applied.run.pausedReason!
-          emit(deps, { type: applied.outcome === "escalated" ? "escalation" : "final_gate", stage, detail: reason.detail })
+          await emit(deps, runID, {
+            type: applied.outcome === "escalated" ? "escalation" : "final_gate",
+            stage,
+            detail: reason.detail,
+          })
           return { type: "paused", ...reason }
         }
         if (applied.outcome === "revise") {
-          emit(deps, {
+          await emit(deps, runID, {
             type: "revise_iteration",
             stage,
             iteration: applied.run.stages[stage].iterations,
@@ -153,12 +160,12 @@ export namespace OrgConductor {
       ]
       if (jobs.length === 0) {
         const reason = "autonomous conductor made no progress"
-        emit(deps, { type: "halted", detail: reason })
+        await emit(deps, runID, { type: "halted", detail: reason })
         return { type: "halted", reason }
       }
 
       const run = await OrgState.read(deps.projectDir, runID)
-      for (const job of jobs) emit(deps, { type: "stage_started", stage: job.stage })
+      for (const job of jobs) await emit(deps, runID, { type: "stage_started", stage: job.stage })
       const settled = await Promise.all(
         jobs.map(async (job) => ({
           stage: job.stage,
@@ -180,7 +187,7 @@ export namespace OrgConductor {
           item.result.toolIDs ?? [],
         )
         taskResults.push({ stage: item.stage, taskID: item.result.taskID })
-        emit(deps, {
+        await emit(deps, runID, {
           type: "deliverable_settled",
           stage: item.stage,
           taskID: item.result.taskID,

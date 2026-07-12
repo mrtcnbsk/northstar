@@ -80,13 +80,25 @@ export namespace OrgRunsView {
       startedAt: s.startedAt ?? null,
       completedAt: s.completedAt ?? null,
       decision: s.decision ?? null,
+      criteria: s.criteria,
+      objective: s.objective,
+      iterations: s.iterations ?? 0,
+      verdictHistory: s.verdictHistory,
+      toolsUsed: s.toolsUsed,
     }))
     // organization.jsonc is supplementary for the detail view (same posture as approvals.json
     // above): a missing/corrupt org file degrades to an absent `budget` block rather than failing
     // an otherwise-healthy run's detail. Mirrors OrgStatusTool's budget assembly (organization/tools.ts).
     const spent = summary.totalCost
-    const budget = await OrgSchema.loadOrganization(projectDir)
-      .then((org) => {
+    const organization = await OrgSchema.loadOrganization(projectDir).catch((e: unknown) => {
+      console.warn(
+        `[org-runs] organization unreadable for run "${runID}", omitting budget: ${e instanceof Error ? e.message : String(e)}`,
+      )
+      return undefined
+    })
+    const budget = organization
+      ? (() => {
+          const org = organization
         const resolved = OrgSchema.resolveBudget(org)
         return {
           run: resolved.run,
@@ -97,14 +109,10 @@ export namespace OrgRunsView {
           remaining: Math.max(0, resolved.run - spent),
           escalated: run.escalated ?? false,
         }
-      })
-      .catch((e: unknown) => {
-        console.warn(
-          `[org-runs] organization unreadable for run "${runID}", omitting budget: ${e instanceof Error ? e.message : String(e)}`,
-        )
-        return undefined
-      })
-    return { run, audit, totalCost: summary.totalCost, stages, budget }
+        })()
+      : undefined
+    const loop = organization ? OrgSchema.resolveLoop(organization) : undefined
+    return { run, audit, totalCost: summary.totalCost, stages, budget, loop }
   }
 }
 

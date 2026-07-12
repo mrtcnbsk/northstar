@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
+import { OrgAudit } from "../../../src/kilocode/organization/audit"
 import { OrgConductor } from "../../../src/kilocode/organization/conductor"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
@@ -85,6 +86,12 @@ describe("OrgConductor.drive", () => {
     expect(h.calls.get("build")).toBe(1)
     expect(h.evaluatorCalls()).toBe(1)
     expect(h.events.map((event) => event.type)).toEqual([
+      "stage_started",
+      "deliverable_settled",
+      "evaluator_verdict",
+      "completed",
+    ])
+    expect((await OrgAudit.read(tmp.path, run.runID)).filter((entry) => entry.event).map((entry) => entry.event)).toEqual([
       "stage_started",
       "deliverable_settled",
       "evaluator_verdict",

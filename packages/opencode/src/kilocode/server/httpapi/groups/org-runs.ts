@@ -44,6 +44,22 @@ const OrgRunStage = Schema.Struct({
   reviseNote: Schema.optional(Schema.String),
   startedAt: Schema.optional(Schema.String),
   completedAt: Schema.optional(Schema.String),
+  escalationNote: Schema.optional(Schema.String),
+  invalidatedDownstream: Schema.optional(Schema.Array(Schema.String)),
+  criteria: Schema.optional(Schema.Array(Schema.String)),
+  objective: Schema.optional(Schema.String),
+  iterations: Schema.optional(Schema.Number),
+  verdictHistory: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        pass: Schema.Boolean,
+        reasons: Schema.optional(Schema.Array(Schema.String)),
+        summary: Schema.optional(Schema.String),
+        ts: Schema.Number,
+      }),
+    ),
+  ),
+  toolsUsed: Schema.optional(Schema.Array(Schema.String)),
 }).annotate({ identifier: "OrgRunStage" })
 
 const OrgRunFull = Schema.Struct({
@@ -52,8 +68,17 @@ const OrgRunFull = Schema.Struct({
   createdAt: Schema.String,
   status: OrgRunStatus,
   haltReason: Schema.optional(Schema.String),
+  auto: Schema.optional(Schema.Boolean),
+  pausedReason: Schema.optional(
+    Schema.Struct({
+      kind: Schema.Literals(["escalation", "final_gate", "manual"]),
+      stage: Schema.String,
+      detail: Schema.String,
+    }),
+  ),
   stages: Schema.Record(Schema.String, OrgRunStage),
   escalated: Schema.optional(Schema.Boolean),
+  mode: Schema.optional(Schema.String),
 }).annotate({ identifier: "OrgRunFull" })
 
 const OrgAuditEntry = Schema.Struct({
@@ -62,6 +87,22 @@ const OrgAuditEntry = Schema.Struct({
   decision: Schema.String,
   note: Schema.optional(Schema.String),
   deliverableHash: Schema.optional(Schema.String),
+  event: Schema.optional(
+    Schema.Literals([
+      "stage_started",
+      "deliverable_settled",
+      "evaluator_verdict",
+      "revise_iteration",
+      "escalation",
+      "final_gate",
+      "completed",
+      "halted",
+    ]),
+  ),
+  iteration: Schema.optional(Schema.Number),
+  pass: Schema.optional(Schema.Boolean),
+  taskID: Schema.optional(Schema.String),
+  cost: Schema.optional(Schema.Number),
 }).annotate({ identifier: "OrgAuditEntry" })
 
 const OrgRunStageView = Schema.Struct({
@@ -72,7 +113,26 @@ const OrgRunStageView = Schema.Struct({
   startedAt: Schema.NullOr(Schema.String),
   completedAt: Schema.NullOr(Schema.String),
   decision: Schema.NullOr(Schema.Literals(["approve", "no-go", "revise"])),
+  criteria: Schema.optional(Schema.Array(Schema.String)),
+  objective: Schema.optional(Schema.String),
+  iterations: Schema.Number,
+  verdictHistory: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        pass: Schema.Boolean,
+        reasons: Schema.optional(Schema.Array(Schema.String)),
+        summary: Schema.optional(Schema.String),
+        ts: Schema.Number,
+      }),
+    ),
+  ),
+  toolsUsed: Schema.optional(Schema.Array(Schema.String)),
 }).annotate({ identifier: "OrgRunStageView" })
+
+const OrgRunLoop = Schema.Struct({
+  maxIterations: Schema.Number,
+  evaluatorModel: Schema.String,
+}).annotate({ identifier: "OrgRunLoop" })
 
 /**
  * Mirrors the `org_status` tool's budget assembly (organization/tools.ts OrgStatusTool):
@@ -96,6 +156,7 @@ export const OrgRunDetailResponse = Schema.Struct({
   totalCost: Schema.Number,
   stages: Schema.Array(OrgRunStageView),
   budget: Schema.optional(OrgRunBudget),
+  loop: Schema.optional(OrgRunLoop),
 }).annotate({ identifier: "OrgRunDetailResponse" })
 
 export const OrgRunPlanPayload = Schema.Struct({
