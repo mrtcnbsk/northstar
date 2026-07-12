@@ -73,6 +73,7 @@ describe("stageTimeline", () => {
           status: "completed",
           cost: 1.5,
           attempts: 1,
+          iterations: 0,
           startedAt: "2026-01-01T00:00:00.000Z",
           completedAt: "2026-01-01T00:05:00.000Z",
           decision: "approve",
@@ -82,6 +83,7 @@ describe("stageTimeline", () => {
           status: "awaiting_approval",
           cost: 2,
           attempts: 1,
+          iterations: 0,
           startedAt: "2026-01-01T00:05:00.000Z",
           completedAt: "",
           decision: "approve",
@@ -91,6 +93,7 @@ describe("stageTimeline", () => {
           status: "pending",
           cost: "NaN",
           attempts: 0,
+          iterations: 0,
           startedAt: "",
           completedAt: "",
           decision: "approve",
@@ -138,9 +141,9 @@ describe("awaitingGateStages", () => {
   test("picks only the awaiting_approval stages", () => {
     const data = detail({
       stages: [
-        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "edge", status: "awaiting_approval", cost: 2, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "durability", status: "awaiting_approval", cost: 0, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "edge", status: "awaiting_approval", cost: 2, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "durability", status: "awaiting_approval", cost: 0, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
       ],
     })
 
@@ -150,7 +153,7 @@ describe("awaitingGateStages", () => {
   test("returns an empty list when nothing is awaiting a gate", () => {
     const data = detail({
       stages: [
-        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
       ],
     })
 
@@ -171,9 +174,9 @@ describe("costRows", () => {
   test("preserves stage order and maps cost", () => {
     const data = detail({
       stages: [
-        { stage: "feasibility", status: "completed", cost: 1.5, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "edge", status: "completed", cost: 0.25, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "durability", status: "awaiting_approval", cost: 0.5, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "feasibility", status: "completed", cost: 1.5, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "edge", status: "completed", cost: 0.25, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "durability", status: "awaiting_approval", cost: 0.5, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
       ],
     })
 
@@ -186,7 +189,7 @@ describe("costRows", () => {
 
   test("normalizes legacy non-finite cost values to 0", () => {
     const data = detail({
-      stages: [{ stage: "durability", status: "pending", cost: "NaN", attempts: 0, startedAt: "", completedAt: "", decision: "approve" }],
+      stages: [{ stage: "durability", status: "pending", cost: "NaN", attempts: 0, iterations: 0, startedAt: "", completedAt: "", decision: "approve" }],
     })
 
     expect(costRows(data)).toEqual([{ stage: "durability", cost: 0 }])
@@ -202,9 +205,9 @@ describe("costTotal", () => {
     const data = detail({
       totalCost: 2.25,
       stages: [
-        { stage: "feasibility", status: "completed", cost: 1.5, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "edge", status: "completed", cost: 0.25, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
-        { stage: "durability", status: "awaiting_approval", cost: 0.5, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "feasibility", status: "completed", cost: 1.5, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "edge", status: "completed", cost: 0.25, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "durability", status: "awaiting_approval", cost: 0.5, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
       ],
     })
 
@@ -227,12 +230,13 @@ describe("awaitingSince", () => {
     const now = new Date("2026-01-01T00:10:00.000Z").getTime()
     const data = detail({
       stages: [
-        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, startedAt: "", completedAt: "", decision: "approve" },
+        { stage: "feasibility", status: "completed", cost: 1, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" },
         {
           stage: "edge",
           status: "awaiting_approval",
           cost: 2,
           attempts: 1,
+          iterations: 0,
           startedAt: "2026-01-01T00:05:00.000Z",
           completedAt: "",
           decision: "approve",
@@ -242,6 +246,7 @@ describe("awaitingSince", () => {
           status: "awaiting_approval",
           cost: 0,
           attempts: 1,
+          iterations: 0,
           startedAt: "2026-01-01T00:08:00.000Z",
           completedAt: "",
           decision: "approve",
@@ -258,7 +263,7 @@ describe("awaitingSince", () => {
   test("returns empty when nothing is awaiting a gate", () => {
     const now = Date.now()
     const data = detail({
-      stages: [{ stage: "feasibility", status: "completed", cost: 1, attempts: 1, startedAt: "", completedAt: "", decision: "approve" }],
+      stages: [{ stage: "feasibility", status: "completed", cost: 1, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" }],
     })
 
     expect(awaitingSince(data, now)).toEqual([])
@@ -268,7 +273,7 @@ describe("awaitingSince", () => {
   test("defaults sinceMs to 0 when startedAt is missing", () => {
     const now = Date.now()
     const data = detail({
-      stages: [{ stage: "edge", status: "awaiting_approval", cost: 1, attempts: 1, startedAt: "", completedAt: "", decision: "approve" }],
+      stages: [{ stage: "edge", status: "awaiting_approval", cost: 1, attempts: 1, iterations: 0, startedAt: "", completedAt: "", decision: "approve" }],
     })
 
     expect(awaitingSince(data, now)).toEqual([{ stage: "edge", sinceMs: 0 }])
