@@ -6,8 +6,17 @@ import { OrgWorkspace } from "./workspace"
 
 export namespace OrgSchema {
   export const Department = z.object({
+    /** User-facing department label; the record key remains the stable runtime id. */
+    name: z.string().trim().min(1).optional(),
+    /** User-facing purpose shown in Setup and Mission Control. */
+    mission: z.string().trim().min(1).optional(),
     chief: z.string().min(1),
     workers: z.array(z.string().min(1)).min(1),
+  })
+
+  const Layer = z.object({
+    name: z.string().trim().min(1),
+    mission: z.string().trim().min(1),
   })
 
   /** Declarative skip condition (v1, no expression DSL - see decision #4 in the wave-4 plan). */
@@ -49,6 +58,15 @@ export namespace OrgSchema {
   })
 
   export const Organization = z.object({
+    /** Optional display metadata. Runtime behavior continues to use stable ids below. */
+    name: z.string().trim().min(1).optional(),
+    layers: z
+      .object({
+        executive: Layer,
+        leads: Layer,
+        specialists: Layer,
+      })
+      .optional(),
     ceo: z.string().min(1),
     departments: z.record(z.string(), Department),
     shared: z.array(z.string().min(1)).default([]),
