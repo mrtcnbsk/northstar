@@ -23,6 +23,7 @@ import { Plugin } from "../../../src/plugin"
 import { RuntimeFlags } from "../../../src/effect/runtime-flags"
 import * as CrossSpawnSpawner from "@opencode-ai/core/cross-spawn-spawner"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { OrgWorkspace } from "../../../src/kilocode/organization/workspace"
 
 // Minimal stub: OrgAdvanceTool's init yields Session.Service unconditionally (for the
 // isResumable closure), even on paths (like a fresh gate with no resumeTaskID) that never call
@@ -64,7 +65,7 @@ const BUDGET_ORG = OrgSchema.parse({
   budget: { run: 10, stage: 6, escalationThreshold: 4, retries: 2 },
 })
 
-function makeRuntime() {
+function makeRuntime(sessions: Session.Interface = sessionStub) {
   return ManagedRuntime.make(
     Layer.mergeAll(
       CrossSpawnSpawner.defaultLayer,
@@ -74,10 +75,53 @@ function makeRuntime() {
       Agent.defaultLayer,
       Config.defaultLayer,
       RuntimeFlags.layer(),
-      Layer.succeed(Session.Service, sessionStub),
+      Layer.succeed(Session.Service, sessions),
     ),
   )
 }
+
+describe("organization-bound org tools", () => {
+  test("uses the session organization even after another organization becomes active", async () => {
+    await using tmp = await tmpdir()
+    const alphaDraft = await OrgWorkspace.stage(tmp.path, "Alpha")
+    const alpha = await OrgWorkspace.publish(tmp.path, alphaDraft.entry.id)
+    const betaDraft = await OrgWorkspace.stage(tmp.path, "Beta")
+    const beta = await OrgWorkspace.publish(tmp.path, betaDraft.entry.id)
+    const alphaOrg = OrgSchema.parse({
+      ceo: "ceo",
+      departments: { alpha: { chief: "alpha-chief", workers: ["alpha-worker"] } },
+      pipeline: [{ stage: "alpha" }],
+    })
+    const betaOrg = OrgSchema.parse({
+      ceo: "ceo",
+      departments: { beta: { chief: "beta-chief", workers: ["beta-worker"] } },
+      pipeline: [{ stage: "beta" }],
+    })
+    await OrgWorkspace.run(alpha, () => OrgSchema.writeOrganization(tmp.path, alphaOrg))
+    await OrgWorkspace.run(beta, () => OrgSchema.writeOrganization(tmp.path, betaOrg))
+    expect((await OrgWorkspace.active(tmp.path))?.entry.id).toBe("beta")
+
+    const alphaSession = Session.Service.of({
+      ...sessionStub,
+      get: () =>
+        Effect.succeed({
+          id: ctx.sessionID,
+          metadata: { northstarOrganizationID: "alpha" },
+        } as Session.Info),
+    })
+    const runtime = makeRuntime(alphaSession)
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        const tool = await runtime.runPromise(OrgStatusTool.pipe(Effect.flatMap((info) => info.init())))
+        const out = await Effect.runPromise(tool.execute({}, ctx))
+        const body = JSON.parse(out.output)
+        expect(body.organization.departments.alpha.chief).toBe("alpha-chief")
+        expect(body.organization.departments.beta).toBeUndefined()
+      },
+    })
+  })
+})
 
 const ctx = {
   sessionID: SessionID.make("ses_test"),

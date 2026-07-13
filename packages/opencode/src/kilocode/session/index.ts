@@ -24,6 +24,26 @@ export namespace KiloSession {
   const log = Log.create({ service: "session.kilo" })
 
   // ---------------------------------------------------------------------------
+  // Project-local Northstar organization binding
+  // ---------------------------------------------------------------------------
+
+  export function organizationID(info: { metadata?: Record<string, unknown> }): string | undefined {
+    const value = info.metadata?.northstarOrganizationID
+    return typeof value === "string" && value.length > 0 ? value : undefined
+  }
+
+  export function forOrganization<T extends { metadata?: Record<string, unknown> }>(
+    items: readonly T[],
+    id: string,
+    legacy: boolean,
+  ): T[] {
+    return items.filter((item) => {
+      const current = organizationID(item)
+      return current === id || (legacy && current === undefined)
+    })
+  }
+
+  // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------
 

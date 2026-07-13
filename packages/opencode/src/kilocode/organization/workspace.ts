@@ -3,6 +3,7 @@ import path from "path"
 import { AsyncLocalStorage } from "node:async_hooks"
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises"
 import z from "zod"
+import { Effect, Exit } from "effect"
 
 export namespace OrgWorkspace {
   const SAFE_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -24,7 +25,11 @@ export namespace OrgWorkspace {
     .superRefine((value, ctx) => {
       if (!value.active) return
       if (value.organizations.some((entry) => entry.id === value.active)) return
-      ctx.addIssue({ code: "custom", message: `Active organization '${value.active}' is not registered`, path: ["active"] })
+      ctx.addIssue({
+        code: "custom",
+        message: `Active organization '${value.active}' is not registered`,
+        path: ["active"],
+      })
     })
   export type Registry = z.output<typeof Registry>
 
@@ -252,6 +257,20 @@ export namespace OrgWorkspace {
 
   export function run<A>(ctx: Context, fn: () => A): A {
     return scope.run(ctx, fn)
+  }
+
+  /** Runs an Effect inside this organization while preserving its captured service context. */
+  export function effect<A, E, R>(ctx: Context, self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> {
+    return Effect.gen(function* () {
+      const services = yield* Effect.context<R>()
+      return yield* Effect.callback<A, E>((resume) => {
+        run(ctx, () =>
+          Effect.runPromiseExit(self.pipe(Effect.provide(services)) as Effect.Effect<A, E>).then((exit) =>
+            resume(Exit.isSuccess(exit) ? Effect.succeed(exit.value) : Effect.failCause(exit.cause)),
+          ),
+        )
+      })
+    })
   }
 
   export function current(dir: string): Context | undefined {

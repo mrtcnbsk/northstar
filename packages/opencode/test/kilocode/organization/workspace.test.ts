@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "path"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgWorkspace } from "../../../src/kilocode/organization/workspace"
+import { Effect } from "effect"
 
 describe("OrgWorkspace", () => {
   test("discovers the unmoved legacy organization", async () => {
@@ -15,9 +16,7 @@ describe("OrgWorkspace", () => {
     const registry = await OrgWorkspace.list(tmp.path)
 
     expect(registry.active).toBe("legacy")
-    expect(registry.organizations).toEqual([
-      { id: "legacy", name: "Legacy organization", layout: "legacy", root: "." },
-    ])
+    expect(registry.organizations).toEqual([{ id: "legacy", name: "Legacy organization", layout: "legacy", root: "." }])
     expect(await Bun.file(organization).exists()).toBe(true)
   })
 
@@ -94,6 +93,27 @@ describe("OrgWorkspace", () => {
       await Promise.resolve()
       expect(OrgWorkspace.current(tmp.path)?.entry.id).toBe("scoped")
     })
+    expect(OrgWorkspace.current(tmp.path)).toBeUndefined()
+  })
+
+  test("scopes an Effect runtime without leaking across concurrent organizations", async () => {
+    await using tmp = await tmpdir()
+    const alpha = await OrgWorkspace.stage(tmp.path, "Alpha")
+    const beta = await OrgWorkspace.stage(tmp.path, "Beta")
+    const seen = await Promise.all(
+      [alpha, beta].map((context, index) =>
+        Effect.runPromise(
+          OrgWorkspace.effect(
+            context,
+            Effect.gen(function* () {
+              yield* Effect.sleep(`${index + 1} millis`)
+              return OrgWorkspace.current(tmp.path)?.entry.id
+            }),
+          ),
+        ),
+      ),
+    )
+    expect(seen).toEqual(["alpha", "beta"])
     expect(OrgWorkspace.current(tmp.path)).toBeUndefined()
   })
 })

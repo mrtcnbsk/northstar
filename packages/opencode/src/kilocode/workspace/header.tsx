@@ -10,6 +10,9 @@ import { useTheme } from "@tui/context/theme"
 import { useTuiConfig } from "@tui/context/tui-config"
 import { KILO_BASE_MODE, useBindings, useOpencodeKeymap } from "@tui/keymap"
 import { useWorkspace } from "./context"
+import { useSync } from "@tui/context/sync"
+import { useLocal } from "@tui/context/local"
+import { KiloSession } from "../session"
 
 const COMMANDS = ["northstar.setup", "northstar.chat", "northstar.mission", "northstar.organization"] as const
 
@@ -26,6 +29,25 @@ export async function performOrganizationSwitch(input: {
   return true
 }
 
+export function newestOrganizationSession<
+  T extends { parentID?: string; metadata?: Record<string, unknown>; time: { updated: number } },
+>(items: readonly T[], organizationID: string, legacy: boolean): T | undefined {
+  return KiloSession.forOrganization(
+    items.filter((session) => session.parentID === undefined),
+    organizationID,
+    legacy,
+  ).toSorted((a, b) => b.time.updated - a.time.updated)[0]
+}
+
+export function organizationCEO<T extends { name: string; mode: string; source?: string }>(
+  items: readonly T[],
+): T | undefined {
+  return (
+    items.find((agent) => agent.mode === "primary" && agent.source === "organization") ??
+    items.find((agent) => agent.mode === "primary" && agent.name === "ceo")
+  )
+}
+
 export function WorkspaceHeader() {
   const route = useRoute()
   const workspace = useWorkspace()
@@ -33,6 +55,8 @@ export function WorkspaceHeader() {
   const toast = useToast()
   const keymap = useOpencodeKeymap()
   const tuiConfig = useTuiConfig()
+  const sync = useSync()
+  const local = useLocal()
   const { theme } = useTheme()
 
   function openSetup() {
@@ -41,6 +65,16 @@ export function WorkspaceHeader() {
   }
 
   function openChat() {
+    const active = workspace.active()
+    if (active) {
+      const recent = newestOrganizationSession(sync.data.session, active.id, active.layout === "legacy")
+      if (recent) {
+        route.navigate({ type: "session", sessionID: recent.id })
+        return
+      }
+      const ceo = organizationCEO(sync.data.agent)
+      if (ceo) local.agent.set(ceo.name)
+    }
     route.navigate({ type: "home" })
   }
 

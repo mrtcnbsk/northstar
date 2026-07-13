@@ -18,6 +18,10 @@ import { errorMessage } from "@/util/error"
 import { DialogSessionDeleteFailed } from "./dialog-session-delete-failed"
 import { WorkspaceLabel } from "./workspace-label"
 import { useCommandShortcut } from "../keymap"
+// kilocode_change start - active Northstar organization session boundary
+import { useWorkspace } from "@/kilocode/workspace/context"
+import { KiloSession } from "@/kilocode/session"
+// kilocode_change end
 
 export function DialogSessionList() {
   const dialog = useDialog()
@@ -34,6 +38,7 @@ export function DialogSessionList() {
   const deleteHint = useCommandShortcut("session.delete")
   const quickSwitch1 = useCommandShortcut("session.quick_switch.1")
   const quickSwitch9 = useCommandShortcut("session.quick_switch.9")
+  const northstar = useWorkspace() // kilocode_change
 
   // kilocode_change start - always fetch from experimental endpoint (returns GlobalSession with worktree info)
   // TODO: extend /experimental/session to accept `scope`/`path` so this dialog can respect the
@@ -60,7 +65,14 @@ export function DialogSessionList() {
 
   const currentSessionID = createMemo(() => (route.data.type === "session" ? route.data.sessionID : undefined))
 
-  const sessions = createMemo(() => searchResults() ?? []) // kilocode_change - endpoint applies worktree scope
+  // kilocode_change start - endpoint applies worktree scope; Northstar adds organization scope
+  const sessions = createMemo(() => {
+    const items = searchResults() ?? []
+    const active = northstar.active()
+    if (!active) return items
+    return KiloSession.forOrganization(items, active.id, active.layout === "legacy")
+  })
+  // kilocode_change end
 
   function recover(session: NonNullable<ReturnType<typeof sessions>[number]>) {
     const workspace = project.workspace.get(session.workspaceID!)

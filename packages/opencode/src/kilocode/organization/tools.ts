@@ -18,6 +18,8 @@ import { OrgMemory } from "./memory" // kilocode_change - W6.2: companion lesson
 import { OrgDriver } from "./driver" // kilocode_change - SP1 headless loop attachment
 import { Provider } from "@/provider/provider" // kilocode_change - optional evaluator small-model resolver
 import type { TaskPromptOps } from "@/tool/task"
+import { KiloSession } from "@/kilocode/session"
+import { OrgWorkspace } from "./workspace"
 
 // kilocode_change start - W6.2: postrun postmortem hook.
 const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
@@ -94,6 +96,24 @@ async function recordPostmortem(dir: string, org: OrgSchema.Organization, runID:
  * which would reduce every expected config/runner error to noise before it reaches the CEO agent. */
 export const tryOrg = <A>(f: () => Promise<A>) =>
   Effect.tryPromise({ try: f, catch: (e) => (e instanceof Error ? e : new Error(String(e))) })
+
+function scopedExecute<P, A, E, R>(
+  sessions: Session.Interface,
+  execute: (params: P, ctx: Tool.Context) => Effect.Effect<A, E, R>,
+): (params: P, ctx: Tool.Context) => Effect.Effect<A, never, R> {
+  return (params, ctx) =>
+    Effect.gen(function* () {
+      const instance = yield* InstanceState.context
+      const session = yield* sessions
+        .get(SessionID.make(ctx.sessionID))
+        .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      if (!session) return yield* execute(params, ctx)
+      const organizationID = KiloSession.organizationID(session)
+      if (!organizationID) return yield* execute(params, ctx)
+      const organization = yield* tryOrg(() => OrgWorkspace.resolve(instance.directory, organizationID))
+      return yield* OrgWorkspace.effect(organization, execute(params, ctx))
+    }).pipe(Effect.orDie)
+}
 
 // kilocode_change start - W0-R2: serialize the MUTATING org tools per run_id.
 // OrgState.update and OrgAudit.append are unlocked read-modify-write/append (see their own doc
@@ -173,11 +193,12 @@ const StartParameters = Schema.Struct({
 export const OrgStartTool = Tool.define(
   "org_start",
   Effect.gen(function* () {
+    const sessions = yield* Session.Service
     return {
       description:
         "Start a new organization pipeline run from an idea/brief. Returns the run_id. Then call org_advance to get the first stage instruction.",
       parameters: StartParameters,
-      execute: (params: Schema.Schema.Type<typeof StartParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof StartParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -190,6 +211,7 @@ export const OrgStartTool = Tool.define(
             next: "call org_advance with this run_id",
           })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -211,11 +233,12 @@ const PlanParameters = Schema.Struct({
 export const OrgPlanTool = Tool.define(
   "org_plan",
   Effect.gen(function* () {
+    const sessions = yield* Session.Service
     return {
       description:
         "Commit or replace the one-shot autonomous execution plan while its first human gate is awaiting approval. The user may edit criteria before approving; approval then starts loop mode.",
       parameters: PlanParameters,
-      execute: (params: Schema.Schema.Type<typeof PlanParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof PlanParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -235,6 +258,7 @@ export const OrgPlanTool = Tool.define(
             next: "present this editable plan to the user, then call org_decision approve on the plan gate",
           })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -247,12 +271,12 @@ const AdvanceParameters = Schema.Struct({
   }),
   // kilocode_change - W4.6: after spawning a run_tasks fan-out in parallel, the CEO reports one
   // {stage, task_id} per finished task so each stage settles with ITS OWN chief's cost/session.
-  task_results: Schema.optional(
-    Schema.Array(Schema.Struct({ stage: Schema.String, task_id: Schema.String })),
-  ).annotate({
-    description:
-      "After spawning multiple tasks from a run_tasks batch in parallel, report each finished task as {stage, task_id} so its stage is settled with its own chief's result",
-  }),
+  task_results: Schema.optional(Schema.Array(Schema.Struct({ stage: Schema.String, task_id: Schema.String }))).annotate(
+    {
+      description:
+        "After spawning multiple tasks from a run_tasks batch in parallel, report each finished task as {stage, task_id} so its stage is settled with its own chief's result",
+    },
+  ),
 })
 
 export const OrgAdvanceTool = Tool.define(
@@ -275,7 +299,7 @@ export const OrgAdvanceTool = Tool.define(
       description:
         "Advance the organization pipeline. Validates the current stage's deliverable, enforces gates, and returns the next action: an exact task-tool call to run a department chief, a human gate to resolve via org_decision, or done/halted. Pass task_id after a chief task finishes so cost and resume tracking work.",
       parameters: AdvanceParameters,
-      execute: (params: Schema.Schema.Type<typeof AdvanceParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof AdvanceParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -360,7 +384,9 @@ export const OrgAdvanceTool = Tool.define(
                 prompt: item.taskPrompt,
                 ...(resumable ? { task_id: item.resumeTaskID } : {}),
                 ...(item.resumeTaskID && !resumable
-                  ? { note: "previous chief session is not resumable from this session; run without task_id (fresh chief session)" }
+                  ? {
+                      note: "previous chief session is not resumable from this session; run without task_id (fresh chief session)",
+                    }
                   : {}),
               })
             }
@@ -393,7 +419,9 @@ export const OrgAdvanceTool = Tool.define(
                 prompt: inc.taskPrompt,
                 ...(resumable ? { task_id: inc.resumeTaskID } : {}),
                 ...(inc.resumeTaskID && !resumable
-                  ? { note: "previous chief session is not resumable from this session; re-spawn without task_id (fresh chief session)" }
+                  ? {
+                      note: "previous chief session is not resumable from this session; re-spawn without task_id (fresh chief session)",
+                    }
                   : {}),
               }
               then += ` NOTE: stage "${inc.stage}" is ALSO incomplete (pending_incomplete). Re-spawn its chief in THIS SAME parallel turn using pending_incomplete (subagent_type + prompt, and task_id if present) and include its task_id in the next task_results.`
@@ -440,6 +468,7 @@ export const OrgAdvanceTool = Tool.define(
             then: "one or more stages are still running; when their tasks return call org_advance again with their task_results",
           })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -466,7 +495,7 @@ export const OrgDecisionTool = Tool.define(
     return {
       description: "Record the user's gate decision for the stage awaiting approval (approve / no-go / revise).",
       parameters: DecisionParameters,
-      execute: (params: Schema.Schema.Type<typeof DecisionParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof DecisionParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -518,6 +547,7 @@ export const OrgDecisionTool = Tool.define(
           }
           return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -538,11 +568,12 @@ const NoteParameters = Schema.Struct({
 export const OrgNoteTool = Tool.define(
   "org_note",
   Effect.gen(function* () {
+    const sessions = yield* Session.Service
     return {
       description:
         "Queue a side-channel note for a running organization pipeline. It surfaces read-only inside target_agent's NEXT stage instruction (or every stage's, for \"*\"/the ceo) - it does NOT interrupt the currently-running stage or change any gate/decision. Use for a user message directed at an agent while a pipeline stage is in flight.",
       parameters: NoteParameters,
-      execute: (params: Schema.Schema.Type<typeof NoteParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof NoteParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -552,11 +583,16 @@ export const OrgNoteTool = Tool.define(
           // (see withRunLock's doc comment above OrgAdvanceTool).
           yield* tryOrg(() =>
             withRunLock(params.run_id, () =>
-              OrgNote.append(dir, org, params.run_id, { target: params.target_agent, text: params.text, from: ctx.agent }),
+              OrgNote.append(dir, org, params.run_id, {
+                target: params.target_agent,
+                text: params.text,
+                from: ctx.agent,
+              }),
             ),
           )
           return result(`note queued for ${params.target_agent}`, { ok: true })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -570,11 +606,12 @@ export const OrgStatusTool = Tool.define(
   "org_status",
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const sessions = yield* Session.Service
     return {
       description:
         "Show the organization chart and validation against configured agents (no run_id), or the state and cost breakdown of a run (with run_id). Use for dry-run inspection of the org config.",
       parameters: StatusParameters,
-      execute: (params: Schema.Schema.Type<typeof StatusParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof StatusParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -610,6 +647,7 @@ export const OrgStatusTool = Tool.define(
             },
           })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )
@@ -623,11 +661,12 @@ export const OrgStopTool = Tool.define(
   "org_stop",
   Effect.gen(function* () {
     const runState = yield* SessionRunState.Service
+    const sessions = yield* Session.Service
     return {
       description:
         "Emergency stop: immediately halts the organization run, regardless of what is currently in flight. Records the reason and best-effort cancels the running chief's session. Use when the user asks to stop or abort the run.",
       parameters: StopParameters,
-      execute: (params: Schema.Schema.Type<typeof StopParameters>, ctx: Tool.Context) =>
+      execute: scopedExecute(sessions, (params: Schema.Schema.Type<typeof StopParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const dir = instance.directory
@@ -666,9 +705,10 @@ export const OrgStopTool = Tool.define(
           // SessionID.make throws synchronously on non-"ses" strings — while evaluating the
           // argument, before the catch below exists.
           const cancelled = taskID.startsWith("ses")
-            ? yield* runState
-                .cancel(SessionID.make(taskID))
-                .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+            ? yield* runState.cancel(SessionID.make(taskID)).pipe(
+                Effect.as(true),
+                Effect.catchCause(() => Effect.succeed(false)),
+              )
             : false
           return result("stopped", {
             action: "stopped",
@@ -679,6 +719,7 @@ export const OrgStopTool = Tool.define(
               : "live session cancellation failed; the running chief will finish its current turn",
           })
         }).pipe(Effect.orDie),
+      ),
     }
   }),
 )

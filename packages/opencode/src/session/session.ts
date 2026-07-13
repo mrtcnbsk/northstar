@@ -37,6 +37,7 @@ import { SessionExport } from "@/kilocode/session-export"
 import * as SandboxPolicy from "@/kilocode/sandbox/policy"
 import { baseKey, cumulativeSessionDiff } from "@/kilocode/session-portability/cumulative-diff" // kilocode_change
 import { BlockedError as AgentRequirementError } from "@/kilocode/agent-requirements"
+import { OrgWorkspace } from "@/kilocode/organization/workspace"
 // kilocode_change end
 import { Effect, Layer, Option, Context, Schema, Types } from "effect"
 import { NonNegativeInt, optionalOmitUndefined } from "@opencode-ai/core/schema"
@@ -574,6 +575,27 @@ export const layer: Layer.Layer<
       sandboxFallback?: SandboxPolicy.Snapshot // kilocode_change - confinement to seed when source state lives in another directory
     }) {
       const ctx = yield* InstanceState.context
+      // kilocode_change start - bind every root/child session to a stable Northstar organization
+      const parent = input.parentID
+        ? yield* db((database) =>
+            database
+              .select({ metadata: SessionTable.metadata })
+              .from(SessionTable)
+              .where(eq(SessionTable.id, input.parentID!))
+              .get(),
+          )
+        : undefined
+      let organizationID = KiloSession.organizationID({ metadata: input.metadata })
+      if (!organizationID && parent?.metadata)
+        organizationID = KiloSession.organizationID({ metadata: parent.metadata })
+      if (!organizationID) {
+        const active = yield* Effect.promise(() => OrgWorkspace.active(input.directory).catch(() => undefined))
+        organizationID = active?.entry.id
+      }
+      const metadata = organizationID
+        ? { ...(input.metadata ?? {}), northstarOrganizationID: organizationID }
+        : input.metadata
+      // kilocode_change end
       const result: Info = {
         id: SessionID.descending(input.id),
         slug: Slug.create(),
@@ -586,7 +608,7 @@ export const layer: Layer.Layer<
         title: input.title ?? createDefaultTitle(!!input.parentID),
         agent: input.agent,
         model: input.model,
-        metadata: input.metadata,
+        metadata, // kilocode_change - stable organization snapshot
         permission: input.permission ? [...input.permission] : undefined,
         cost: 0,
         tokens: EmptyTokens,
