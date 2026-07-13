@@ -7,6 +7,8 @@ import { array, check, object } from "../../server/httpapi-exercise/assertions"
 import { http, route } from "../../server/httpapi-exercise/dsl"
 import type { Scenario, ScenarioContext } from "../../server/httpapi-exercise/types"
 import { anacondaDesktopScenarios } from "../anaconda-desktop/httpapi-exercise-scenarios"
+import { OrganizationsHandler } from "../../../src/kilocode/server/httpapi/handlers/organizations"
+import { SetupModel } from "../../../src/kilocode/setup/model"
 
 function directory(ctx: ScenarioContext) {
   if (!ctx.directory) throw new Error("scenario needs a project directory")
@@ -32,6 +34,97 @@ function enable(ctx: ScenarioContext) {
   return Effect.promise(() => KiloMemory.enable({ ctx: { directory: dir, worktree: dir } }))
 }
 
+function setup(name = "Product Studio") {
+  const draft = SetupModel.blank(name)
+  draft.step = "review"
+  draft.departments = [
+    {
+      id: "engineering",
+      name: "Engineering",
+      mission: "Build verified software",
+      chief: "engineering-lead",
+      workers: ["engineer"],
+    },
+  ]
+  draft.agents = [
+    {
+      id: "ceo",
+      name: "CEO",
+      layer: "executive",
+      role: "Set direction",
+      do: ["Approve plans"],
+      dont: ["Implement specialist work"],
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-5",
+      permission: {},
+      subordinates: ["engineering-lead"],
+    },
+    {
+      id: "engineering-lead",
+      name: "Engineering Lead",
+      layer: "leads",
+      departmentID: "engineering",
+      role: "Lead engineering",
+      do: ["Delegate work"],
+      dont: ["Skip verification"],
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-5",
+      permission: {},
+      subordinates: ["engineer"],
+    },
+    {
+      id: "engineer",
+      name: "Engineer",
+      layer: "specialists",
+      departmentID: "engineering",
+      role: "Build software",
+      do: ["Run tests"],
+      dont: ["Change scope"],
+      providerID: "openai",
+      modelID: "gpt-5.1-codex",
+      permission: {},
+      subordinates: [],
+    },
+  ]
+  draft.pipeline = [{ stage: "engineering" }]
+  return {
+    draft,
+    organization: JSON.stringify(SetupModel.organization(draft)),
+    agents: draft.agents.map((agent) => ({ id: agent.id, content: SetupModel.agent(agent) })),
+  }
+}
+
+function stage(ctx: ScenarioContext, name = "Product Studio") {
+  const input = setup(name)
+  return Effect.promise(async () => {
+    const result = await OrganizationsHandler.stage(directory(ctx), { name })
+    return { ...input, id: result.organization.id }
+  })
+}
+
+function save(ctx: ScenarioContext, name = "Product Studio") {
+  return Effect.gen(function* () {
+    const input = yield* stage(ctx, name)
+    yield* Effect.promise(() =>
+      OrganizationsHandler.saveDraft(directory(ctx), {
+        organizationID: input.id,
+        draft: input.draft,
+        organization: input.organization,
+        agents: input.agents,
+      }),
+    )
+    return input
+  })
+}
+
+function publish(ctx: ScenarioContext, name = "Product Studio") {
+  return Effect.gen(function* () {
+    const input = yield* save(ctx, name)
+    yield* Effect.promise(() => OrganizationsHandler.publish(directory(ctx), input.id))
+    return input
+  })
+}
+
 const edit = {
   provider: "kilo",
   model: "inception/mercury-next-edit",
@@ -47,6 +140,161 @@ const edit = {
 
 export const kiloScenarios: Scenario[] = [
   ...anacondaDesktopScenarios,
+  http.protected.get("/organizations", "organizations.list").json(200, (body) => {
+    object(body)
+    array(body.organizations)
+    array(body.drafts)
+    check(body.organizations.length === 0, "a fresh project should have no published organizations")
+    check(body.drafts.length === 0, "a fresh project should have no organization drafts")
+  }),
+  http.protected
+    .post("/organizations/staging", "organizations.stage")
+    .mutating()
+    .at((ctx) => ({ path: "/organizations/staging", headers: ctx.headers(), body: { name: "Product Studio" } }))
+    .json(200, (body) => {
+      object(body)
+      object(body.organization)
+      check(body.organization.id === "product-studio", "stage should create a stable organization id")
+      check(body.organization.name === "Product Studio", "stage should preserve the display name")
+    }),
+  http.protected
+    .get("/organizations/{organizationID}", "organizations.get")
+    .seeded((ctx) => stage(ctx))
+    .at((ctx) => ({
+      path: route("/organizations/{organizationID}", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      object(body)
+      object(body.organization)
+      array(body.agents)
+      check(body.organization.id === "product-studio", "get should resolve the staged organization")
+      check(body.agents.length === 0, "a new draft should not have agent definitions")
+    }),
+  http.protected
+    .put("/organizations/staging/{organizationID}", "organizations.saveDraft")
+    .mutating()
+    .seeded((ctx) => stage(ctx))
+    .at((ctx) => ({
+      path: route("/organizations/staging/{organizationID}", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+      body: { draft: ctx.state.draft, organization: ctx.state.organization, agents: ctx.state.agents },
+    }))
+    .json(200, (body) => {
+      object(body)
+      object(body.organization)
+      array(body.agents)
+      check(body.valid === true, "saved organization definition should validate")
+      check(body.agents.length === 3, "saved organization should expose its three agents")
+    }),
+  http.protected
+    .delete("/organizations/staging/{organizationID}", "organizations.discardDraft")
+    .mutating()
+    .seeded((ctx) => stage(ctx, "Temporary"))
+    .at((ctx) => ({
+      path: route("/organizations/staging/{organizationID}", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      object(body)
+      array(body.drafts)
+      check(body.drafts.length === 0, "discard should remove the staged organization")
+    }),
+  http.protected
+    .post("/organizations/{organizationID}/publish", "organizations.publish")
+    .mutating()
+    .seeded((ctx) => save(ctx))
+    .at((ctx) => ({
+      path: route("/organizations/{organizationID}/publish", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      object(body)
+      array(body.organizations)
+      check(body.active === "product-studio", "publishing the first organization should select it")
+      check(body.organizations.length === 1, "publish should move the draft into the organization list")
+    }),
+  http.protected
+    .post("/organizations/{organizationID}/select", "organizations.select")
+    .mutating()
+    .seeded((ctx) => publish(ctx))
+    .at((ctx) => ({
+      path: route("/organizations/{organizationID}/select", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      object(body)
+      check(body.active === "product-studio", "select should persist the active organization")
+    }),
+  http.protected
+    .put("/organizations/{organizationID}", "organizations.update")
+    .mutating()
+    .seeded((ctx) => publish(ctx))
+    .at((ctx) => {
+      const draft = { ...ctx.state.draft, name: "Product Studio 2" }
+      return {
+        path: route("/organizations/{organizationID}", { organizationID: ctx.state.id }),
+        headers: ctx.headers(),
+        body: {
+          name: draft.name,
+          draft,
+          organization: JSON.stringify(SetupModel.organization(draft)),
+          agents: ctx.state.agents,
+        },
+      }
+    })
+    .json(200, (body) => {
+      object(body)
+      object(body.organization)
+      check(body.organization.name === "Product Studio 2", "update should change the organization display name")
+    }),
+  http.protected
+    .post("/organizations/{organizationID}/knowledge/import", "organizations.importKnowledge")
+    .mutating()
+    .seeded((ctx) =>
+      Effect.gen(function* () {
+        const input = yield* stage(ctx, "Knowledge Studio")
+        yield* ctx.file("brief.md", "launch acceptance evidence")
+        return input
+      }),
+    )
+    .at((ctx) => ({
+      path: route("/organizations/{organizationID}/knowledge/import", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+      body: { sources: ["brief.md"], scope: { type: "department", departmentID: "engineering" } },
+    }))
+    .json(200, (body) => {
+      object(body)
+      array(body.files)
+      object(body.files[0])
+      check(body.files[0].status === "indexed", "knowledge import should index a project file")
+    }),
+  http.protected
+    .post("/organizations/{organizationID}/knowledge/search", "organizations.searchKnowledge")
+    .seeded((ctx) =>
+      Effect.gen(function* () {
+        const input = yield* stage(ctx, "Knowledge Studio")
+        yield* ctx.file("brief.md", "launch acceptance evidence")
+        yield* Effect.promise(() =>
+          OrganizationsHandler.importKnowledge(directory(ctx), input.id, {
+            sources: ["brief.md"],
+            scope: { type: "department", departmentID: "engineering" },
+          }),
+        )
+        return input
+      }),
+    )
+    .at((ctx) => ({
+      path: route("/organizations/{organizationID}/knowledge/search", { organizationID: ctx.state.id }),
+      headers: ctx.headers(),
+      body: { query: "acceptance evidence", departmentID: "engineering" },
+    }))
+    .json(200, (body) => {
+      array(body)
+      check(body.length === 1, "knowledge search should return the imported department file")
+      object(body[0])
+      check(String(body[0].excerpt).includes("acceptance evidence"), "knowledge search should return matching text")
+    }),
   http.protected.get("/org-runs", "orgRuns.list").json(200, (body) => {
     object(body)
     array(body.runs)
