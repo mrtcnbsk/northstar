@@ -75,7 +75,7 @@ export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
         (process.env["KILO_ROUTE"]
           ? JSON.parse(process.env["KILO_ROUTE"])
           : {
-              type: "northstar",
+              type: "northstar", // kilocode_change - Northstar workspace is the default TUI route
             }),
     )
 
