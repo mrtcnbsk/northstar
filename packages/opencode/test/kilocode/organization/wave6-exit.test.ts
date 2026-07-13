@@ -480,70 +480,68 @@ describe("Wave 6 exit verification", () => {
     })
   })
 
-  // --- 5. Best-effort invariant (headline): a failing postmortem writer never changes the run's
-  // outcome, and the postmortem fires exactly ONCE even on a re-entrant advance. -------------------
-  test("best-effort: a failing lessons.md write never changes done/halted, and the postmortem section never double-appends", async () => {
-    // Part A: pre-create a DIRECTORY at the exact lessons.md path, so OrgPostmortem.write's read
+  // --- 5. Best-effort invariants: a failing postmortem writer never changes the run's outcome,
+  // and the postmortem fires exactly ONCE even on a re-entrant advance. ----------------------------
+  test("best-effort: a failing lessons.md write never changes done/halted", async () => {
+    // Pre-create a DIRECTORY at the exact lessons.md path, so OrgPostmortem.write's read
     // (EISDIR, not ENOENT) genuinely throws - a real failure, not a mock - while the run's own
     // state.json is completely unaffected, proving the run still completes normally.
-    {
-      await using tmp = await tmpdir()
-      await seedOrg(tmp.path, LINEAR)
-      const run = await OrgRunner.start(tmp.path, LINEAR, "wave6 best effort idea")
-      await mkdir(lessonsFile(tmp.path), { recursive: true }) // lessons.md path is a DIRECTORY: writes fail
-      const runtime = makeRuntime()
-      await provideTestInstance({
-        directory: tmp.path,
-        fn: async () => {
-          await advanceTool(runtime, run.runID)
-          await writeDeliverable(tmp.path, run.runID, "plan")
-          await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
-          await writeDeliverable(tmp.path, run.runID, "marketing")
-          const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
+    await using tmp = await tmpdir()
+    await seedOrg(tmp.path, LINEAR)
+    const run = await OrgRunner.start(tmp.path, LINEAR, "wave6 best effort idea")
+    await mkdir(lessonsFile(tmp.path), { recursive: true }) // lessons.md path is a DIRECTORY: writes fail
+    const runtime = makeRuntime()
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        await advanceTool(runtime, run.runID)
+        await writeDeliverable(tmp.path, run.runID, "plan")
+        await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
+        await writeDeliverable(tmp.path, run.runID, "marketing")
+        const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
 
-          // The tool's returned action is exactly what it would be without the failing writer.
-          expect(done.action).toBe("done")
-          expect(done.note).toContain("pipeline complete")
+        // The tool's returned action is exactly what it would be without the failing writer.
+        expect(done.action).toBe("done")
+        expect(done.note).toContain("pipeline complete")
 
-          // Proves the failure was REAL (not silently absorbed): the path is still a directory.
-          const stillDir = await Bun.file(lessonsFile(tmp.path))
-            .text()
-            .then(() => false)
-            .catch((e: NodeJS.ErrnoException) => e.code === "EISDIR")
-          expect(stillDir).toBe(true)
+        // Proves the failure was REAL (not silently absorbed): the path is still a directory.
+        const stillDir = await Bun.file(lessonsFile(tmp.path))
+          .text()
+          .then(() => false)
+          .catch((e: NodeJS.ErrnoException) => e.code === "EISDIR")
+        expect(stillDir).toBe(true)
 
-          const state = await OrgState.read(tmp.path, run.runID)
-          expect(state.status).toBe("completed")
-        },
-      })
-    }
+        const state = await OrgState.read(tmp.path, run.runID)
+        expect(state.status).toBe("completed")
+      },
+    })
+  })
 
-    // Part B: fire-once. A re-entrant org_advance on an already-completed run (the runner's
+  test("postmortem section never double-appends after a completed run", async () => {
+    // A re-entrant org_advance on an already-completed run (the runner's
     // early-exit still returns `done`) must not duplicate the run's postmortem section.
-    {
-      await using tmp = await tmpdir()
-      await seedOrg(tmp.path, LINEAR)
-      const run = await OrgRunner.start(tmp.path, LINEAR, "wave6 fire once idea")
-      const runtime = makeRuntime()
-      await provideTestInstance({
-        directory: tmp.path,
-        fn: async () => {
-          await advanceTool(runtime, run.runID)
-          await writeDeliverable(tmp.path, run.runID, "plan")
-          await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
-          await writeDeliverable(tmp.path, run.runID, "marketing")
-          const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
-          expect(done.action).toBe("done")
+    await using tmp = await tmpdir()
+    await seedOrg(tmp.path, LINEAR)
+    const run = await OrgRunner.start(tmp.path, LINEAR, "wave6 fire once idea")
+    const runtime = makeRuntime()
+    await provideTestInstance({
+      directory: tmp.path,
+      fn: async () => {
+        await advanceTool(runtime, run.runID)
+        await writeDeliverable(tmp.path, run.runID, "plan")
+        await advanceTool(runtime, run.runID, { task_id: "ses_plan" })
+        await writeDeliverable(tmp.path, run.runID, "marketing")
+        const done = await advanceTool(runtime, run.runID, { task_id: "ses_mkt" })
+        expect(done.action).toBe("done")
 
-          // Re-entrant call: same run_id, no new task_id.
-          const again = await advanceTool(runtime, run.runID)
-          expect(again.action).toBe("done")
+        // Re-entrant call: same run_id, no new task_id.
+        const again = await advanceTool(runtime, run.runID)
+        expect(again.action).toBe("done")
 
-          const text = await Bun.file(lessonsFile(tmp.path)).text()
-          const marker = `<!-- postmortem:${run.runID} -->`
-          expect(text.split(marker).length - 1).toBe(1)
-        },
-      })
-    }
+        const text = await Bun.file(lessonsFile(tmp.path)).text()
+        const marker = `<!-- postmortem:${run.runID} -->`
+        expect(text.split(marker).length - 1).toBe(1)
+      },
+    })
   })
 })
