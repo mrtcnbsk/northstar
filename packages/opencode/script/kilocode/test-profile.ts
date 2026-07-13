@@ -59,6 +59,7 @@ export namespace TestProfile {
           "kilocode/provider/local-provider.test.ts",
           "kilocode/server/{httpapi-agents,httpapi-org-runs,org-runs-budget,org-runs-commands,wave3-exit}.test.ts",
           "kilocode/session-export/source-contract.test.ts",
+          "kilocode/test-runner-options.test.ts",
         ],
       },
     },

@@ -8,6 +8,7 @@ import os from "os"
 import path from "path"
 import fs from "fs/promises"
 import { TestProfile } from "./kilocode/test-profile"
+import { TestRunnerOptions } from "./kilocode/test-runner-options"
 
 const root = path.resolve(import.meta.dir, "..")
 const argv = process.argv.slice(2)
@@ -26,9 +27,9 @@ if (argv.includes("--help") || argv.includes("-h")) {
       "",
       "Options:",
       "  --ci                 Enable JUnit XML output to .artifacts/unit/junit.xml",
-      "  --concurrency <N>    Max parallel processes (default: min(4, CPU count))",
-      "  --timeout <ms>       Per-test timeout passed to bun test (default: 60000)",
-      "  --file-timeout <ms>  Per-file process timeout (default: 300000)",
+      "  --concurrency <N>    Max parallel processes (default: 2 for Windows profile, otherwise min(4, CPUs))",
+      "  --timeout <ms>       Per-test timeout (default: 120000 for Windows profile, otherwise 60000)",
+      "  --file-timeout <ms>  Per-file timeout (default: 600000 for Windows profile, otherwise 300000)",
       "  --retries <N>        Extra attempts for failing files (default: 1)",
       "  --profile <name>     Run a curated test profile (env: KILO_TEST_PROFILE)",
       "  --bail               Stop on first failure",
@@ -66,13 +67,6 @@ const ci = argv.includes("--ci")
 const bail = argv.includes("--bail")
 const verbose = argv.includes("--verbose")
 const dots = !verbose && (ci || argv.includes("--dots"))
-// Cap concurrency at 4 even on bigger runners: the bottleneck is shared
-// resources (ports, global filesystem like ~/.local/share/kilo), not CPU.
-// Eight parallel processes was triggering port/FS races, not going faster.
-const concurrency = opt("concurrency", Math.min(4, os.cpus().length))
-const timeout = opt("timeout", 60000)
-const deadline = opt("file-timeout", 300000)
-const retries = opt("retries", 1)
 const flag = text("profile")
 const env = process.env.KILO_TEST_PROFILE?.trim() || undefined
 if (flag && env && flag !== env) {
@@ -80,6 +74,15 @@ if (flag && env && flag !== env) {
   process.exit(2)
 }
 const profile = flag ?? env
+// Cap concurrency at 4 even on bigger runners: the bottleneck is shared
+// resources (ports, global filesystem like ~/.local/share/kilo), not CPU.
+// Windows gets two workers and wider time budgets because NTFS/process startup
+// contention otherwise makes independent organization tests starve each other.
+const defaults = TestRunnerOptions.defaults({ profile, cpus: os.cpus().length })
+const concurrency = opt("concurrency", defaults.concurrency)
+const timeout = opt("timeout", defaults.timeout)
+const deadline = opt("file-timeout", defaults.fileTimeout)
+const retries = opt("retries", 1)
 
 const valued = new Set(["--concurrency", "--timeout", "--file-timeout", "--retries", "--profile"])
 const patterns = argv.filter((arg, i) => {
