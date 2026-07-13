@@ -19,7 +19,7 @@ internal object KiloCliPlatform {
         return "$os-$arch"
     }
 
-    fun exe(): String = if (SystemInfo.isWindows) "kilo.exe" else "kilo"
+    fun exe(): String = if (SystemInfo.isWindows) "northstar.exe" else "northstar"
 
     fun archive(platform: String = current()): String =
         if (platform.startsWith("linux-")) "tar.gz" else "zip"

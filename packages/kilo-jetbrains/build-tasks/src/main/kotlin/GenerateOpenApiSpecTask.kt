@@ -31,7 +31,8 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
     companion object {
         private val DIGEST = Regex("^sha256:[a-f0-9]{64}$")
         private val JSON = Json { ignoreUnknownKeys = true }
-        private const val API = "https://api.github.com/repos/Kilo-Org/kilocode/releases/tags"
+        private const val API = "https://api.github.com/repos/mrtcnbsk/northstar/releases/tags"
+        private const val RELEASES = "https://github.com/mrtcnbsk/northstar/releases/download"
     }
 
     @get:Input
@@ -99,14 +100,14 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
     private fun writeSpec(code: Int, out: ByteArrayOutputStream, err: ByteArrayOutputStream) {
         if (code != 0) {
             throw GradleException(
-                "kilo generate failed with exit code $code.\n" +
+                "northstar generate failed with exit code $code.\n" +
                     err.toString(Charsets.UTF_8).take(2000)
             )
         }
         val json = out.toString(Charsets.UTF_8)
         if (!json.trimStart().startsWith("{")) {
             throw GradleException(
-                "kilo generate did not produce JSON.\n" +
+                "northstar generate did not produce JSON.\n" +
                     "stdout: ${json.take(200)}\n" +
                     "stderr: ${err.toString(Charsets.UTF_8).take(500)}"
             )
@@ -122,21 +123,21 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
         val exe = File(dir, "bin/${exe()}")
         val done = File(dir, ".complete")
         val cached = done.takeIf { it.isFile }?.readText()?.trim()
-        val archive = File(dir, "kilo-$platform.$ext")
+        val archive = File(dir, "northstar-$platform.$ext")
         if (exe.isFile && cached != null && cached.matches(DIGEST) && matches(archive, cached)) {
             if (!windows()) exe.setExecutable(true)
             return exe
         }
 
-        val name = "kilo-$platform.$ext"
+        val name = "northstar-$platform.$ext"
         val digest = asset(version, name)
         if (dir.exists() && !dir.deleteRecursively()) {
-            throw GradleException("Failed to delete cached pinned Kilo CLI under ${dir.absolutePath}")
+            throw GradleException("Failed to delete cached pinned Northstar CLI under ${dir.absolutePath}")
         }
         if (!dir.isDirectory && !dir.mkdirs()) {
-            throw GradleException("Failed to create pinned Kilo CLI cache directory ${dir.absolutePath}")
+            throw GradleException("Failed to create pinned Northstar CLI cache directory ${dir.absolutePath}")
         }
-        download("https://github.com/Kilo-Org/kilocode/releases/download/v$version/kilo-$platform.$ext", archive)
+        download("$RELEASES/v$version/northstar-$platform.$ext", archive)
         verify(archive, digest)
         extract(archive, dir)
         if (!exe.isFile) throw GradleException("Downloaded CLI archive did not contain bin/${exe()}")
@@ -147,7 +148,7 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
 
     private fun asset(version: String, name: String): String {
         val url = "$API/v$version"
-        logger.lifecycle("Fetching pinned Kilo CLI release metadata from $url")
+        logger.lifecycle("Fetching pinned Northstar CLI release metadata from $url")
         val conn = URI(url).toURL().openConnection() as HttpURLConnection
         conn.connectTimeout = 30_000
         conn.readTimeout = 120_000
@@ -167,17 +168,17 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
                 val detail = if (body.isNullOrBlank()) "" else ": $body"
                 if (limited(conn, code)) {
                     throw GradleException(
-                        "GitHub API rate limit exceeded while fetching pinned Kilo CLI release metadata ($info)$detail"
+                        "GitHub API rate limit exceeded while fetching pinned Northstar CLI release metadata ($info)$detail"
                     )
                 }
-                throw GradleException("Failed to fetch pinned Kilo CLI release metadata: HTTP $code from $url ($info)$detail")
+                throw GradleException("Failed to fetch pinned Northstar CLI release metadata: HTTP $code from $url ($info)$detail")
             }
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             val digest = JSON.parseToJsonElement(body).jsonObject["assets"]?.jsonArray
                 ?.firstOrNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull == name }
                 ?.jsonObject?.get("digest")?.jsonPrimitive?.contentOrNull
-                ?: throw GradleException("Pinned Kilo CLI release $version did not include $name")
-            if (!digest.matches(DIGEST)) throw GradleException("Pinned Kilo CLI release $version asset $name has invalid digest")
+                ?: throw GradleException("Pinned Northstar CLI release $version did not include $name")
+            if (!digest.matches(DIGEST)) throw GradleException("Pinned Northstar CLI release $version asset $name has invalid digest")
             return digest
         } finally {
             conn.disconnect()
@@ -196,14 +197,14 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
         code == 429 || (code == 403 && conn.getHeaderField("X-RateLimit-Remaining") == "0")
 
     private fun download(url: String, file: File) {
-        logger.lifecycle("Downloading pinned Kilo CLI from $url")
+        logger.lifecycle("Downloading pinned Northstar CLI from $url")
         val conn = URI(url).toURL().openConnection() as HttpURLConnection
         conn.connectTimeout = 30_000
         conn.readTimeout = 120_000
         conn.instanceFollowRedirects = true
         try {
             val code = conn.responseCode
-            if (code !in 200..299) throw GradleException("Failed to download pinned Kilo CLI: HTTP $code from $url")
+            if (code !in 200..299) throw GradleException("Failed to download pinned Northstar CLI: HTTP $code from $url")
             conn.inputStream.use { input ->
                 file.outputStream().use { output -> input.copyTo(output) }
             }
@@ -215,8 +216,8 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
     private fun verify(file: File, digest: String) {
         val actual = sum(file)
         if (actual == digest) return
-        if (file.exists() && !file.delete()) logger.warn("Failed to delete invalid pinned Kilo CLI archive ${file.absolutePath}")
-        throw GradleException("Pinned Kilo CLI archive digest mismatch for ${file.name}: expected $digest, got $actual")
+        if (file.exists() && !file.delete()) logger.warn("Failed to delete invalid pinned Northstar CLI archive ${file.absolutePath}")
+        throw GradleException("Pinned Northstar CLI archive digest mismatch for ${file.name}: expected $digest, got $actual")
     }
 
     private fun matches(file: File, digest: String) = file.isFile && sum(file) == digest
@@ -268,7 +269,7 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
         }
         target.parentFile.mkdirs()
         target.outputStream().use(copy)
-        if (!windows() && (target.name == "kilo" || target.name == "bwrap")) target.setExecutable(true)
+        if (!windows() && (target.name == "northstar" || target.name == "bwrap")) target.setExecutable(true)
     }
 
     private fun platform(): String {
@@ -287,7 +288,7 @@ abstract class GenerateOpenApiSpecTask : DefaultTask() {
         return "$name-$arch"
     }
 
-    private fun exe() = if (windows()) "kilo.exe" else "kilo"
+    private fun exe() = if (windows()) "northstar.exe" else "northstar"
 
     private fun windows() = System.getProperty("os.name").lowercase().contains("windows")
 }

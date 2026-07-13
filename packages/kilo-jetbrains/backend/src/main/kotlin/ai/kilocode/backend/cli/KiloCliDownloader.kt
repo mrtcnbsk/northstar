@@ -37,8 +37,8 @@ class KiloCliDownloader(
         .build(),
     private val log: KiloLog = KiloLog.create(KiloCliDownloader::class.java),
     private val root: File = File(PathManager.getSystemPath(), "kilo/cli"),
-    private val baseUrl: String = "https://github.com/Kilo-Org/kilocode/releases/download",
-    private val api: String = "https://api.github.com/repos/Kilo-Org/kilocode/releases/tags",
+    private val baseUrl: String = "https://github.com/mrtcnbsk/northstar/releases/download",
+    private val api: String = "https://api.github.com/repos/mrtcnbsk/northstar/releases/tags",
     private val lockTimeoutMs: Long = LOCK_TIMEOUT_MS,
 ) {
     companion object {
@@ -60,7 +60,7 @@ class KiloCliDownloader(
                 val ext = KiloCliPlatform.archive(platform)
 
                 log.info(
-                    "Kilo CLI cache target: version=$version platform=$platform exe=${exe.absolutePath} " +
+                    "Northstar CLI cache target: version=$version platform=$platform exe=${exe.absolutePath} " +
                         "complete=${done.absolutePath} force=$force"
                 )
 
@@ -71,19 +71,19 @@ class KiloCliDownloader(
                 val digest = asset(version, platform, ext)
                 val stage = stage(version, platform)
                 try {
-                    val archive = File(stage, "kilo-$platform.$ext")
+                    val archive = File(stage, "northstar-$platform.$ext")
                     val staged = File(stage, "bin/${KiloCliPlatform.exe()}")
                     val complete = File(stage, ".complete")
 
                     log.info(
-                        "Kilo CLI $version for $platform is not cached; downloading new release into ${stage.absolutePath}"
+                        "Northstar CLI $version for $platform is not cached; downloading new release into ${stage.absolutePath}"
                     )
                     onProgress(CliDownload(0, version, platform))
                     download(version, platform, ext, archive, onProgress)
-                    log.info("Verifying Kilo CLI archive ${archive.absolutePath}")
+                    log.info("Verifying Northstar CLI archive ${archive.absolutePath}")
                     verify(archive, digest)
                     log.info(
-                        "Downloaded Kilo CLI $version for $platform to ${archive.absolutePath} (size=${archive.length()} bytes)"
+                        "Downloaded Northstar CLI $version for $platform to ${archive.absolutePath} (size=${archive.length()} bytes)"
                     )
                     extract(archive, stage)
                     if (!staged.isFile) {
@@ -91,9 +91,9 @@ class KiloCliDownloader(
                     }
                     if (!SystemInfo.isWindows) staged.setExecutable(true)
                     if (archive.exists() && !archive.delete()) {
-                        log.warn("Failed to delete extracted Kilo CLI archive ${archive.absolutePath}")
+                        log.warn("Failed to delete extracted Northstar CLI archive ${archive.absolutePath}")
                     }
-                    log.info("Writing Kilo CLI cache completion marker ${complete.absolutePath}")
+                    log.info("Writing Northstar CLI cache completion marker ${complete.absolutePath}")
                     complete.writeText("$digest\n")
                     replace(dir, stage)
                     onProgress(CliDownload(100, version, platform))
@@ -101,7 +101,7 @@ class KiloCliDownloader(
                     exe
                 } finally {
                     if (stage.exists() && !stage.deleteRecursively()) {
-                        log.warn("Failed to delete staged Kilo CLI download ${stage.absolutePath}")
+                        log.warn("Failed to delete staged Northstar CLI download ${stage.absolutePath}")
                     }
                 }
             }
@@ -111,31 +111,31 @@ class KiloCliDownloader(
         val digest = done.takeIf { it.isFile }?.readText()?.trim()
         val valid = digest != null && digest.matches(DIGEST)
         log.info(
-            "Kilo CLI cache check: version=$version platform=$platform exeExists=${exe.isFile} " +
+            "Northstar CLI cache check: version=$version platform=$platform exeExists=${exe.isFile} " +
                 "completeExists=${done.isFile} digestValid=$valid exe=${exe.absolutePath} complete=${done.absolutePath}"
         )
         if (!exe.isFile || !valid) return null
-        log.info("Using cached Kilo CLI $version for $platform at ${exe.absolutePath}")
+        log.info("Using cached Northstar CLI $version for $platform at ${exe.absolutePath}")
         if (!SystemInfo.isWindows) exe.setExecutable(true)
         prune(version)
         return exe
     }
 
     private fun <T> locked(block: () -> T): T {
-        log.info("Ensuring Kilo CLI cache root ${root.absolutePath}")
+        log.info("Ensuring Northstar CLI cache root ${root.absolutePath}")
         if (!root.isDirectory && !root.mkdirs()) {
-            throw IllegalStateException("Failed to create Kilo CLI cache root ${root.absolutePath}")
+            throw IllegalStateException("Failed to create Northstar CLI cache root ${root.absolutePath}")
         }
         val file = File(root, ".lock").canonicalFile
-        log.info("Kilo CLI cache lock path: ${file.absolutePath}")
+        log.info("Northstar CLI cache lock path: ${file.absolutePath}")
         val mutex = LOCKS.computeIfAbsent(file.absolutePath) { Any() }
         return synchronized(mutex) {
             RandomAccessFile(file, "rw").channel.use { channel ->
                 val start = System.nanoTime()
-                log.info("Waiting for Kilo CLI cache lock: ${file.absolutePath}")
+                log.info("Waiting for Northstar CLI cache lock: ${file.absolutePath}")
                 val lock = acquire(file, channel::tryLock, start)
                 lock.use {
-                    log.info("Acquired Kilo CLI cache lock after ${elapsed(start)}ms: ${file.absolutePath}")
+                    log.info("Acquired Northstar CLI cache lock after ${elapsed(start)}ms: ${file.absolutePath}")
                     block()
                 }
             }
@@ -152,7 +152,7 @@ class KiloCliDownloader(
             if (lock != null) return lock
             val waited = elapsed(start)
             if (waited >= lockTimeoutMs) {
-                val msg = "Timed out waiting for Kilo CLI cache lock after ${waited}ms: ${file.absolutePath}"
+                val msg = "Timed out waiting for Northstar CLI cache lock after ${waited}ms: ${file.absolutePath}"
                 log.warn(msg)
                 throw IllegalStateException(msg)
             }
@@ -165,36 +165,36 @@ class KiloCliDownloader(
     private fun stage(version: String, platform: String): File {
         val tmp = File(root, ".tmp")
         val dir = File(tmp, "$version-$platform-${System.nanoTime()}")
-        log.info("Creating Kilo CLI staging directory ${dir.absolutePath}")
+        log.info("Creating Northstar CLI staging directory ${dir.absolutePath}")
         if (!dir.isDirectory && !dir.mkdirs()) {
-            throw IllegalStateException("Failed to create Kilo CLI staging directory ${dir.absolutePath}")
+            throw IllegalStateException("Failed to create Northstar CLI staging directory ${dir.absolutePath}")
         }
         return dir
     }
 
     private fun replace(dir: File, stage: File) {
-        log.info("Installing Kilo CLI cache from ${stage.absolutePath} to ${dir.absolutePath}")
+        log.info("Installing Northstar CLI cache from ${stage.absolutePath} to ${dir.absolutePath}")
         val parent = dir.parentFile
         if (!parent.isDirectory && !parent.mkdirs()) {
-            throw IllegalStateException("Failed to create Kilo CLI cache directory ${parent.absolutePath}")
+            throw IllegalStateException("Failed to create Northstar CLI cache directory ${parent.absolutePath}")
         }
 
         val backup = File(parent, ".${dir.name}.backup-${System.nanoTime()}")
         if (dir.exists() && !dir.renameTo(backup)) {
-            throw IllegalStateException("Failed to move existing Kilo CLI cache ${dir.absolutePath} aside")
+            throw IllegalStateException("Failed to move existing Northstar CLI cache ${dir.absolutePath} aside")
         }
         if (stage.renameTo(dir)) {
-            log.info("Installed Kilo CLI cache at ${dir.absolutePath}")
+            log.info("Installed Northstar CLI cache at ${dir.absolutePath}")
             if (backup.exists() && !backup.deleteRecursively()) {
-                log.warn("Failed to delete previous Kilo CLI cache ${backup.absolutePath}")
+                log.warn("Failed to delete previous Northstar CLI cache ${backup.absolutePath}")
             }
             return
         }
 
         if (backup.exists() && !backup.renameTo(dir)) {
-            log.warn("Failed to restore previous Kilo CLI cache ${backup.absolutePath} to ${dir.absolutePath}")
+            log.warn("Failed to restore previous Northstar CLI cache ${backup.absolutePath} to ${dir.absolutePath}")
         }
-        throw IllegalStateException("Failed to install Kilo CLI cache ${stage.absolutePath} to ${dir.absolutePath}")
+        throw IllegalStateException("Failed to install Northstar CLI cache ${stage.absolutePath} to ${dir.absolutePath}")
     }
 
     private fun fail(message: String): Nothing {
@@ -203,9 +203,9 @@ class KiloCliDownloader(
     }
 
     private fun asset(version: String, platform: String, ext: String): String {
-        val name = "kilo-$platform.$ext"
+        val name = "northstar-$platform.$ext"
         val url = "${api.trimEnd('/')}/v$version"
-        log.info("Fetching Kilo CLI release metadata for $version from $url")
+        log.info("Fetching Northstar CLI release metadata for $version from $url")
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/vnd.github+json")
@@ -216,31 +216,31 @@ class KiloCliDownloader(
                 val body = runCatching { response.body?.string() }.getOrNull()?.take(500)
                 val detail = if (body.isNullOrBlank()) "" else ": $body"
                 if (limited(response)) {
-                    log.warn("GitHub API rate limit hit fetching Kilo CLI $version metadata from $url ($info)$detail")
+                    log.warn("GitHub API rate limit hit fetching Northstar CLI $version metadata from $url ($info)$detail")
                     throw IllegalStateException(
-                        "GitHub API rate limit exceeded while resolving Kilo CLI $version ($info)$detail"
+                        "GitHub API rate limit exceeded while resolving Northstar CLI $version ($info)$detail"
                     )
                 }
-                log.warn("Failed to fetch Kilo CLI $version metadata from $url: HTTP ${response.code} ($info)$detail")
+                log.warn("Failed to fetch Northstar CLI $version metadata from $url: HTTP ${response.code} ($info)$detail")
                 throw IllegalStateException(
-                    "Failed to fetch Kilo CLI release metadata for $version: HTTP ${response.code} ($info)$detail"
+                    "Failed to fetch Northstar CLI release metadata for $version: HTTP ${response.code} ($info)$detail"
                 )
             }
-            log.debug { "GitHub metadata OK for Kilo CLI $version (${rate(response)})" }
+            log.debug { "GitHub metadata OK for Northstar CLI $version (${rate(response)})" }
             val body = response.body?.string()
-                ?: throw IllegalStateException("Failed to fetch Kilo CLI release metadata for $version: empty response body")
+                ?: throw IllegalStateException("Failed to fetch Northstar CLI release metadata for $version: empty response body")
             val assets = JSON.parseToJsonElement(body).jsonObject["assets"]?.jsonArray
             val entry = assets?.firstOrNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull == name }
             if (entry == null) {
                 val names = assets?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull }?.joinToString(", ")
-                fail("Kilo CLI release $version has no asset named $name (available assets: ${names ?: "none"})")
+                fail("Northstar CLI release $version has no asset named $name (available assets: ${names ?: "none"})")
             }
             val digest = entry.jsonObject["digest"]?.jsonPrimitive?.contentOrNull
             if (digest == null) {
-                fail("Kilo CLI release $version asset $name has no digest yet; GitHub has not published a SHA-256 checksum for it")
+                fail("Northstar CLI release $version asset $name has no digest yet; GitHub has not published a SHA-256 checksum for it")
             }
             if (!digest.matches(DIGEST)) {
-                fail("Kilo CLI release $version asset $name has a malformed digest '$digest'; expected sha256:<64 hex chars>")
+                fail("Northstar CLI release $version asset $name has a malformed digest '$digest'; expected sha256:<64 hex chars>")
             }
             return digest
         }
@@ -259,13 +259,13 @@ class KiloCliDownloader(
 
     private fun download(version: String, platform: String, ext: String, file: File, onProgress: (CliDownload) -> Unit) {
         val url = url(version, platform, ext)
-        log.info("Downloading Kilo CLI $version for $platform from $url")
+        log.info("Downloading Northstar CLI $version for $platform from $url")
         val request = Request.Builder().url(url).build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Failed to download Kilo CLI $version for $platform: HTTP ${response.code}")
+                throw IllegalStateException("Failed to download Northstar CLI $version for $platform: HTTP ${response.code}")
             }
-            val body = response.body ?: throw IllegalStateException("Failed to download Kilo CLI $version: empty response body")
+            val body = response.body ?: throw IllegalStateException("Failed to download Northstar CLI $version: empty response body")
             val total = body.contentLength()
             var read = 0L
             var last = 0
@@ -293,8 +293,8 @@ class KiloCliDownloader(
     private fun verify(file: File, digest: String) {
         val actual = sum(file)
         if (actual == digest) return
-        if (file.exists() && !file.delete()) log.warn("Failed to delete invalid Kilo CLI archive ${file.absolutePath}")
-        throw IllegalStateException("Kilo CLI archive digest mismatch for ${file.name}: expected $digest, got $actual")
+        if (file.exists() && !file.delete()) log.warn("Failed to delete invalid Northstar CLI archive ${file.absolutePath}")
+        throw IllegalStateException("Northstar CLI archive digest mismatch for ${file.name}: expected $digest, got $actual")
     }
 
     private fun sum(file: File) = "sha256:${sha256(file)}"
@@ -313,7 +313,7 @@ class KiloCliDownloader(
     }
 
     private fun extract(file: File, dir: File) {
-        log.info("Extracting Kilo CLI archive ${file.absolutePath}")
+        log.info("Extracting Northstar CLI archive ${file.absolutePath}")
         if (file.name.endsWith(".zip")) {
             ZipInputStream(file.inputStream().buffered()).use { zip ->
                 while (true) {
@@ -361,15 +361,15 @@ class KiloCliDownloader(
         val entries = root.listFiles() ?: return
         for (entry in entries) {
             if (!entry.isDirectory || entry.name == keep || entry.name.startsWith(".")) continue
-            log.info("Removing stale Kilo CLI version ${entry.absolutePath}")
+            log.info("Removing stale Northstar CLI version ${entry.absolutePath}")
             if (!entry.deleteRecursively()) {
-                log.warn("Failed to remove stale Kilo CLI version ${entry.absolutePath}")
+                log.warn("Failed to remove stale Northstar CLI version ${entry.absolutePath}")
             }
         }
     }
 
     private fun url(version: String, platform: String, ext: String) =
-        "${baseUrl.trimEnd('/')}/v$version/kilo-$platform.$ext"
+        "${baseUrl.trimEnd('/')}/v$version/northstar-$platform.$ext"
 
     private fun logPaths(version: String, force: Boolean) {
         val text = buildList {
@@ -390,7 +390,7 @@ class KiloCliDownloader(
             add("TMP=${safe { EnvironmentUtil.getValue("TMP") ?: "<unset>" }}")
             add("cacheRoot=${safe { root.absolutePath + info(root) }}")
         }.joinToString(" ")
-        log.info("Kilo CLI path diagnostics: $text")
+        log.info("Northstar CLI path diagnostics: $text")
     }
 
     private fun info(file: File): String = runCatching {

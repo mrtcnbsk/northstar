@@ -27,6 +27,12 @@ class KiloCliDownloaderTest {
     lateinit var dir: File
 
     @Test
+    fun `uses Northstar release executable name`() {
+        val expected = if (KiloCliPlatform.current().startsWith("windows-")) "northstar.exe" else "northstar"
+        assertEquals(expected, KiloCliPlatform.exe())
+    }
+
+    @Test
     fun `downloads extracts and caches pinned cli`() = runBlocking {
         MockWebServer().use { server ->
             val bytes = archive()
@@ -46,18 +52,18 @@ class KiloCliDownloaderTest {
             assertEquals("#!/bin/sh\n", cli.readText())
             assertTrue(File(cli.parentFile, "kilo-sandbox-mutation-worker.js").isFile)
             assertEquals("/api/v1.2.3", server.takeRequest().path)
-            assertEquals("/release/v1.2.3/kilo-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}", server.takeRequest().path)
+            assertEquals("/release/v1.2.3/northstar-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}", server.takeRequest().path)
             assertEquals(CliDownload(0, "1.2.3", KiloCliPlatform.current()), seen.first())
             assertTrue(seen.any { it.percent == 100 && it.version == "1.2.3" && it.platform == KiloCliPlatform.current() })
             assertTrue(
                 log.messages.any {
-                    it.startsWith("INFO: Kilo CLI 1.2.3 for ${KiloCliPlatform.current()} is not cached; downloading new release into ") &&
+                    it.startsWith("INFO: Northstar CLI 1.2.3 for ${KiloCliPlatform.current()} is not cached; downloading new release into ") &&
                         it.contains("/.tmp/")
                 }
             )
-            assertTrue(log.messages.any { it.contains("Kilo CLI path diagnostics:") && it.contains("cacheRoot=${dir.absolutePath}") })
-            assertTrue(log.messages.any { it.contains("Kilo CLI cache target:") && it.contains("exe=${cli.absolutePath}") })
-            assertTrue(log.messages.any { it.contains("Kilo CLI cache lock path:") && it.contains(File(dir, ".lock").canonicalPath) })
+            assertTrue(log.messages.any { it.contains("Northstar CLI path diagnostics:") && it.contains("cacheRoot=${dir.absolutePath}") })
+            assertTrue(log.messages.any { it.contains("Northstar CLI cache target:") && it.contains("exe=${cli.absolutePath}") })
+            assertTrue(log.messages.any { it.contains("Northstar CLI cache lock path:") && it.contains(File(dir, ".lock").canonicalPath) })
 
             val cachedProgress = mutableListOf<CliDownload>()
             val cached = KiloCliDownloader(
@@ -69,7 +75,7 @@ class KiloCliDownloaderTest {
             assertEquals(cli.absolutePath, cached.absolutePath)
             assertEquals(2, server.requestCount)
             assertTrue(cachedProgress.isEmpty())
-            assertContains(log.messages, "INFO: Using cached Kilo CLI 1.2.3 for ${KiloCliPlatform.current()} at ${cli.absolutePath}")
+            assertContains(log.messages, "INFO: Using cached Northstar CLI 1.2.3 for ${KiloCliPlatform.current()} at ${cli.absolutePath}")
 
             File(cli.parentFile.parentFile, ".complete").writeText("ok\n")
             server.enqueue(metadata(bytes))
@@ -114,7 +120,7 @@ class KiloCliDownloaderTest {
 
             assertTrue(cli.isFile)
             assertFalse(File(dir, "0.0.1").exists())
-            val archived = File(cli.parentFile.parentFile, "kilo-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}")
+            val archived = File(cli.parentFile.parentFile, "northstar-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}")
             assertFalse(archived.exists())
         }
     }
@@ -211,7 +217,7 @@ class KiloCliDownloaderTest {
                     api = server.url("/api").toString(),
                 ).resolve("1.2.3")
             }
-            val name = "kilo-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}"
+            val name = "northstar-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}"
             assertContains(ex.message.orEmpty(), "has no asset named $name")
             assertContains(ex.message.orEmpty(), "other.zip")
             assertTrue(log.messages.any { it.contains("has no asset named $name") })
@@ -223,7 +229,7 @@ class KiloCliDownloaderTest {
         MockWebServer().use { server ->
             server.enqueue(
                 MockResponse().setResponseCode(200).setBody(
-                    """{"assets":[{"name":"kilo-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}"}]}"""
+                    """{"assets":[{"name":"northstar-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}"}]}"""
                 )
             )
             val log = TestLog()
@@ -288,10 +294,10 @@ class KiloCliDownloaderTest {
                     ).resolve("1.2.3")
                 }
 
-                assertContains(ex.message.orEmpty(), "Timed out waiting for Kilo CLI cache lock")
+                assertContains(ex.message.orEmpty(), "Timed out waiting for Northstar CLI cache lock")
                 assertContains(ex.message.orEmpty(), file.canonicalPath)
-                assertTrue(log.messages.any { it.contains("Waiting for Kilo CLI cache lock") && it.contains(file.canonicalPath) })
-                assertTrue(log.messages.any { it.contains("Timed out waiting for Kilo CLI cache lock") && it.contains(file.canonicalPath) })
+                assertTrue(log.messages.any { it.contains("Waiting for Northstar CLI cache lock") && it.contains(file.canonicalPath) })
+                assertTrue(log.messages.any { it.contains("Timed out waiting for Northstar CLI cache lock") && it.contains(file.canonicalPath) })
             }
         }
     }
@@ -308,7 +314,7 @@ class KiloCliDownloaderTest {
     private fun metadata(bytes: ByteArray) = metadata("sha256:${sha256(bytes)}")
 
     private fun metadata(digest: String) = MockResponse().setResponseCode(200).setBody(
-        """{"assets":[{"name":"kilo-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}","digest":"$digest"}]}"""
+        """{"assets":[{"name":"northstar-${KiloCliPlatform.current()}.${KiloCliPlatform.archive()}","digest":"$digest"}]}"""
     )
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
