@@ -195,7 +195,7 @@ export namespace OrgRag {
     return { indexed: await indexOne(projectDir, runID, embedder, store) }
   }
 
-  const DELIVERABLE_PATH_RE = /\/\.kilo\/org\/runs\/([^/]+)\/deliverables\/([^/]+)\.md$/
+  const DELIVERABLE_PATH_RE = /\/runs\/([^/]+)\/deliverables\/([^/]+)\.md$/
 
   /** Recover {runID, stage} primarily from `filePath` (survives a fixed-schema store); falls back
    * to raw payload fields for a store/test that doesn't shape paths this way. */

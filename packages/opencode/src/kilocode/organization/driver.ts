@@ -1,6 +1,7 @@
 // kilocode_change - SP1 single-flight headless autonomous driver
 import { OrgConductor } from "./conductor"
 import { OrgSchema } from "./schema"
+import { OrgWorkspace } from "./workspace"
 
 export namespace OrgDriver {
   export type ModelRef = { providerID: string; modelID: string }
@@ -110,32 +111,38 @@ export namespace OrgDriver {
   }
 
   const flights = new Map<string, Promise<OrgConductor.Outcome>>()
-  const key = (projectDir: string, runID: string) => `${projectDir}\0${runID}`
+  const key = (projectDir: string, runID: string, organizationID: string) =>
+    `${projectDir}\0${organizationID}\0${runID}`
 
-  export function isAttached(projectDir: string, runID: string): boolean {
-    return flights.has(key(projectDir, runID))
+  export function isAttached(projectDir: string, runID: string, organization?: OrgWorkspace.Context): boolean {
+    const organizationID = organization?.entry.id ?? OrgWorkspace.current(projectDir)?.entry.id ?? "legacy"
+    return flights.has(key(projectDir, runID, organizationID))
   }
 
   export function attach(input: {
     projectDir: string
+    organization?: OrgWorkspace.Context
     org: OrgSchema.Organization
     runID: string
     runtime: Runtime
     lock?: <A>(fn: () => Promise<A>) => Promise<A>
   }): Promise<OrgConductor.Outcome> {
-    const id = key(input.projectDir, input.runID)
+    const organization = input.organization ?? OrgWorkspace.current(input.projectDir)
+    const id = key(input.projectDir, input.runID, organization?.entry.id ?? "legacy")
     const existing = flights.get(id)
     if (existing) return existing
-    const flight = OrgConductor.drive(input.runID, {
-      projectDir: input.projectDir,
-      org: input.org,
-      runnerDeps: { costOf: input.runtime.costOf },
-      spawnChief: input.runtime.spawnChief,
-      evaluate: input.runtime.evaluate,
-      now: Date.now,
-      emit: () => {},
-      lock: input.lock,
-    }).finally(() => flights.delete(id))
+    const drive = () =>
+      OrgConductor.drive(input.runID, {
+        projectDir: input.projectDir,
+        org: input.org,
+        runnerDeps: { costOf: input.runtime.costOf },
+        spawnChief: input.runtime.spawnChief,
+        evaluate: input.runtime.evaluate,
+        now: Date.now,
+        emit: () => {},
+        lock: input.lock,
+      })
+    const flight = (organization ? OrgWorkspace.run(organization, drive) : drive()).finally(() => flights.delete(id))
     flights.set(id, flight)
     return flight
   }

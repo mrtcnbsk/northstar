@@ -2,6 +2,7 @@
 import path from "path"
 import z from "zod"
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser"
+import { OrgWorkspace } from "./workspace"
 
 export namespace OrgSchema {
   export const Department = z.object({
@@ -275,7 +276,11 @@ export namespace OrgSchema {
   }
 
   export function organizationPath(projectDir: string): string {
-    return path.join(projectDir, ".kilo", "organization.jsonc")
+    return OrgWorkspace.current(projectDir)?.paths.organization ?? path.join(projectDir, ".kilo", "organization.jsonc")
+  }
+
+  export function agentsPath(projectDir: string): string {
+    return OrgWorkspace.current(projectDir)?.paths.agents ?? path.join(projectDir, ".kilo", "agent")
   }
 
   /**

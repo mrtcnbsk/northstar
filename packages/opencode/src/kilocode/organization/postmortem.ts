@@ -3,6 +3,7 @@ import path from "path"
 import { Filesystem } from "../../util/filesystem"
 import { OrgAudit } from "./audit"
 import { OrgState } from "./state"
+import { OrgWorkspace } from "./workspace"
 
 /**
  * Deterministic post-run postmortem (W6.2). `build` is a PURE function of its inputs (a
@@ -29,7 +30,7 @@ import { OrgState } from "./state"
  */
 export namespace OrgPostmortem {
   export function lessonsPath(projectDir: string): string {
-    return path.join(projectDir, ".kilo", "org", "lessons.md")
+    return OrgWorkspace.current(projectDir)?.paths.lessons ?? path.join(projectDir, ".kilo", "org", "lessons.md")
   }
 
   // kilocode_change start - W6 fix #3: file-scoped lock for the SHARED lessons.md.

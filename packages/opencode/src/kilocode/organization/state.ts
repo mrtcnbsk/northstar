@@ -6,6 +6,7 @@ import z from "zod"
 import { Filesystem } from "../../util/filesystem"
 import { OrgSchema } from "./schema"
 import { OrgIrreversible } from "./irreversible"
+import { OrgWorkspace } from "./workspace"
 
 export namespace OrgState {
   export const StageStatus = z.enum([
@@ -93,6 +94,7 @@ export namespace OrgState {
 
   export const Run = z.object({
     runID: z.string(),
+    organizationID: z.string().optional(),
     idea: z.string(),
     createdAt: z.string(),
     status: z.enum(["active", "paused", "halted", "completed"]),
@@ -204,7 +206,7 @@ export namespace OrgState {
   }
 
   export function runsDir(projectDir: string): string {
-    return path.join(projectDir, ".kilo", "org", "runs")
+    return OrgWorkspace.current(projectDir)?.paths.runs ?? path.join(projectDir, ".kilo", "org", "runs")
   }
 
   export function runDir(projectDir: string, runID: string): string {
@@ -247,6 +249,7 @@ export namespace OrgState {
     const runID = `${stamp(now)}-${slugify(idea)}`
     const run: Run = {
       runID,
+      organizationID: OrgWorkspace.current(projectDir)?.entry.id,
       idea,
       createdAt: now.toISOString(),
       status: "active",

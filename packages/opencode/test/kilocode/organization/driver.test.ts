@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
+import { rm } from "node:fs/promises"
+import path from "path"
 import { tmpdir } from "../../fixture/fixture"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
 import { OrgDriver } from "../../../src/kilocode/organization/driver"
 import { OrgRunner } from "../../../src/kilocode/organization/runner"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
 import { OrgState } from "../../../src/kilocode/organization/state"
+import { OrgWorkspace } from "../../../src/kilocode/organization/workspace"
 
 const ORG = OrgSchema.parse({
   ceo: "ceo",
@@ -24,6 +27,59 @@ async function seed(dir: string) {
 }
 
 describe("OrgDriver", () => {
+  test("keeps same-id flights isolated by organization", async () => {
+    await using tmp = await tmpdir()
+    const alpha = await OrgWorkspace.publish(tmp.path, (await OrgWorkspace.stage(tmp.path, "Alpha")).entry.id)
+    const beta = await OrgWorkspace.publish(tmp.path, (await OrgWorkspace.stage(tmp.path, "Beta")).entry.id)
+    const alphaRun = await OrgWorkspace.run(alpha, () => seed(tmp.path))
+    const seededBeta = await OrgWorkspace.run(beta, () => seed(tmp.path))
+    const betaRun =
+      seededBeta.runID === alphaRun.runID
+        ? seededBeta
+        : await OrgWorkspace.run(beta, async () => {
+            const run = { ...seededBeta, runID: alphaRun.runID }
+            await Bun.write(path.join(OrgState.runDir(tmp.path, run.runID), "state.json"), JSON.stringify(run))
+            await rm(OrgState.runDir(tmp.path, seededBeta.runID), { recursive: true })
+            return run
+          })
+    expect(alphaRun.runID).toBe(betaRun.runID)
+
+    const spawns: string[] = []
+    const runtime = (organizationID: string): OrgDriver.Runtime => ({
+      costOf: async () => 1,
+      spawnChief: async ({ runID, stage }) => {
+        spawns.push(organizationID)
+        await Bun.write(OrgArtifacts.deliverablePath(tmp.path, runID, stage), `result ${"evidence ".repeat(20)}`)
+        return { taskID: `ses_${organizationID}`, cost: 1, toolIDs: [] }
+      },
+      evaluate: async () => '{"pass":true}',
+    })
+
+    const alphaFlight = OrgDriver.attach({
+      projectDir: tmp.path,
+      organization: alpha,
+      org: ORG,
+      runID: alphaRun.runID,
+      runtime: runtime("alpha"),
+    })
+    const betaFlight = OrgDriver.attach({
+      projectDir: tmp.path,
+      organization: beta,
+      org: ORG,
+      runID: betaRun.runID,
+      runtime: runtime("beta"),
+    })
+    expect(OrgDriver.isAttached(tmp.path, alphaRun.runID, alpha)).toBe(true)
+    expect(OrgDriver.isAttached(tmp.path, betaRun.runID, beta)).toBe(true)
+
+    const outcomes = await Promise.all([alphaFlight, betaFlight])
+
+    expect(outcomes).toEqual([{ type: "completed" }, { type: "completed" }])
+    expect(spawns.sort()).toEqual(["alpha", "beta"])
+    expect((await OrgWorkspace.run(alpha, () => OrgState.read(tmp.path, alphaRun.runID))).status).toBe("completed")
+    expect((await OrgWorkspace.run(beta, () => OrgState.read(tmp.path, betaRun.runID))).status).toBe("completed")
+  })
+
   test("single-flights duplicate attach calls for one project/run", async () => {
     await using tmp = await tmpdir()
     const run = await seed(tmp.path)

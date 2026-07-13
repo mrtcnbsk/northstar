@@ -1,6 +1,7 @@
 // kilocode_change - new file
 import path from "path"
 import { Memory } from "@kilocode/kilo-memory/memory"
+import { OrgWorkspace } from "./workspace"
 
 /**
  * Org-scoped shared memory pool (W6.1).
@@ -33,7 +34,7 @@ import { Memory } from "@kilocode/kilo-memory/memory"
  */
 export namespace OrgMemory {
   export function root(projectDir: string): string {
-    return path.join(projectDir, ".kilo", "org", "memory")
+    return OrgWorkspace.current(projectDir)?.paths.memory ?? path.join(projectDir, ".kilo", "org", "memory")
   }
 
   function marker(dept: string) {

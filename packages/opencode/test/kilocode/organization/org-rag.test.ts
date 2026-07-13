@@ -11,6 +11,7 @@ import type { EmbedderInfo, IEmbedder, IVectorStore, PointStruct, VectorStoreSea
 import { tmpdir } from "../../fixture/fixture"
 import { OrgRag } from "../../../src/kilocode/organization/rag"
 import { OrgArtifacts } from "../../../src/kilocode/organization/artifacts"
+import { OrgWorkspace } from "../../../src/kilocode/organization/workspace"
 
 // --- deterministic, key-free stub embedder -----------------------------------------------
 // Feature-hashes tokens into a small fixed-width vector so cosine similarity reflects shared
@@ -290,6 +291,35 @@ describe("OrgRag.indexRun", () => {
 })
 
 describe("OrgRag.search", () => {
+  test("recovers run metadata from a managed organization path when the store drops custom payload fields", async () => {
+    await using tmp = await tmpdir()
+    const staged = await OrgWorkspace.stage(tmp.path, "Studio")
+    const organization = await OrgWorkspace.publish(tmp.path, staged.entry.id)
+    const store = memoryStore()
+    await OrgWorkspace.run(organization, async () => {
+      await seedDeliverable(tmp.path, "run-managed", "engineering", ENG_DOC)
+      await OrgRag.indexDeliverables(tmp.path, stubEmbedder(), store)
+    })
+    const fixedSchemaStore = {
+      upsertPoints: store.upsertPoints,
+      async search(vector: number[], prefix?: string, min?: number, max?: number) {
+        const matches = await store.search(vector, prefix, min, max)
+        return matches.map((match) => ({
+          ...match,
+          payload: Object.fromEntries(
+            ISPAYLOADVALID_REQUIRED.map((key) => [key, match.payload?.[key]]),
+          ),
+        })) as VectorStoreSearchResult[]
+      },
+    } as IVectorStore
+
+    const result = await OrgWorkspace.run(organization, () =>
+      OrgRag.search(tmp.path, "Rust ledger SwiftUI", {}, stubEmbedder(), fixedSchemaStore),
+    )
+
+    expect(result.results[0]).toMatchObject({ runID: "run-managed", stage: "engineering" })
+  })
+
   test("returns chunks with the right runID for a matching query", async () => {
     await using tmp = await tmpdir()
     await seedDeliverable(tmp.path, "run-eval", "evaluation", EVAL_DOC)
