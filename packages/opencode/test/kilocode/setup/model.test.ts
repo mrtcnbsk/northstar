@@ -12,7 +12,13 @@ function fixture(): SetupModel.Draft {
       specialists: { name: "Specialists", mission: "Produce verified work" },
     },
     departments: [
-      { id: "engineering", name: "Engineering", mission: "Build verified software", chief: "lead", workers: ["engineer"] },
+      {
+        id: "engineering",
+        name: "Engineering",
+        mission: "Build verified software",
+        chief: "lead",
+        workers: ["engineer"],
+      },
     ],
     agents: [
       {
@@ -112,5 +118,15 @@ describe("SetupModel", () => {
       "brief.md": "indexed",
       "spec.md": "pending",
     })
+  })
+
+  test("keeps a department draft resumable before its lead is assigned", () => {
+    const draft = SetupModel.blank("Product Studio")
+    draft.departments = [
+      { id: "engineering", name: "Engineering", mission: "Build verified software", chief: "", workers: [] },
+    ]
+    draft.pipeline = [{ stage: "engineering" }]
+    expect(SetupModel.Draft.parse(draft).departments[0]?.chief).toBe("")
+    expect(SetupModel.issues(draft)).toContain("Department 'engineering' has no assigned chief")
   })
 })

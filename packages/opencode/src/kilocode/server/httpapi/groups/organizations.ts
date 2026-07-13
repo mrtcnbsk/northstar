@@ -38,12 +38,14 @@ export const OrganizationStageResponse = Schema.Struct({ organization: Organizat
 const AgentFile = Schema.Struct({ id: Schema.String, content: Schema.String })
 export const OrganizationSaveInput = Schema.Struct({
   draft: Schema.Unknown,
-  organization: Schema.String,
-  agents: Schema.Array(AgentFile),
+  organization: Schema.optional(Schema.String),
+  agents: Schema.optional(Schema.Array(AgentFile)),
 })
 export const OrganizationUpdateInput = Schema.Struct({
   name: Schema.String,
-  ...OrganizationSaveInput.fields,
+  draft: Schema.Unknown,
+  organization: Schema.String,
+  agents: Schema.Array(AgentFile),
 })
 export const OrganizationGetResponse = Schema.Struct({
   organization: OrganizationEntry,
@@ -73,7 +75,11 @@ const OrganizationKnowledgeItem = Schema.Struct({
 })
 export const OrganizationKnowledgeImportResponse = Schema.Struct({
   files: Schema.Array(
-    Schema.Struct({ source: Schema.String, status: Schema.Literals(["indexed", "unchanged"]), item: OrganizationKnowledgeItem }),
+    Schema.Struct({
+      source: Schema.String,
+      status: Schema.Literals(["indexed", "unchanged"]),
+      item: OrganizationKnowledgeItem,
+    }),
   ),
 }).annotate({ identifier: "NorthstarOrganizationKnowledgeImportResponse" })
 
@@ -143,13 +149,17 @@ export const OrganizationsApi = HttpApi.make("organizations")
           payload: OrganizationSaveInput,
           success: described(OrganizationGetResponse, "Saved organization draft"),
           error: [HttpApiError.NotFound, badRequest],
-        }).annotateMerge(OpenApi.annotations({ identifier: "organizations.saveDraft", summary: "Save organization draft" })),
+        }).annotateMerge(
+          OpenApi.annotations({ identifier: "organizations.saveDraft", summary: "Save organization draft" }),
+        ),
         HttpApiEndpoint.delete("discardDraft", OrganizationsPaths.discardDraft, {
           params,
           query: WorkspaceRoutingQuery,
           success: described(OrganizationsResponse, "Organizations after draft discard"),
           error: [HttpApiError.NotFound, badRequest],
-        }).annotateMerge(OpenApi.annotations({ identifier: "organizations.discardDraft", summary: "Discard organization draft" })),
+        }).annotateMerge(
+          OpenApi.annotations({ identifier: "organizations.discardDraft", summary: "Discard organization draft" }),
+        ),
         HttpApiEndpoint.post("select", OrganizationsPaths.select, {
           params,
           query: WorkspaceRoutingQuery,
@@ -168,16 +178,28 @@ export const OrganizationsApi = HttpApi.make("organizations")
           payload: OrganizationKnowledgeImportInput,
           success: described(OrganizationKnowledgeImportResponse, "Managed knowledge import result"),
           error: [HttpApiError.NotFound, badRequest],
-        }).annotateMerge(OpenApi.annotations({ identifier: "organizations.importKnowledge", summary: "Import organization knowledge" })),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "organizations.importKnowledge",
+            summary: "Import organization knowledge",
+          }),
+        ),
         HttpApiEndpoint.post("searchKnowledge", OrganizationsPaths.searchKnowledge, {
           params,
           query: WorkspaceRoutingQuery,
           payload: OrganizationKnowledgeSearchInput,
           success: described(OrganizationKnowledgeSearchResponse, "Scoped local knowledge search results"),
           error: [HttpApiError.NotFound, badRequest],
-        }).annotateMerge(OpenApi.annotations({ identifier: "organizations.searchKnowledge", summary: "Search organization knowledge" })),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "organizations.searchKnowledge",
+            summary: "Search organization knowledge",
+          }),
+        ),
       )
-      .annotateMerge(OpenApi.annotations({ title: "organizations", description: "Northstar project organization routes." }))
+      .annotateMerge(
+        OpenApi.annotations({ title: "organizations", description: "Northstar project organization routes." }),
+      )
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),

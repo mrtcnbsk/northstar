@@ -21,7 +21,7 @@ export namespace SetupModel {
     id: z.string().regex(SAFE_ID),
     name: z.string().trim().min(1),
     mission: z.string().trim().min(1),
-    chief: z.string().regex(SAFE_ID),
+    chief: z.union([z.literal(""), z.string().regex(SAFE_ID)]),
     workers: z.array(z.string().regex(SAFE_ID)),
   })
   export type Department = z.output<typeof Department>
@@ -46,10 +46,7 @@ export namespace SetupModel {
   export const Knowledge = z.object({
     sources: z.array(z.string().trim().min(1)).min(1),
     scope: OrgKnowledge.Scope,
-    status: z.record(
-      z.string().trim().min(1),
-      z.enum(["pending", "imported", "indexed", "unchanged", "failed"]),
-    ),
+    status: z.record(z.string().trim().min(1), z.enum(["pending", "imported", "indexed", "unchanged", "failed"])),
   })
   export type Knowledge = z.output<typeof Knowledge>
 
@@ -113,9 +110,13 @@ export namespace SetupModel {
     if (executives.length !== 1) result.push("The organization must have exactly one Executive agent")
 
     for (const department of draft.departments) {
+      if (!department.chief) {
+        result.push(`Department '${department.id}' has no assigned chief`)
+      }
       const chief = agents.get(department.chief)
-      if (!chief) result.push(`Department '${department.id}' references missing chief '${department.chief}'`)
-      else if (chief.layer !== "leads" || chief.departmentID !== department.id) {
+      if (department.chief && !chief)
+        result.push(`Department '${department.id}' references missing chief '${department.chief}'`)
+      else if (chief && (chief.layer !== "leads" || chief.departmentID !== department.id)) {
         result.push(`Chief '${chief.id}' must be a Department Lead assigned to '${department.id}'`)
       }
       if (department.workers.length === 0) result.push(`Department '${department.id}' must have at least one worker`)
@@ -133,10 +134,13 @@ export namespace SetupModel {
         result.push(`Executive agent '${current.id}' cannot belong to a department`)
       }
       if (current.layer !== "executive" && (!current.departmentID || !departments.has(current.departmentID))) {
-        result.push(`${current.layer === "leads" ? "Department Lead" : "Specialist"} '${current.id}' must belong to a department`)
+        result.push(
+          `${current.layer === "leads" ? "Department Lead" : "Specialist"} '${current.id}' must belong to a department`,
+        )
       }
       for (const subordinate of current.subordinates) {
-        if (!agents.has(subordinate)) result.push(`Agent '${current.id}' references missing subordinate '${subordinate}'`)
+        if (!agents.has(subordinate))
+          result.push(`Agent '${current.id}' references missing subordinate '${subordinate}'`)
       }
     }
 

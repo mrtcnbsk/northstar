@@ -17799,7 +17799,7 @@
                     }
                   }
                 },
-                "required": ["draft", "organization", "agents"],
+                "required": ["draft"],
                 "additionalProperties": false
               }
             }

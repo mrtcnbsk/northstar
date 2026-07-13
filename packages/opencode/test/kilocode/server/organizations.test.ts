@@ -38,19 +38,96 @@ const AGENTS = [
   { id: "engineer", content: '---\nmode: "subagent"\n---\n# Role\n\nBuild software.\n' },
 ]
 
+const SETUP_DRAFT = {
+  id: "product-studio",
+  name: "Product Studio",
+  step: "review" as const,
+  layers: {
+    executive: { name: "Executive", mission: "Set direction" },
+    leads: { name: "Department Leads", mission: "Coordinate engineering" },
+    specialists: { name: "Specialists", mission: "Build verified software" },
+  },
+  departments: [
+    {
+      id: "engineering",
+      name: "Engineering",
+      mission: "Build verified software",
+      chief: "engineering-lead",
+      workers: ["engineer"],
+    },
+  ],
+  agents: [
+    {
+      id: "ceo",
+      name: "CEO",
+      layer: "executive" as const,
+      role: "Set direction",
+      do: ["Approve plans"],
+      dont: ["Implement specialist work"],
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-5",
+      permission: {},
+      subordinates: ["engineering-lead"],
+    },
+    {
+      id: "engineering-lead",
+      name: "Engineering Lead",
+      layer: "leads" as const,
+      departmentID: "engineering",
+      role: "Lead engineering",
+      do: ["Delegate work"],
+      dont: ["Skip verification"],
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-5",
+      permission: {},
+      subordinates: ["engineer"],
+    },
+    {
+      id: "engineer",
+      name: "Engineer",
+      layer: "specialists" as const,
+      departmentID: "engineering",
+      role: "Build software",
+      do: ["Run tests"],
+      dont: ["Change scope"],
+      providerID: "openai",
+      modelID: "gpt-5.1-codex",
+      permission: {},
+      subordinates: [],
+    },
+  ],
+  knowledge: [],
+  pipeline: [{ stage: "engineering" }],
+}
+
 describe("OrganizationsHandler", () => {
+  test("saves an incomplete Setup draft without publishing a runtime definition", async () => {
+    await using tmp = await tmpdir()
+    const staged = await OrganizationsHandler.stage(tmp.path, { name: "Product Studio" })
+    const draft = { ...SETUP_DRAFT, step: "departments" as const, departments: [], agents: [], pipeline: [] }
+
+    const saved = await OrganizationsHandler.saveDraft(tmp.path, {
+      organizationID: staged.organization.id,
+      draft,
+    })
+
+    expect(saved.draft).toEqual(draft)
+    expect(saved.definition).toBeUndefined()
+    expect(await Bun.file(staged.paths.organization).exists()).toBe(false)
+  })
+
   test("stages, saves, publishes, lists, and selects organizations", async () => {
     await using tmp = await tmpdir()
     const product = await OrganizationsHandler.stage(tmp.path, { name: "Product Studio" })
     await OrganizationsHandler.saveDraft(tmp.path, {
       organizationID: product.organization.id,
-      draft: { step: "review", name: "Product Studio" },
+      draft: SETUP_DRAFT,
       organization: ORGANIZATION,
       agents: AGENTS,
     })
 
     const saved = await OrganizationsHandler.get(tmp.path, product.organization.id)
-    expect(saved.draft).toEqual({ step: "review", name: "Product Studio" })
+    expect(saved.draft).toEqual(SETUP_DRAFT)
     expect(saved.agents.map((agent) => agent.id).sort()).toEqual(["ceo", "engineer", "engineering-lead"])
     expect(saved.valid).toBe(true)
 
@@ -62,7 +139,7 @@ describe("OrganizationsHandler", () => {
     const research = await OrganizationsHandler.stage(tmp.path, { name: "Research Team" })
     await OrganizationsHandler.saveDraft(tmp.path, {
       organizationID: research.organization.id,
-      draft: { step: "review", name: "Research Team" },
+      draft: { ...SETUP_DRAFT, id: "research-team", name: "Research Team" },
       organization: ORGANIZATION,
       agents: AGENTS,
     })
@@ -77,7 +154,7 @@ describe("OrganizationsHandler", () => {
     await expect(
       OrganizationsHandler.saveDraft(tmp.path, {
         organizationID: staged.organization.id,
-        draft: { step: "review" },
+        draft: { ...SETUP_DRAFT, id: "broken", name: "Broken" },
         organization: ORGANIZATION,
         agents: AGENTS.filter((agent) => agent.id !== "engineer"),
       }),
@@ -108,7 +185,7 @@ describe("OrganizationsHandler", () => {
     const staged = await OrganizationsHandler.stage(tmp.path, { name: "Product Studio" })
     await OrganizationsHandler.saveDraft(tmp.path, {
       organizationID: staged.organization.id,
-      draft: { step: "review", name: "Product Studio" },
+      draft: SETUP_DRAFT,
       organization: ORGANIZATION,
       agents: AGENTS,
     })
@@ -119,7 +196,7 @@ describe("OrganizationsHandler", () => {
     const updated = await OrganizationsHandler.update(tmp.path, {
       organizationID: "product-studio",
       name: "Product Studio 2",
-      draft: { step: "review", name: "Product Studio 2" },
+      draft: { ...SETUP_DRAFT, name: "Product Studio 2" },
       organization: ORGANIZATION,
       agents: AGENTS,
     })
@@ -157,7 +234,7 @@ describe("organization routes", () => {
     const saved = await request(tmp.path, "/organizations/staging/product-studio", {
       method: "PUT",
       body: JSON.stringify({
-        draft: { step: "knowledge", name: "Product Studio" },
+        draft: { ...SETUP_DRAFT, step: "knowledge" },
         organization: ORGANIZATION,
         agents: AGENTS,
       }),
@@ -195,7 +272,7 @@ describe("organization routes", () => {
       method: "PUT",
       body: JSON.stringify({
         name: "Product Studio 2",
-        draft: { step: "review", name: "Product Studio 2" },
+        draft: { ...SETUP_DRAFT, name: "Product Studio 2" },
         organization: ORGANIZATION,
         agents: AGENTS,
       }),

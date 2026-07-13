@@ -12704,8 +12704,8 @@ export type OrganizationsDiscardDraftResponse =
 export type OrganizationsSaveDraftData = {
   body?: {
     draft: unknown
-    organization: string
-    agents: Array<{
+    organization?: string
+    agents?: Array<{
       id: string
       content: string
     }>

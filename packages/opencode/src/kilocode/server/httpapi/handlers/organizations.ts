@@ -12,6 +12,7 @@ import { InstanceHttpApi } from "@/server/routes/instance/httpapi/api"
 import { OrgKnowledge } from "@/kilocode/organization/knowledge"
 import { OrgSchema } from "@/kilocode/organization/schema"
 import { OrgWorkspace } from "@/kilocode/organization/workspace"
+import { SetupModel } from "@/kilocode/setup/model"
 import type {
   OrganizationKnowledgeImportInput,
   OrganizationKnowledgeSearchInput,
@@ -27,9 +28,11 @@ export namespace OrganizationsHandler {
   export type SaveDraftInput = {
     organizationID: string
     draft: unknown
-    organization: string
-    agents: AgentFile[]
+    organization?: string
+    agents?: AgentFile[]
   }
+
+  type SaveDefinitionInput = SaveDraftInput & { organization: string; agents: AgentFile[] }
 
   export type View = OrgWorkspace.Entry & {
     valid: boolean
@@ -124,7 +127,10 @@ export namespace OrganizationsHandler {
     const agents = await Promise.all(
       entries
         .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-        .map(async (entry) => ({ id: entry.name.slice(0, -3), content: await Bun.file(path.join(ctx.paths.agents, entry.name)).text() })),
+        .map(async (entry) => ({
+          id: entry.name.slice(0, -3),
+          content: await Bun.file(path.join(ctx.paths.agents, entry.name)).text(),
+        })),
     )
     return {
       organization: ctx.entry,
@@ -136,8 +142,21 @@ export namespace OrganizationsHandler {
     }
   }
 
-  async function saveDefinition(ctx: OrgWorkspace.Context, input: SaveDraftInput) {
+  async function saveSetupDraft(ctx: OrgWorkspace.Context, input: SaveDraftInput) {
+    const draft = SetupModel.Draft.parse(input.draft)
+    if (draft.id !== ctx.entry.id) throw new Error("Setup draft id does not match the staged organization")
+    const file = setupPath(ctx)
+    const temp = `${file}.tmp-${process.pid}-${crypto.randomUUID()}`
+    await mkdir(path.dirname(file), { recursive: true })
+    await Bun.write(temp, JSON.stringify(draft, null, 2) + "\n")
+    await rename(temp, file)
+    return get(ctx.projectDir, input.organizationID)
+  }
+
+  async function saveDefinition(ctx: OrgWorkspace.Context, input: SaveDefinitionInput) {
     const projectDir = ctx.projectDir
+    const draft = SetupModel.Draft.parse(input.draft)
+    if (draft.id !== ctx.entry.id) throw new Error("Setup draft id does not match the organization")
     const organization = parseOrganization(input.organization)
     validateAgentFiles(input.agents)
     const transaction = crypto.randomUUID()
@@ -147,7 +166,7 @@ export namespace OrganizationsHandler {
     const preparedSetup = path.join(prepared, ".northstar-setup.json")
     await mkdir(preparedAgents, { recursive: true })
     await Filesystem.write(preparedOrganization, OrgSchema.serialize(organization))
-    await Filesystem.write(preparedSetup, JSON.stringify(input.draft, null, 2) + "\n")
+    await Filesystem.write(preparedSetup, JSON.stringify(draft, null, 2) + "\n")
     await Promise.all(
       input.agents.map((agent) => Filesystem.write(path.join(preparedAgents, `${agent.id}.md`), agent.content)),
     )
@@ -166,7 +185,11 @@ export namespace OrganizationsHandler {
     }
 
     const swaps = [
-      { source: preparedOrganization, target: ctx.paths.organization, backup: `${ctx.paths.organization}.bak-${transaction}` },
+      {
+        source: preparedOrganization,
+        target: ctx.paths.organization,
+        backup: `${ctx.paths.organization}.bak-${transaction}`,
+      },
       { source: preparedAgents, target: ctx.paths.agents, backup: `${ctx.paths.agents}.bak-${transaction}` },
       { source: preparedSetup, target: setupPath(ctx), backup: `${setupPath(ctx)}.bak-${transaction}` },
     ]
@@ -194,10 +217,15 @@ export namespace OrganizationsHandler {
   }
 
   export async function saveDraft(projectDir: string, input: SaveDraftInput) {
-    return saveDefinition(await OrgWorkspace.draft(projectDir, input.organizationID), input)
+    const ctx = await OrgWorkspace.draft(projectDir, input.organizationID)
+    if (input.organization === undefined && input.agents === undefined) return saveSetupDraft(ctx, input)
+    if (input.organization === undefined || input.agents === undefined) {
+      throw new Error("Organization definition and agents must be saved together")
+    }
+    return saveDefinition(ctx, input as SaveDefinitionInput)
   }
 
-  export async function update(projectDir: string, input: SaveDraftInput & { name: string }) {
+  export async function update(projectDir: string, input: SaveDefinitionInput & { name: string }) {
     const ctx = await OrgWorkspace.resolve(projectDir, input.organizationID)
     await saveDefinition(ctx, input)
     await OrgWorkspace.renameOrganization(projectDir, input.organizationID, input.name)
@@ -292,7 +320,7 @@ export const organizationsHandlers = HttpApiBuilder.group(InstanceHttpApi, "orga
           organizationID: ctx.params.organizationID,
           draft: ctx.payload.draft,
           organization: ctx.payload.organization,
-          agents: [...ctx.payload.agents],
+          agents: ctx.payload.agents ? [...ctx.payload.agents] : undefined,
         }),
       )
     })
@@ -304,18 +332,14 @@ export const organizationsHandlers = HttpApiBuilder.group(InstanceHttpApi, "orga
       return yield* command(() => OrganizationsHandler.discardDraft(instance.directory, ctx.params.organizationID))
     })
 
-    const select = Effect.fn("OrganizationsHttpApi.select")(function* (ctx: {
-      params: { organizationID: string }
-    }) {
+    const select = Effect.fn("OrganizationsHttpApi.select")(function* (ctx: { params: { organizationID: string } }) {
       const instance = yield* InstanceState.context
       const result = yield* command(() => OrganizationsHandler.select(instance.directory, ctx.params.organizationID))
       yield* store.dispose(instance)
       return result
     })
 
-    const publish = Effect.fn("OrganizationsHttpApi.publish")(function* (ctx: {
-      params: { organizationID: string }
-    }) {
+    const publish = Effect.fn("OrganizationsHttpApi.publish")(function* (ctx: { params: { organizationID: string } }) {
       const instance = yield* InstanceState.context
       const result = yield* command(() => OrganizationsHandler.publish(instance.directory, ctx.params.organizationID))
       yield* store.dispose(instance)
