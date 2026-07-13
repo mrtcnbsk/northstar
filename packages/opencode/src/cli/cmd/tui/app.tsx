@@ -1107,26 +1107,36 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       </Show>
       <Show when={ready()}>
         <box flexGrow={1} minHeight={0} flexDirection="column">
-          <Switch>
-            <Match when={route.data.type === "home"}>
-              <Home />
-            </Match>
-            <Match when={route.data.type === "session"}>
-              <Session />
-            </Match>
-            {/* kilocode_change start */}
-            <Match when={route.data.type === "kiloclaw"}>
-              <KiloApp.KiloClawView />
-            </Match>
-            <Match when={route.data.type === "builder"}>
-              <KiloApp.BuilderView />
-            </Match>
-            <Match when={route.data.type === "cockpit"}>
-              <KiloApp.CockpitView />
-            </Match>
-            {/* kilocode_change end */}
-          </Switch>
-          {plugin()}
+          {/* kilocode_change start - persistent Northstar workspace and first-run Setup */}
+          <KiloApp.WorkspaceProvider>
+            <KiloApp.WorkspaceShell>
+              <Switch>
+                <Match when={route.data.type === "northstar"}>
+                  <KiloApp.WorkspaceBootstrap />
+                </Match>
+                <Match when={route.data.type === "setup"}>
+                  <KiloApp.WorkspaceSetupRoute />
+                </Match>
+                <Match when={route.data.type === "home"}>
+                  <Home />
+                </Match>
+                <Match when={route.data.type === "session"}>
+                  <Session />
+                </Match>
+                <Match when={route.data.type === "kiloclaw"}>
+                  <KiloApp.KiloClawView />
+                </Match>
+                <Match when={route.data.type === "builder"}>
+                  <KiloApp.BuilderView />
+                </Match>
+                <Match when={route.data.type === "cockpit"}>
+                  <KiloApp.CockpitView />
+                </Match>
+              </Switch>
+              {plugin()}
+            </KiloApp.WorkspaceShell>
+          </KiloApp.WorkspaceProvider>
+          {/* kilocode_change end */}
         </box>
         <box flexShrink={0}>
           <TuiPluginRuntime.Slot name="app_bottom" />

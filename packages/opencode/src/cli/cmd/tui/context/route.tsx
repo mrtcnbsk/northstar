@@ -37,6 +37,16 @@ export type CockpitRoute = {
   // degrades to an explicit "no session" message rather than guessing one.
   sessionID?: string
 }
+
+export type NorthstarRoute = {
+  type: "northstar"
+}
+
+export type SetupRoute = {
+  type: "setup"
+  organizationID?: string
+  repair?: boolean
+}
 // kilocode_change end
 
 export type PluginRoute = {
@@ -46,7 +56,15 @@ export type PluginRoute = {
 }
 
 // kilocode_change start
-export type Route = HomeRoute | SessionRoute | PluginRoute | KiloClawRoute | BuilderRoute | CockpitRoute
+export type Route =
+  | HomeRoute
+  | SessionRoute
+  | PluginRoute
+  | KiloClawRoute
+  | BuilderRoute
+  | CockpitRoute
+  | NorthstarRoute
+  | SetupRoute
 // kilocode_change end
 
 export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
@@ -57,7 +75,7 @@ export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
         (process.env["KILO_ROUTE"]
           ? JSON.parse(process.env["KILO_ROUTE"])
           : {
-              type: "home",
+              type: "northstar",
             }),
     )
 
@@ -75,7 +93,7 @@ export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
       },
       // kilocode_change start
       back() {
-        const target = previous ?? ({ type: "home" } as const)
+        const target = previous ?? ({ type: "northstar" } as const)
         previous = undefined
         console.log("navigate", target)
         setStore(target)

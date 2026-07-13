@@ -12,10 +12,8 @@ export function KnowledgeStep(props: {
   const { theme } = useTheme()
   const scopeName = (item: SetupModel.Knowledge) => {
     if (item.scope.type === "shared") return "Shared knowledge"
-    return (
-      props.draft.departments.find((department) => department.id === item.scope.departmentID)?.name ??
-      item.scope.departmentID
-    )
+    const departmentID = item.scope.departmentID
+    return props.draft.departments.find((department) => department.id === departmentID)?.name ?? departmentID
   }
   return (
     <box flexDirection="column" gap={1}>

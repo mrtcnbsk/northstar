@@ -79,7 +79,14 @@ export const Definitions = {
   theme_mode_lock: keybind("none", "Lock or unlock theme mode"),
   sidebar_toggle: keybind("<leader>b", "Toggle sidebar"),
   scrollbar_toggle: keybind("none", "Toggle session scrollbar"),
-  status_view: keybind("<leader>s", "View status"),
+  status_view: keybind("<leader>S", "View status"),
+
+  // kilocode_change start - Northstar workspace navigation owns lowercase leader letters
+  northstar_setup: keybind("<leader>s", "Open Northstar Setup"),
+  northstar_chat: keybind("<leader>c", "Open Northstar Chat"),
+  northstar_mission: keybind("<leader>m", "Open Northstar Mission"),
+  northstar_organization: keybind("<leader>o", "Switch Northstar organization"),
+  // kilocode_change end
 
   session_export: keybind("<leader>x", "Export session to editor"),
   session_copy: keybind("none", "Copy session transcript"),
@@ -92,7 +99,7 @@ export const Definitions = {
   session_share: keybind("none", "Share current session"),
   session_unshare: keybind("none", "Unshare current session"),
   session_interrupt: keybind("escape", "Interrupt current session"),
-  session_compact: keybind("<leader>c", "Compact the session"),
+  session_compact: keybind("<leader>C", "Compact the session"),
   session_toggle_timestamps: keybind("none", "Toggle message timestamps"),
   session_toggle_generic_tool_output: keybind("none", "Toggle generic tool output"),
   session_child_first: keybind("<leader>down", "Go to first child session"),
@@ -113,7 +120,7 @@ export const Definitions = {
   stash_delete: keybind("ctrl+d", "Delete stash entry"),
   model_provider_list: keybind("ctrl+a", "Open provider list from model dialog"),
   model_favorite_toggle: keybind("ctrl+f", "Toggle model favorite status"),
-  model_list: keybind("<leader>m", "List available models"),
+  model_list: keybind("<leader>M", "List available models"),
   model_cycle_recent: keybind("f2", "Next recently used model"),
   model_cycle_recent_reverse: keybind("shift+f2", "Previous recently used model"),
   model_cycle_favorite: keybind("none", "Next favorite model"),
@@ -284,6 +291,12 @@ export const CommandMap = {
   sidebar_toggle: "session.sidebar.toggle",
   scrollbar_toggle: "session.toggle.scrollbar",
   status_view: "opencode.status",
+  // kilocode_change start - Northstar workspace navigation commands
+  northstar_setup: "northstar.setup",
+  northstar_chat: "northstar.chat",
+  northstar_mission: "northstar.mission",
+  northstar_organization: "northstar.organization",
+  // kilocode_change end
   session_export: "session.export",
   session_copy: "session.copy",
   session_new: "session.new",

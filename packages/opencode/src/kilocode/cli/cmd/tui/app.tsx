@@ -31,6 +31,11 @@ import { Session as SessionApi } from "@/session/session"
 export { KiloClawView } from "@/kilocode/claw/view"
 export { BuilderView } from "@/kilocode/builder/view"
 export { CockpitView } from "@/kilocode/cockpit/view"
+export { SetupView } from "@/kilocode/setup/view"
+export { WorkspaceProvider } from "@/kilocode/workspace/context"
+export { WorkspaceBootstrap } from "@/kilocode/workspace/bootstrap"
+export { WorkspaceShell } from "@/kilocode/workspace/shell"
+export { WorkspaceSetupRoute } from "@/kilocode/workspace/setup-route"
 export { KiloTerminalTitle } from "./terminal-title"
 
 // Hot reload TUI-local settings (keybinds/theme/ui) when changed from the Kilo Console.
