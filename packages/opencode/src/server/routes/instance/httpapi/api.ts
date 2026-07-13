@@ -36,6 +36,7 @@ import { KilocodeApi } from "@/kilocode/server/httpapi/groups/kilocode"
 import { NetworkApi } from "@/kilocode/server/httpapi/groups/network"
 import { OrgBuilderApi } from "@/kilocode/server/httpapi/groups/org-builder"
 import { OrgRunsApi } from "@/kilocode/server/httpapi/groups/org-runs"
+import { OrganizationsApi } from "@/kilocode/server/httpapi/groups/organizations"
 import { RemoteApi } from "@/kilocode/server/httpapi/groups/remote"
 import { SandboxApi } from "@/kilocode/server/httpapi/groups/sandbox"
 import { SessionImportApi } from "@/kilocode/server/httpapi/groups/session-import"
@@ -88,6 +89,7 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(NetworkApi)
   .addHttpApi(OrgBuilderApi)
   .addHttpApi(OrgRunsApi)
+  .addHttpApi(OrganizationsApi)
   .addHttpApi(RemoteApi)
   .addHttpApi(SandboxApi)
   .addHttpApi(SessionImportApi)

@@ -217,6 +217,18 @@ export namespace OrgWorkspace {
     return context(dir, entry)
   }
 
+  export async function renameOrganization(dir: string, id: string, name: string): Promise<Context> {
+    const registry = await list(dir)
+    const entry = registry.organizations.find((candidate) => candidate.id === id)
+    if (!entry) throw new Error(`Unknown organization '${id}'`)
+    const renamed = Entry.parse({ ...entry, name })
+    await write(dir, {
+      ...registry,
+      organizations: registry.organizations.map((candidate) => (candidate.id === id ? renamed : candidate)),
+    })
+    return context(dir, renamed)
+  }
+
   export async function publish(dir: string, id: string): Promise<Context> {
     const staged = await draft(dir, id)
     const entry = Entry.parse({ ...staged.entry, root: `organizations/${id}` })

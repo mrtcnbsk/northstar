@@ -251,6 +251,26 @@ import type {
   NotebookFailure,
   NotebookRequestId,
   NotebookResult,
+  OrganizationsDiscardDraftErrors,
+  OrganizationsDiscardDraftResponses,
+  OrganizationsGetErrors,
+  OrganizationsGetResponses,
+  OrganizationsImportKnowledgeErrors,
+  OrganizationsImportKnowledgeResponses,
+  OrganizationsListErrors,
+  OrganizationsListResponses,
+  OrganizationsPublishErrors,
+  OrganizationsPublishResponses,
+  OrganizationsSaveDraftErrors,
+  OrganizationsSaveDraftResponses,
+  OrganizationsSearchKnowledgeErrors,
+  OrganizationsSearchKnowledgeResponses,
+  OrganizationsSelectErrors,
+  OrganizationsSelectResponses,
+  OrganizationsStageErrors,
+  OrganizationsStageResponses,
+  OrganizationsUpdateErrors,
+  OrganizationsUpdateResponses,
   OrgBuilderSaveErrors,
   OrgBuilderSaveResponses,
   OrgRunsDecisionErrors,
@@ -8607,6 +8627,390 @@ export class OrgRuns extends HeyApiClient {
   }
 }
 
+export class Organizations extends HeyApiClient {
+  /**
+   * List organizations
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<OrganizationsListResponses, OrganizationsListErrors, ThrowOnError>({
+      url: "/organizations",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get organization
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<OrganizationsGetResponses, OrganizationsGetErrors, ThrowOnError>({
+      url: "/organizations/{organizationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update organization
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      draft?: unknown
+      organization?: string
+      agents?: Array<{
+        id: string
+        content: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "draft" },
+            { in: "body", key: "organization" },
+            { in: "body", key: "agents" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<OrganizationsUpdateResponses, OrganizationsUpdateErrors, ThrowOnError>({
+      url: "/organizations/{organizationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Stage organization
+   */
+  public stage<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrganizationsStageResponses, OrganizationsStageErrors, ThrowOnError>({
+      url: "/organizations/staging",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Discard organization draft
+   */
+  public discardDraft<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      OrganizationsDiscardDraftResponses,
+      OrganizationsDiscardDraftErrors,
+      ThrowOnError
+    >({
+      url: "/organizations/staging/{organizationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Save organization draft
+   */
+  public saveDraft<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+      draft?: unknown
+      organization?: string
+      agents?: Array<{
+        id: string
+        content: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "draft" },
+            { in: "body", key: "organization" },
+            { in: "body", key: "agents" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      OrganizationsSaveDraftResponses,
+      OrganizationsSaveDraftErrors,
+      ThrowOnError
+    >({
+      url: "/organizations/staging/{organizationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Select organization
+   */
+  public select<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OrganizationsSelectResponses, OrganizationsSelectErrors, ThrowOnError>(
+      {
+        url: "/organizations/{organizationID}/select",
+        ...options,
+        ...params,
+      },
+    )
+  }
+
+  /**
+   * Publish organization
+   */
+  public publish<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OrganizationsPublishResponses,
+      OrganizationsPublishErrors,
+      ThrowOnError
+    >({
+      url: "/organizations/{organizationID}/publish",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Import organization knowledge
+   */
+  public importKnowledge<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+      sources?: Array<string>
+      scope?:
+        | {
+            type: "shared"
+          }
+        | {
+            type: "department"
+            departmentID: string
+          }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sources" },
+            { in: "body", key: "scope" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OrganizationsImportKnowledgeResponses,
+      OrganizationsImportKnowledgeErrors,
+      ThrowOnError
+    >({
+      url: "/organizations/{organizationID}/knowledge/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Search organization knowledge
+   */
+  public searchKnowledge<ThrowOnError extends boolean = false>(
+    parameters: {
+      organizationID: string
+      directory?: string
+      workspace?: string
+      query?: string
+      departmentID?: string
+      limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "organizationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "query" },
+            { in: "body", key: "departmentID" },
+            { in: "body", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OrganizationsSearchKnowledgeResponses,
+      OrganizationsSearchKnowledgeErrors,
+      ThrowOnError
+    >({
+      url: "/organizations/{organizationID}/knowledge/search",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Remote extends HeyApiClient {
   /**
    * Enable remote connection
@@ -9542,6 +9946,11 @@ export class KiloClient extends HeyApiClient {
   private _orgRuns?: OrgRuns
   get orgRuns(): OrgRuns {
     return (this._orgRuns ??= new OrgRuns({ client: this.client }))
+  }
+
+  private _organizations?: Organizations
+  get organizations(): Organizations {
+    return (this._organizations ??= new Organizations({ client: this.client }))
   }
 
   private _remote?: Remote

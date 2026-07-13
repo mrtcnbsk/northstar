@@ -251,7 +251,7 @@
             }
           }
         },
-        "description": "Get health information about the Kilo server.",
+        "description": "Get health information about the Northstar server.",
         "summary": "Get health",
         "x-codeSamples": [
           {
@@ -288,7 +288,7 @@
             }
           }
         },
-        "description": "Subscribe to global events from the Kilo system using server-sent events.",
+        "description": "Subscribe to global events from the Northstar system using server-sent events.",
         "summary": "Get global events",
         "x-codeSamples": [
           {
@@ -325,7 +325,7 @@
             }
           }
         },
-        "description": "Retrieve the current global Kilo configuration settings and preferences.",
+        "description": "Retrieve the current global Northstar configuration settings and preferences.",
         "summary": "Get global configuration",
         "x-codeSamples": [
           {
@@ -367,7 +367,7 @@
             }
           }
         },
-        "description": "Update global Kilo configuration settings and preferences.",
+        "description": "Update global Northstar configuration settings and preferences.",
         "summary": "Update global configuration",
         "requestBody": {
           "content": {
@@ -414,7 +414,7 @@
             }
           }
         },
-        "description": "Clean up and dispose all Kilo instances, releasing all resources.",
+        "description": "Clean up and dispose all Northstar instances, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -601,7 +601,7 @@
             }
           }
         },
-        "description": "Retrieve the current Kilo configuration settings and preferences.",
+        "description": "Retrieve the current Northstar configuration settings and preferences.",
         "summary": "Get configuration",
         "x-codeSamples": [
           {
@@ -660,7 +660,7 @@
             }
           }
         },
-        "description": "Update Kilo configuration settings and preferences.",
+        "description": "Update Northstar configuration settings and preferences.",
         "summary": "Update configuration",
         "requestBody": {
           "content": {
@@ -1017,7 +1017,7 @@
             }
           }
         },
-        "description": "Persist a new active Console account/org selection for the current local Kilo state.",
+        "description": "Persist a new active Console account/org selection for the current local Northstar state.",
         "summary": "Switch active Console org",
         "requestBody": {
           "content": {
@@ -1239,7 +1239,7 @@
             }
           }
         },
-        "description": "List all git worktrees for the current project and whether Kilo manages them.",
+        "description": "List all git worktrees for the current project and whether Northstar manages them.",
         "summary": "List worktrees",
         "x-codeSamples": [
           {
@@ -1817,7 +1817,7 @@
             }
           }
         },
-        "description": "Get a list of all Kilo sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
+        "description": "Get a list of all Northstar sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -2402,7 +2402,7 @@
             }
           }
         },
-        "description": "Clean up and dispose the current Kilo instance, releasing all resources.",
+        "description": "Clean up and dispose the current Northstar instance, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -2456,7 +2456,7 @@
             }
           }
         },
-        "description": "Retrieve the current working directory and related path information for the Kilo instance.",
+        "description": "Retrieve the current working directory and related path information for the Northstar instance.",
         "summary": "Get paths",
         "x-codeSamples": [
           {
@@ -2841,7 +2841,7 @@
             }
           }
         },
-        "description": "Get a list of all available commands in the Kilo system.",
+        "description": "Get a list of all available commands in the Northstar system.",
         "summary": "List commands",
         "x-codeSamples": [
           {
@@ -2899,7 +2899,7 @@
             }
           }
         },
-        "description": "Get a list of all available AI agents in the Kilo system.",
+        "description": "Get a list of all available AI agents in the Northstar system.",
         "summary": "List agents",
         "x-codeSamples": [
           {
@@ -2973,7 +2973,7 @@
             }
           }
         },
-        "description": "Get a list of all available skills in the Kilo system.",
+        "description": "Get a list of all available skills in the Northstar system.",
         "summary": "List skills",
         "x-codeSamples": [
           {
@@ -3835,7 +3835,7 @@
             }
           }
         },
-        "description": "Retrieve the currently active project that Kilo is working with.",
+        "description": "Retrieve the currently active project that Northstar is working with.",
         "summary": "Get current project",
         "x-codeSamples": [
           {
@@ -5620,7 +5620,7 @@
             }
           }
         },
-        "description": "Get a list of all Kilo sessions, sorted by most recently updated.",
+        "description": "Get a list of all Northstar sessions, sorted by most recently updated.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -5679,7 +5679,7 @@
             }
           }
         },
-        "description": "Create a new Kilo session for interacting with AI assistants and managing conversations.",
+        "description": "Create a new Northstar session for interacting with AI assistants and managing conversations.",
         "summary": "Create session",
         "requestBody": {
           "content": {
@@ -5875,7 +5875,7 @@
             }
           }
         },
-        "description": "Retrieve detailed information about a specific Kilo session.",
+        "description": "Retrieve detailed information about a specific Northstar session.",
         "summary": "Get session",
         "x-codeSamples": [
           {
@@ -11202,6 +11202,24 @@
                   "permission": {
                     "type": "object"
                   },
+                  "subordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "preferredTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "prompt": {
                     "type": "string",
                     "pattern": "\\S"
@@ -11367,6 +11385,24 @@
                   "permission": {
                     "type": "object"
                   },
+                  "subordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "preferredTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "prompt": {
                     "type": "string",
                     "pattern": "\\S"
@@ -11382,6 +11418,60 @@
           {
             "lang": "js",
             "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.agentBuilder.save({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/agents": {
+      "get": {
+        "tags": ["agents"],
+        "operationId": "agents.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-chief metrics rollup with health score/band",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Summarize every chief's cross-run metrics for the active workspace (summed cost, stage/outcome counts, success rate, avg latency) together with a threshold-driven health score and band.",
+        "summary": "List agent metrics",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.agents.list({\n  ...\n})"
           }
         ]
       }
@@ -12315,7 +12405,7 @@
             }
           }
         },
-        "description": "List project instruction files used by Kilo and return their current contents.",
+        "description": "List project instruction files used by Northstar and return their current contents.",
         "summary": "Get project rules",
         "x-codeSamples": [
           {
@@ -12494,7 +12584,7 @@
             }
           }
         },
-        "description": "Patch TUI-compatible model selections shared with Kilo Console.",
+        "description": "Patch TUI-compatible model selections shared with Northstar Console.",
         "summary": "Update model state",
         "requestBody": {
           "content": {
@@ -13068,7 +13158,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Kilo embedding model catalog",
+            "description": "Northstar embedding model catalog",
             "content": {
               "application/json": {
                 "schema": {
@@ -13088,8 +13178,8 @@
             }
           }
         },
-        "description": "Retrieve the embedding models available through the active Kilo account.",
-        "summary": "List Kilo embedding models",
+        "description": "Retrieve the embedding models available through the active Northstar account.",
+        "summary": "List Northstar embedding models",
         "x-codeSamples": [
           {
             "lang": "js",
@@ -13153,7 +13243,7 @@
             }
           }
         },
-        "description": "Atomically dispose and reboot the current Kilo instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.",
+        "description": "Atomically dispose and reboot the current Northstar instance, reloading config, skills, agents, commands, and MCP prompts from disk. Returns 409 if a session is actively running.",
         "summary": "Reload instance",
         "x-codeSamples": [
           {
@@ -13688,8 +13778,8 @@
             }
           }
         },
-        "description": "Fetch user profile and organizations from Kilo Gateway",
-        "summary": "Get Kilo Gateway profile",
+        "description": "Fetch user profile and organizations from Northstar Gateway",
+        "summary": "Get Northstar Gateway profile",
         "x-codeSamples": [
           {
             "lang": "js",
@@ -13722,7 +13812,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Kilo authentication status",
+            "description": "Northstar authentication status",
             "content": {
               "application/json": {
                 "schema": {
@@ -13738,7 +13828,7 @@
                   },
                   "required": ["authenticated"],
                   "additionalProperties": false,
-                  "description": "Kilo authentication status"
+                  "description": "Northstar authentication status"
                 }
               }
             }
@@ -13761,8 +13851,8 @@
             }
           }
         },
-        "description": "Check whether a locally stored Kilo credential can authenticate Gateway requests",
-        "summary": "Get Kilo authentication status",
+        "description": "Check whether a locally stored Northstar credential can authenticate Gateway requests",
+        "summary": "Get Northstar authentication status",
         "x-codeSamples": [
           {
             "lang": "js",
@@ -14020,7 +14110,7 @@
             }
           }
         },
-        "description": "Proxy a Fill-in-the-Middle completion request to the Kilo Gateway",
+        "description": "Proxy a Fill-in-the-Middle completion request to the Northstar Gateway",
         "summary": "FIM completion",
         "requestBody": {
           "content": {
@@ -14273,7 +14363,7 @@
             }
           }
         },
-        "description": "Proxy an audio transcription request to the Kilo Gateway",
+        "description": "Proxy an audio transcription request to the Northstar Gateway",
         "summary": "Speech to text transcription",
         "requestBody": {
           "content": {
@@ -14387,24 +14477,14 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/effect_HttpApiError_Unauthorized"
-                }
-              }
-            }
           }
         },
-        "description": "List image-capable models from the Kilo Gateway OpenRouter passthrough",
+        "description": "List image-capable models from the Northstar Gateway OpenRouter passthrough",
         "summary": "Image generation models",
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createKiloClient } from \"@kilocode/sdk\n\nconst client = createKiloClient()\nawait client.kilo.models.images({\n  ...\n})"
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.kilo.models.images({\n  ...\n})"
           }
         ]
       }
@@ -14499,8 +14579,8 @@
             }
           }
         },
-        "description": "Fetch notifications from Kilo Gateway for CLI display",
-        "summary": "Get Kilo notifications",
+        "description": "Fetch notifications from Northstar Gateway for CLI display",
+        "summary": "Get Northstar notifications",
         "x-codeSamples": [
           {
             "lang": "js",
@@ -14561,8 +14641,8 @@
             }
           }
         },
-        "description": "Switch to a different Kilo Gateway organization",
-        "summary": "Update Kilo Gateway organization",
+        "description": "Switch to a different Northstar Gateway organization",
+        "summary": "Update Northstar Gateway organization",
         "requestBody": {
           "content": {
             "application/json": {
@@ -14775,7 +14855,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Kilo Chat credentials or null",
+            "description": "Northstar Chat credentials or null",
             "content": {
               "application/json": {
                 "schema": {
@@ -14818,7 +14898,7 @@
             }
           }
         },
-        "description": "Returns the bearer token and endpoint URLs the client uses to talk to the Kilo Chat worker and the Event Service. The bearer is the user's existing long-lived Kilo JWT — kilo-chat and event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.",
+        "description": "Returns the bearer token and endpoint URLs the client uses to talk to the Northstar Chat worker and the Event Service. The bearer is the user's existing long-lived Northstar JWT — kilo-chat and event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.",
         "summary": "Get KiloClaw chat credentials",
         "x-codeSamples": [
           {
@@ -14950,7 +15030,7 @@
             }
           }
         },
-        "description": "Fetch cloud CLI sessions from Kilo API",
+        "description": "Fetch cloud CLI sessions from Northstar API",
         "summary": "Get cloud sessions",
         "x-codeSamples": [
           {
@@ -15111,7 +15191,7 @@
             }
           }
         },
-        "description": "Fetch full session data from the Kilo cloud for preview",
+        "description": "Fetch full session data from the Northstar cloud for preview",
         "summary": "Get cloud session",
         "x-codeSamples": [
           {
@@ -16183,7 +16263,7 @@
             }
           }
         },
-        "description": "Discover the active local inference server and replace Kilo provider authentication metadata.",
+        "description": "Discover the active local inference server and replace Northstar provider authentication metadata.",
         "summary": "Synchronize Anaconda Desktop provider",
         "requestBody": {
           "content": {
@@ -16424,6 +16504,1718 @@
           {
             "lang": "js",
             "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.network.reject({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-builder": {
+      "put": {
+        "tags": ["org-builder"],
+        "operationId": "orgBuilder.save",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fail-closed organization.jsonc write result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgBuilderSaveOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Validate a serialized organization (JSONC syntax + structural validate + agent cross-check) and write it to .kilo/organization.jsonc only when clean — fails closed (no write) otherwise.",
+        "summary": "Save organization.jsonc",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "organization": {
+                    "type": "string"
+                  }
+                },
+                "required": ["organization"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgBuilder.save({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs": {
+      "get": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Org runs summary list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunsListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Summarize every org run for the active workspace (status, total cost, current stage, gate state), newest first.",
+        "summary": "List org runs",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}": {
+      "get": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.detail",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full org run state, audit trail, and per-stage view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Return the full run state, gate-decision audit trail, total cost, and a per-stage view.",
+        "summary": "Get org run detail",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.detail({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/plan": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.plan",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Committed autonomous plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Commit autonomous plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "type": "string"
+                        },
+                        "objective": {
+                          "type": "string"
+                        },
+                        "criteria": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "agents": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["stage", "objective", "criteria"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["stages"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.plan({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/decision": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.decision",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Applied run gate decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Apply run gate decision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": ["approve", "no-go", "revise"]
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  }
+                },
+                "required": ["decision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.decision({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/note": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.note",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queued run steering note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Queue run steering note",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target_agent": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["target_agent", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.note({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/stop": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.stop",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stopped run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Stop org run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["reason"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.stop({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/pause": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.pause",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pause autonomous run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "detail": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  }
+                },
+                "required": ["detail"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.pause({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/org-runs/{runID}/resume": {
+      "post": {
+        "tags": ["org-runs"],
+        "operationId": "orgRuns.resume",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumed run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgRunCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resume autonomous run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.orgRuns.resume({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "organizations.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project-local Northstar organizations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List organizations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/{organizationID}": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "organizations.get",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization Setup definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get organization",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.get({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["organizations"],
+        "operationId": "organizations.update",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated organization definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update organization",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "draft": {},
+                  "organization": {
+                    "type": "string"
+                  },
+                  "agents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "content"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "draft", "organization", "agents"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.update({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/staging": {
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "organizations.stage",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staged organization draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationStageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Stage organization",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.stage({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/staging/{organizationID}": {
+      "put": {
+        "tags": ["organizations"],
+        "operationId": "organizations.saveDraft",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved organization draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Save organization draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draft": {},
+                  "organization": {
+                    "type": "string"
+                  },
+                  "agents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "content"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["draft", "organization", "agents"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.saveDraft({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["organizations"],
+        "operationId": "organizations.discardDraft",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organizations after draft discard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Discard organization draft",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.discardDraft({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/{organizationID}/select": {
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "organizations.select",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organizations after selection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Select organization",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.select({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/{organizationID}/publish": {
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "organizations.publish",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organizations after publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Publish organization",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.publish({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/{organizationID}/knowledge/import": {
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "organizations.importKnowledge",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Managed knowledge import result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationKnowledgeImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Import organization knowledge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "scope": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["shared"]
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["department"]
+                          },
+                          "departmentID": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["type", "departmentID"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["sources", "scope"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.importKnowledge({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/organizations/{organizationID}/knowledge/search": {
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "organizations.searchKnowledge",
+        "parameters": [
+          {
+            "name": "organizationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped local knowledge search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NorthstarOrganizationKnowledgeSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Search organization knowledge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "departmentID": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.organizations.searchKnowledge({\n  ...\n})"
           }
         ]
       }
@@ -23889,7 +25681,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Server configuration for the kilo serve command"
+        "description": "Server configuration for the northstar serve command"
       },
       "ReferenceConfigEntry": {
         "anyOf": [
@@ -24211,6 +26003,30 @@
               },
               "notebook_execute": {
                 "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "xcode_build": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "xcode_test": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "xcode_archive": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "ipa_export": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "crash_symbolicate": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "asc_metadata_validate": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "asc_submit": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "asc_status": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
               }
             },
             "additionalProperties": {
@@ -24340,6 +26156,24 @@
               }
             },
             "additionalProperties": false
+          },
+          "subordinates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preferredTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": {}
@@ -24896,7 +26730,7 @@
                 "type": "integer",
                 "minimum": 250,
                 "maximum": 800,
-                "description": "Width of the Kilo Console project context sidebar in pixels"
+                "description": "Width of the Northstar Console project context sidebar in pixels"
               },
               "diff_style": {
                 "type": "string",
@@ -26481,6 +28315,24 @@
             },
             "additionalProperties": false
           },
+          "subordinates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preferredTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "steps": {
             "type": "number"
           }
@@ -27439,6 +29291,285 @@
           }
         },
         "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "AgentHealthView": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "band": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy"]
+          }
+        },
+        "required": ["score", "band"],
+        "additionalProperties": false
+      },
+      "AgentMetricsRow": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stages": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "totalCost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "avgCostPerStage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "blocked": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "successRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "avgLatencyMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "health": {
+            "$ref": "#/components/schemas/AgentHealthView"
+          }
+        },
+        "required": [
+          "agent",
+          "runs",
+          "stages",
+          "totalCost",
+          "avgCostPerStage",
+          "completed",
+          "failed",
+          "blocked",
+          "successRate",
+          "avgLatencyMs",
+          "health"
+        ],
+        "additionalProperties": false
+      },
+      "AgentMetricsResponse": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentMetricsRow"
+            }
+          }
+        },
+        "required": ["agents"],
         "additionalProperties": false
       },
       "BackgroundProcessLogs": {
@@ -28666,6 +30797,1179 @@
         },
         "required": ["operation", "message"],
         "additionalProperties": false
+      },
+      "OrgBuilderSaveOutput": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": ["ok", "issues"],
+        "additionalProperties": false
+      },
+      "OrgRunSummary": {
+        "type": "object",
+        "properties": {
+          "runID": {
+            "type": "string"
+          },
+          "idea": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "halted", "completed"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "totalCost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stageCount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "currentStage": {
+            "type": "string"
+          },
+          "awaitingGate": {
+            "type": "boolean"
+          }
+        },
+        "required": ["runID", "idea", "status", "createdAt", "totalCost", "stageCount", "currentStage", "awaitingGate"],
+        "additionalProperties": false
+      },
+      "OrgRunsListResponse": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgRunSummary"
+            }
+          }
+        },
+        "required": ["runs"],
+        "additionalProperties": false
+      },
+      "OrgRunStage": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "awaiting_approval", "completed", "skipped", "failed"]
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "costTaskID": {
+            "type": "string"
+          },
+          "costs": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "enum": ["NaN"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["-Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity", "-Infinity", "NaN"]
+                }
+              ]
+            }
+          },
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "incompleteAttempts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "no-go", "revise"]
+          },
+          "decisionNote": {
+            "type": "string"
+          },
+          "reviseBaseline": {
+            "type": "string"
+          },
+          "reviseNote": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          },
+          "escalationNote": {
+            "type": "string"
+          },
+          "invalidatedDownstream": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "objective": {
+            "type": "string"
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "verdictHistory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pass": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "ts": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                }
+              },
+              "required": ["pass", "ts"],
+              "additionalProperties": false
+            }
+          },
+          "toolsUsed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["status", "attempts"],
+        "additionalProperties": false
+      },
+      "OrgRunFull": {
+        "type": "object",
+        "properties": {
+          "runID": {
+            "type": "string"
+          },
+          "idea": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "halted", "completed"]
+          },
+          "haltReason": {
+            "type": "string"
+          },
+          "auto": {
+            "type": "boolean"
+          },
+          "pausedReason": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["escalation", "final_gate", "manual"]
+              },
+              "stage": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "stage", "detail"],
+            "additionalProperties": false
+          },
+          "stages": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OrgRunStage"
+            }
+          },
+          "escalated": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "required": ["runID", "idea", "createdAt", "status", "stages"],
+        "additionalProperties": false
+      },
+      "OrgAuditEntry": {
+        "type": "object",
+        "properties": {
+          "ts": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "deliverableHash": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "stage_started",
+              "deliverable_settled",
+              "evaluator_verdict",
+              "revise_iteration",
+              "escalation",
+              "final_gate",
+              "completed",
+              "halted"
+            ]
+          },
+          "iteration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["ts", "stage", "decision"],
+        "additionalProperties": false
+      },
+      "OrgRunStageView": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "awaiting_approval", "completed", "skipped", "failed"]
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "no-go", "revise"]
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "objective": {
+            "type": "string"
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "verdictHistory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pass": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "ts": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                }
+              },
+              "required": ["pass", "ts"],
+              "additionalProperties": false
+            }
+          },
+          "toolsUsed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["stage", "status", "cost", "attempts", "startedAt", "completedAt", "decision", "iterations"],
+        "additionalProperties": false
+      },
+      "OrgRunBudget": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "escalationThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "retries": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "escalated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["run", "stage", "escalationThreshold", "retries", "spent", "remaining", "escalated"],
+        "additionalProperties": false
+      },
+      "OrgRunLoop": {
+        "type": "object",
+        "properties": {
+          "maxIterations": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "evaluatorModel": {
+            "type": "string"
+          }
+        },
+        "required": ["maxIterations", "evaluatorModel"],
+        "additionalProperties": false
+      },
+      "OrgRunDetailResponse": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/OrgRunFull"
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgAuditEntry"
+            }
+          },
+          "totalCost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgRunStageView"
+            }
+          },
+          "budget": {
+            "$ref": "#/components/schemas/OrgRunBudget"
+          },
+          "loop": {
+            "$ref": "#/components/schemas/OrgRunLoop"
+          }
+        },
+        "required": ["run", "audit", "totalCost", "stages"],
+        "additionalProperties": false
+      },
+      "OrgRunCommandResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "runID": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "halted", "completed"]
+          }
+        },
+        "required": ["ok", "runID", "status"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "layout": {
+            "type": "string",
+            "enum": ["legacy", "managed"]
+          },
+          "root": {
+            "type": "string"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "name", "layout", "root", "valid", "issues", "draft"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationsResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "enum": [1]
+          },
+          "active": {
+            "type": "string"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NorthstarOrganizationView"
+            }
+          },
+          "drafts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NorthstarOrganizationView"
+            }
+          }
+        },
+        "required": ["version", "organizations", "drafts"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "layout": {
+            "type": "string",
+            "enum": ["legacy", "managed"]
+          },
+          "root": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "layout", "root"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationGetResponse": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/NorthstarOrganizationEntry"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "draft": {},
+          "definition": {
+            "type": "string"
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "content"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["organization", "valid", "issues", "agents"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationStageResponse": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/NorthstarOrganizationEntry"
+          }
+        },
+        "required": ["organization"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationKnowledgeImportResponse": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["indexed", "unchanged"]
+                },
+                "item": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "managed": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": ["shared"]
+                            }
+                          },
+                          "required": ["type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": ["department"]
+                            },
+                            "departmentID": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["type", "departmentID"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "hash": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "importedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "source", "managed", "scope", "hash", "size", "importedAt"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["source", "status", "item"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["files"],
+        "additionalProperties": false
+      },
+      "NorthstarOrganizationKnowledgeSearchResponse": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "managed": {
+              "type": "string"
+            },
+            "scope": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["shared"]
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["department"]
+                    },
+                    "departmentID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "departmentID"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "tokens": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "excerpt": {
+              "type": "string"
+            },
+            "score": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "enum": ["NaN"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["-Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity", "-Infinity", "NaN"]
+                }
+              ]
+            }
+          },
+          "required": ["id", "managed", "scope", "tokens", "excerpt", "score"],
+          "additionalProperties": false
+        }
       },
       "KilocodeSessionImportResult": {
         "type": "object",
@@ -37169,47 +40473,51 @@
     },
     {
       "name": "agent-builder",
-      "description": "Kilo agent builder routes."
+      "description": "Northstar agent builder routes."
+    },
+    {
+      "name": "agents",
+      "description": "Read-only agent registry metrics routes."
     },
     {
       "name": "background-process",
-      "description": "Kilo background process routes."
+      "description": "Northstar background process routes."
     },
     {
       "name": "branch-name",
-      "description": "Kilo branch name routes."
+      "description": "Northstar branch name routes."
     },
     {
       "name": "commit-message",
-      "description": "Kilo commit message routes."
+      "description": "Northstar commit message routes."
     },
     {
       "name": "config-console",
-      "description": "Kilo Console config routes."
+      "description": "Northstar Console config routes."
     },
     {
       "name": "enhance-prompt",
-      "description": "Kilo enhance prompt routes."
+      "description": "Northstar enhance prompt routes."
     },
     {
       "name": "indexing",
-      "description": "Kilo indexing routes."
+      "description": "Northstar indexing routes."
     },
     {
       "name": "instance-reload",
-      "description": "Kilo instance reload route."
+      "description": "Northstar instance reload route."
     },
     {
       "name": "interactive-terminal",
-      "description": "Kilo human-driven interactive terminal routes."
+      "description": "Northstar human-driven interactive terminal routes."
     },
     {
       "name": "kilo",
-      "description": "Kilo Gateway routes."
+      "description": "Northstar Gateway routes."
     },
     {
       "name": "kilocode",
-      "description": "Kilo-specific routes."
+      "description": "Northstar-specific routes."
     },
     {
       "name": "anaconda-desktop",
@@ -37217,31 +40525,43 @@
     },
     {
       "name": "network",
-      "description": "Kilo network routes."
+      "description": "Northstar network routes."
+    },
+    {
+      "name": "org-builder",
+      "description": "Northstar organization builder routes."
+    },
+    {
+      "name": "org-runs",
+      "description": "Org run observability and run-scoped control routes."
+    },
+    {
+      "name": "organizations",
+      "description": "Northstar project organization routes."
     },
     {
       "name": "remote",
-      "description": "Kilo remote connection routes."
+      "description": "Northstar remote connection routes."
     },
     {
       "name": "sandbox",
-      "description": "Kilo session sandbox routes."
+      "description": "Northstar session sandbox routes."
     },
     {
       "name": "session-import",
-      "description": "Kilo legacy session import routes."
+      "description": "Northstar legacy session import routes."
     },
     {
       "name": "suggestion",
-      "description": "Kilo suggestion routes."
+      "description": "Northstar suggestion routes."
     },
     {
       "name": "telemetry",
-      "description": "Kilo telemetry routes."
+      "description": "Northstar telemetry routes."
     },
     {
       "name": "memory",
-      "description": "Kilo memory routes."
+      "description": "Northstar memory routes."
     },
     {
       "name": "pty",

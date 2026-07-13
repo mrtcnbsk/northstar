@@ -24,6 +24,7 @@ import { memoryHandlers } from "./handlers/memory"
 import { networkHandlers } from "./handlers/network"
 import { orgBuilderHandlers } from "./handlers/org-builder"
 import { orgRunsHandlers } from "./handlers/org-runs"
+import { organizationsHandlers } from "./handlers/organizations"
 import { remoteHandlers } from "./handlers/remote"
 import { sandboxHandlers } from "./handlers/sandbox"
 import { sessionImportHandlers } from "./handlers/session-import"
@@ -48,6 +49,7 @@ export const provide = Layer.provide([
   networkHandlers,
   orgBuilderHandlers,
   orgRunsHandlers,
+  organizationsHandlers,
   remoteHandlers,
   sandboxHandlers,
   sessionImportHandlers,

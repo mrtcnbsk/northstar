@@ -2989,6 +2989,85 @@ export type OrgRunCommandResponse = {
   status: "active" | "paused" | "halted" | "completed"
 }
 
+export type NorthstarOrganizationView = {
+  id: string
+  name: string
+  layout: "legacy" | "managed"
+  root: string
+  valid: boolean
+  issues: Array<string>
+  draft: boolean
+}
+
+export type NorthstarOrganizationsResponse = {
+  version: 1
+  active?: string
+  organizations: Array<NorthstarOrganizationView>
+  drafts: Array<NorthstarOrganizationView>
+}
+
+export type NorthstarOrganizationEntry = {
+  id: string
+  name: string
+  layout: "legacy" | "managed"
+  root: string
+}
+
+export type NorthstarOrganizationGetResponse = {
+  organization: NorthstarOrganizationEntry
+  valid: boolean
+  issues: Array<string>
+  draft?: unknown
+  definition?: string
+  agents: Array<{
+    id: string
+    content: string
+  }>
+}
+
+export type NorthstarOrganizationStageResponse = {
+  organization: NorthstarOrganizationEntry
+}
+
+export type NorthstarOrganizationKnowledgeImportResponse = {
+  files: Array<{
+    source: string
+    status: "indexed" | "unchanged"
+    item: {
+      id: string
+      source: string
+      managed: string
+      scope:
+        | {
+            type: "shared"
+          }
+        | {
+            type: "department"
+            departmentID: string
+          }
+      hash: string
+      size: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      importedAt: string
+    }
+  }>
+}
+
+export type NorthstarOrganizationKnowledgeSearchResponse = Array<{
+  id: string
+  managed: string
+  scope:
+    | {
+        type: "shared"
+      }
+    | {
+        type: "department"
+        departmentID: string
+      }
+  tokens: Array<string>
+  excerpt: string
+  score: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}>
+
 export type KilocodeSessionImportResult = {
   ok: boolean
   id: string
@@ -12444,6 +12523,370 @@ export type OrgRunsResumeResponses = {
 }
 
 export type OrgRunsResumeResponse = OrgRunsResumeResponses[keyof OrgRunsResumeResponses]
+
+export type OrganizationsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations"
+}
+
+export type OrganizationsListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OrganizationsListError = OrganizationsListErrors[keyof OrganizationsListErrors]
+
+export type OrganizationsListResponses = {
+  /**
+   * Project-local Northstar organizations
+   */
+  200: NorthstarOrganizationsResponse
+}
+
+export type OrganizationsListResponse = OrganizationsListResponses[keyof OrganizationsListResponses]
+
+export type OrganizationsGetData = {
+  body?: never
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}"
+}
+
+export type OrganizationsGetErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsGetError = OrganizationsGetErrors[keyof OrganizationsGetErrors]
+
+export type OrganizationsGetResponses = {
+  /**
+   * Organization Setup definition
+   */
+  200: NorthstarOrganizationGetResponse
+}
+
+export type OrganizationsGetResponse = OrganizationsGetResponses[keyof OrganizationsGetResponses]
+
+export type OrganizationsUpdateData = {
+  body?: {
+    name: string
+    draft: unknown
+    organization: string
+    agents: Array<{
+      id: string
+      content: string
+    }>
+  }
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}"
+}
+
+export type OrganizationsUpdateErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsUpdateError = OrganizationsUpdateErrors[keyof OrganizationsUpdateErrors]
+
+export type OrganizationsUpdateResponses = {
+  /**
+   * Updated organization definition
+   */
+  200: NorthstarOrganizationGetResponse
+}
+
+export type OrganizationsUpdateResponse = OrganizationsUpdateResponses[keyof OrganizationsUpdateResponses]
+
+export type OrganizationsStageData = {
+  body?: {
+    name: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/staging"
+}
+
+export type OrganizationsStageErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type OrganizationsStageError = OrganizationsStageErrors[keyof OrganizationsStageErrors]
+
+export type OrganizationsStageResponses = {
+  /**
+   * Staged organization draft
+   */
+  200: NorthstarOrganizationStageResponse
+}
+
+export type OrganizationsStageResponse = OrganizationsStageResponses[keyof OrganizationsStageResponses]
+
+export type OrganizationsDiscardDraftData = {
+  body?: never
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/staging/{organizationID}"
+}
+
+export type OrganizationsDiscardDraftErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsDiscardDraftError = OrganizationsDiscardDraftErrors[keyof OrganizationsDiscardDraftErrors]
+
+export type OrganizationsDiscardDraftResponses = {
+  /**
+   * Organizations after draft discard
+   */
+  200: NorthstarOrganizationsResponse
+}
+
+export type OrganizationsDiscardDraftResponse =
+  OrganizationsDiscardDraftResponses[keyof OrganizationsDiscardDraftResponses]
+
+export type OrganizationsSaveDraftData = {
+  body?: {
+    draft: unknown
+    organization: string
+    agents: Array<{
+      id: string
+      content: string
+    }>
+  }
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/staging/{organizationID}"
+}
+
+export type OrganizationsSaveDraftErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsSaveDraftError = OrganizationsSaveDraftErrors[keyof OrganizationsSaveDraftErrors]
+
+export type OrganizationsSaveDraftResponses = {
+  /**
+   * Saved organization draft
+   */
+  200: NorthstarOrganizationGetResponse
+}
+
+export type OrganizationsSaveDraftResponse = OrganizationsSaveDraftResponses[keyof OrganizationsSaveDraftResponses]
+
+export type OrganizationsSelectData = {
+  body?: never
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}/select"
+}
+
+export type OrganizationsSelectErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsSelectError = OrganizationsSelectErrors[keyof OrganizationsSelectErrors]
+
+export type OrganizationsSelectResponses = {
+  /**
+   * Organizations after selection
+   */
+  200: NorthstarOrganizationsResponse
+}
+
+export type OrganizationsSelectResponse = OrganizationsSelectResponses[keyof OrganizationsSelectResponses]
+
+export type OrganizationsPublishData = {
+  body?: never
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}/publish"
+}
+
+export type OrganizationsPublishErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsPublishError = OrganizationsPublishErrors[keyof OrganizationsPublishErrors]
+
+export type OrganizationsPublishResponses = {
+  /**
+   * Organizations after publication
+   */
+  200: NorthstarOrganizationsResponse
+}
+
+export type OrganizationsPublishResponse = OrganizationsPublishResponses[keyof OrganizationsPublishResponses]
+
+export type OrganizationsImportKnowledgeData = {
+  body?: {
+    sources: Array<string>
+    scope:
+      | {
+          type: "shared"
+        }
+      | {
+          type: "department"
+          departmentID: string
+        }
+  }
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}/knowledge/import"
+}
+
+export type OrganizationsImportKnowledgeErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsImportKnowledgeError =
+  OrganizationsImportKnowledgeErrors[keyof OrganizationsImportKnowledgeErrors]
+
+export type OrganizationsImportKnowledgeResponses = {
+  /**
+   * Managed knowledge import result
+   */
+  200: NorthstarOrganizationKnowledgeImportResponse
+}
+
+export type OrganizationsImportKnowledgeResponse =
+  OrganizationsImportKnowledgeResponses[keyof OrganizationsImportKnowledgeResponses]
+
+export type OrganizationsSearchKnowledgeData = {
+  body?: {
+    query: string
+    departmentID?: string
+    limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    organizationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/organizations/{organizationID}/knowledge/search"
+}
+
+export type OrganizationsSearchKnowledgeErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrganizationsSearchKnowledgeError =
+  OrganizationsSearchKnowledgeErrors[keyof OrganizationsSearchKnowledgeErrors]
+
+export type OrganizationsSearchKnowledgeResponses = {
+  /**
+   * Scoped local knowledge search results
+   */
+  200: NorthstarOrganizationKnowledgeSearchResponse
+}
+
+export type OrganizationsSearchKnowledgeResponse =
+  OrganizationsSearchKnowledgeResponses[keyof OrganizationsSearchKnowledgeResponses]
 
 export type RemoteEnableData = {
   body?: never
