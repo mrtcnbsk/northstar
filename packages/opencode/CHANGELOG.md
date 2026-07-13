@@ -1,5 +1,11 @@
 # @kilocode/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- [`8b4ae0b`](https://github.com/mrtcnbsk/northstar/commit/8b4ae0be3f18add1f17448a4319aa27b6bc778f8) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Open Northstar as a multi-organization workspace with guided Setup, managed department knowledge, organization-bound Chat, and direct Mission Control navigation.
+
 ## 0.1.1
 
 ### Patch Changes
