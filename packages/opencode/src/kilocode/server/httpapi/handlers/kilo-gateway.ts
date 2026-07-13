@@ -380,9 +380,9 @@ export const kiloGatewayHandlers = HttpApiBuilder.group(InstanceHttpApi, "kilo",
         Effect.match({
           onFailure: (err) => {
             if (err instanceof GatewayError)
-              return jsonError(`KiloClaw request failed: ${err.status} ${err.message}`, err.status)
+              return jsonError(`Northstar Claw request failed: ${err.status} ${err.message}`, err.status)
             logError("claw/status", err)
-            return jsonError("Failed to reach KiloClaw", 502)
+            return jsonError("Failed to reach Northstar Claw", 502)
           },
           onSuccess: (result) => result,
         }),

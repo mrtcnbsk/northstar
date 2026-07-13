@@ -60,7 +60,7 @@ export const dict: Record<string, string> = {
   // kilocode_change start - complete upstream usage-exceeded translations
   "dialog.usageExceeded.freeTier.title": "Досягнуто безкоштовного ліміту",
   "dialog.usageExceeded.freeTier.description":
-    "Підпишіться на Kilo Go, щоб отримати надійний доступ до найкращих моделей із відкритим кодом, від $5 на місяць.",
+    "Підпишіться на Northstar Go, щоб отримати надійний доступ до найкращих моделей із відкритим кодом, від $5 на місяць.", // kilocode_change
   "dialog.usageExceeded.freeTier.actionLabel": "Підписатися",
   "dialog.usageExceeded.accountRateLimit.title": "Досягнуто ліміту Go",
   "dialog.usageExceeded.accountRateLimit.description":

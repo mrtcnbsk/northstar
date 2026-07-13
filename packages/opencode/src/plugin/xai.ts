@@ -312,7 +312,7 @@ export async function pollDeviceCodeToken(
 const HTML_SUCCESS = `<!doctype html>
 <html>
   <head>
-    <title>Kilocode - xAI Authorization Successful</title>
+    <title>Northstar - xAI Authorization Successful</title><!-- kilocode_change -->
     <style>
       body {
         font-family:
@@ -343,7 +343,7 @@ const HTML_SUCCESS = `<!doctype html>
   <body>
     <div class="container">
       <h1>Authorization Successful</h1>
-      <p>You can close this window and return to Kilocode.</p>
+      <p>You can close this window and return to Northstar.</p><!-- kilocode_change -->
     </div>
     <script>
       setTimeout(() => window.close(), 2000)
@@ -354,7 +354,7 @@ const HTML_SUCCESS = `<!doctype html>
 const HTML_ERROR = (error: string) => `<!doctype html>
 <html>
   <head>
-    <title>Kilocode - xAI Authorization Failed</title>
+    <title>Northstar - xAI Authorization Failed</title><!-- kilocode_change -->
     <style>
       body {
         font-family:

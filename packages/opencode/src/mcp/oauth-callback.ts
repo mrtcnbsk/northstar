@@ -28,7 +28,7 @@ const HTML_SUCCESS = `<!DOCTYPE html>
   <div class="container">
     <h1>Authorization Successful</h1>
     <!-- kilocode_change start -->
-    <p>You can close this window and return to Kilo.</p>
+    <p>You can close this window and return to Northstar.</p><!-- kilocode_change -->
     <!-- kilocode_change end -->
   </div>
   <script>setTimeout(() => window.close(), 2000);</script>

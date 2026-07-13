@@ -39,7 +39,7 @@ export function KiloClawView() {
   // user during onboarding via patchBotIdentity). Falls back to the literal
   // "KiloClaw" while loading or for instances that skipped onboarding,
   // matching the web UI's fallback chain.
-  const botName = createMemo(() => status()?.botName ?? "KiloClaw")
+  const botName = createMemo(() => status()?.botName ?? "Northstar Claw")
 
   // KiloClaw view commands — single source of truth for both the global
   // command palette / keybinds and the in-chat slash autocomplete.
@@ -52,7 +52,7 @@ export function KiloClawView() {
         name: "kiloclaw.back",
         title: "Back",
         desc: "Return to the previous view",
-        category: "KiloClaw",
+        category: "Northstar Claw",
         namespace: "palette",
         slashName: "back",
         slashAliases: [] as string[],
@@ -66,8 +66,8 @@ export function KiloClawView() {
       {
         name: "kiloclaw.new",
         title: "New conversation",
-        desc: "Start a new KiloClaw conversation",
-        category: "KiloClaw",
+        desc: "Start a new Northstar Claw conversation",
+        category: "Northstar Claw",
         namespace: "palette",
         slashName: "new",
         slashAliases: [] as string[],
@@ -81,8 +81,8 @@ export function KiloClawView() {
       {
         name: "kiloclaw.conversations",
         title: "Conversations",
-        desc: "Browse, rename, and delete KiloClaw conversations",
-        category: "KiloClaw",
+        desc: "Browse, rename, and delete Northstar Claw conversations",
+        category: "Northstar Claw",
         namespace: "palette",
         slashName: "conversations",
         slashAliases: ["chats"],

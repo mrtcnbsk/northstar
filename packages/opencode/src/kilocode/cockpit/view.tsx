@@ -126,7 +126,7 @@ export function CockpitView() {
     try {
       const result = await sdk.client.orgRuns.detail({ runID: id, ...routed() })
       if (result.error || !result.data) {
-        setLoadError("Failed to load org run detail.")
+        setLoadError("Failed to load mission details.")
         return lastDetailKey === key ? lastDetail : undefined // kilocode_change - keep last-good on failure
       }
       lastDetail = result.data // kilocode_change
@@ -194,7 +194,7 @@ export function CockpitView() {
       try {
         const result = await sdk.client.orgRuns.list(routed())
         if (result.error || !result.data) {
-          setRunsListError("Failed to load org runs.")
+          setRunsListError("Failed to load missions.")
           return []
         }
         return result.data.runs
@@ -606,7 +606,7 @@ export function CockpitView() {
       {/* kilocode_change start - Task 8.3: run-list home (no runID -> pick a run) */}
       <Show when={!runID()}>
         <Show when={runsList.loading && !runsList()}>
-          <text fg={theme.textMuted}>Loading org runs...</text>
+          <text fg={theme.textMuted}>Loading missions...</text>
         </Show>
         {/* kilocode_change - wave-close review fix: surface a fetch failure distinctly from the
             legitimate "no runs yet" empty state (see runsListError above). */}
@@ -623,7 +623,7 @@ export function CockpitView() {
         </Show>
         <Show when={runRows().length > 0}>
           <DialogSelect
-            title="Org Runs"
+            title="Missions"
             skipFilter={true}
             renderFilter={false}
             options={runRows().map((row) => ({
@@ -737,7 +737,7 @@ export function CockpitView() {
                 <text attributes={TextAttributes.BOLD} fg={theme.text}>
                   Agent tree
                 </text>
-                <Show when={tree()} fallback={<text fg={theme.textMuted}>No .kilo/organization.jsonc found.</text>}>
+                <Show when={tree()} fallback={<text fg={theme.textMuted}>Organization definition unavailable.</text>}>
                   <box flexDirection="column">
                     <text fg={theme.primary}>
                       {tree()!.ceo} <span style={{ fg: theme.textMuted }}>ceo</span>

@@ -391,8 +391,8 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.claw.status",
-            summary: "Get KiloClaw instance status",
-            description: "Fetch the user's KiloClaw instance status via the KiloClaw worker",
+            summary: "Get Northstar Claw instance status",
+            description: "Fetch the user's Northstar Claw instance status via the Claw worker",
           }),
         ),
         HttpApiEndpoint.get("clawChatCredentials", KiloGatewayPaths.clawChatCredentials, {
@@ -402,7 +402,7 @@ export const KiloGatewayApi = HttpApi.make("kilo")
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "kilo.claw.chatCredentials",
-            summary: "Get KiloClaw chat credentials",
+            summary: "Get Northstar Claw chat credentials",
             description:
               "Returns the bearer token and endpoint URLs the client uses to talk to the Northstar Chat worker " +
               "and the Event Service. The bearer is the user's existing long-lived Northstar JWT — kilo-chat and " +

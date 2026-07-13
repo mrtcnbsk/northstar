@@ -123,7 +123,7 @@ function ready(status: Extract<AnacondaDesktopStatus, { type: "ready" }>): Setup
   if (status.toolcall === "supported") {
     return {
       title: "Anaconda Desktop is ready",
-      lines: [...base, "Tool calling: supported. Connect to import this server into Kilo."],
+      lines: [...base, "Tool calling: supported. Connect to import this server into Northstar."],
       actions: [{ key: "c", label: "connect / refresh now", type: "connect" }, desktop, refresh],
     }
   }
@@ -170,10 +170,7 @@ export function setupView(status?: AnacondaDesktopStatus): SetupView {
     case "not-running":
       return {
         title: "Start Anaconda Desktop",
-        lines: [
-          "Anaconda Desktop is installed but is not running.",
-          "Open it here, then choose check again.",
-        ],
+        lines: ["Anaconda Desktop is installed but is not running.", "Open it here, then choose check again."],
         actions: [desktop, refresh],
       }
     case "invalid-config": {

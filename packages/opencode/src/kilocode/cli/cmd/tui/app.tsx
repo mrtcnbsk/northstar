@@ -170,7 +170,12 @@ export function getTerminalTitle(input: {
 
   if (input.route.data.type === "kiloclaw") {
     return {
-      title: KiloTerminalTitle.format({ base: input.base, title: "KiloClaw", indicator: "none", icon: input.icon }),
+      title: KiloTerminalTitle.format({
+        base: input.base,
+        title: "Northstar Claw",
+        indicator: "none",
+        icon: input.icon,
+      }),
       active: false,
       indicator: "none",
     }

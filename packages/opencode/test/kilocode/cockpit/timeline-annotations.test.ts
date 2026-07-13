@@ -4,11 +4,11 @@ import { stageAnnotation } from "../../../src/kilocode/cockpit/cockpit-view"
 
 describe("stageAnnotation", () => {
   test("final gate wins over revision count", () => {
-    expect(stageAnnotation({ iterations: 3, maxIterations: 4, isFinalGate: true })).toBe("⏸ final kapı")
+    expect(stageAnnotation({ iterations: 3, maxIterations: 4, isFinalGate: true })).toBe("⏸ final gate")
   })
 
   test("revision count when iterations > 0 and not a final gate", () => {
-    expect(stageAnnotation({ iterations: 2, maxIterations: 4, isFinalGate: false })).toBe("↻ revize 2/4")
+    expect(stageAnnotation({ iterations: 2, maxIterations: 4, isFinalGate: false })).toBe("↻ revision 2/4")
   })
 
   test("no annotation for a fresh stage", () => {

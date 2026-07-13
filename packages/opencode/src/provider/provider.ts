@@ -458,7 +458,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "HTTP-Referer": "https://kilo.ai/", // kilocode_change
-            "X-Title": "Kilo Code", // kilocode_change
+            "X-Title": "Northstar", // kilocode_change
             "X-Source": "kilo", // kilocode_change
           },
         },
@@ -469,7 +469,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "HTTP-Referer": "https://kilo.ai/", // kilocode_change
-            "X-Title": "Kilo Code", // kilocode_change
+            "X-Title": "Northstar", // kilocode_change
           },
         },
       }),
@@ -479,7 +479,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "HTTP-Referer": "https://kilo.ai/", // kilocode_change
-            "X-Title": "Kilo Code", // kilocode_change
+            "X-Title": "Northstar", // kilocode_change
             "X-BILLING-INVOKE-ORIGIN": "KiloCode", // kilocode_change
           },
         },
@@ -490,7 +490,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "http-referer": "https://kilo.ai/", // kilocode_change
-            "x-title": "Kilo Code", // kilocode_change
+            "x-title": "Northstar", // kilocode_change
           },
         },
       }),
@@ -596,7 +596,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "HTTP-Referer": "https://kilo.ai/", // kilocode_change
-            "X-Title": "Kilo Code", // kilocode_change
+            "X-Title": "Northstar", // kilocode_change
           },
         },
       }),
@@ -882,7 +882,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         options: {
           headers: {
             "HTTP-Referer": "https://kilo.ai/", // kilocode_change
-            "X-Title": "Kilo Code", // kilocode_change
+            "X-Title": "Northstar", // kilocode_change
           },
         },
       }),

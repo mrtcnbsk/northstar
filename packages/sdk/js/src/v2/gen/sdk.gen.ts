@@ -2910,7 +2910,7 @@ export class Project extends HeyApiClient {
   /**
    * List all projects
    *
-   * Get a list of projects that have been opened with Kilo.
+   * Get a list of projects that have been opened with Northstar.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -3084,7 +3084,7 @@ export class Pty extends HeyApiClient {
   /**
    * List PTY sessions
    *
-   * Get a list of all active pseudo-terminal (PTY) sessions managed by Kilo.
+   * Get a list of all active pseudo-terminal (PTY) sessions managed by Northstar.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6941,9 +6941,9 @@ export class Organization extends HeyApiClient {
 
 export class Claw extends HeyApiClient {
   /**
-   * Get KiloClaw instance status
+   * Get Northstar Claw instance status
    *
-   * Fetch the user's KiloClaw instance status via the KiloClaw worker
+   * Fetch the user's Northstar Claw instance status via the Claw worker
    */
   public status<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -6971,7 +6971,7 @@ export class Claw extends HeyApiClient {
   }
 
   /**
-   * Get KiloClaw chat credentials
+   * Get Northstar Claw chat credentials
    *
    * Returns the bearer token and endpoint URLs the client uses to talk to the Northstar Chat worker and the Event Service. The bearer is the user's existing long-lived Northstar JWT — kilo-chat and event-service both verify it directly with NEXTAUTH_SECRET, so no separate token mint is needed.
    */

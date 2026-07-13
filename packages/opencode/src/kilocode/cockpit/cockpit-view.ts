@@ -1,6 +1,12 @@
 // kilocode_change - new file
 import { OrgSchema } from "@/kilocode/organization/schema" // kilocode_change - Task 8.3: value import (dryRunReport calls OrgSchema.validate/crossCheck)
-import type { OrgAuditEntry, OrgRunBudget, OrgRunDetailResponse, OrgRunStageView, OrgRunSummary } from "@kilocode/sdk/v2/client"
+import type {
+  OrgAuditEntry,
+  OrgRunBudget,
+  OrgRunDetailResponse,
+  OrgRunStageView,
+  OrgRunSummary,
+} from "@kilocode/sdk/v2/client"
 
 /**
  * Pure, org-free-of-side-effects view builders for the TUI Cockpit dashboard (Task 8.1a, EPIC 8).
@@ -179,7 +185,9 @@ function criterionMet(text: string, verdict: VerdictView | undefined): boolean {
 }
 
 export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel {
-  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
+  const maxIterations = detail.loop
+    ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS
+    : DEFAULT_MAX_ITERATIONS
   const stage = focusStage(detail)
   if (!stage) {
     return { stage: null, criteria: [], iteration: 0, maxIterations, latestRejection: null, passed: null }
@@ -192,7 +200,7 @@ export function buildEvaluatorPanel(detail: EvaluatorDetailView): EvaluatorPanel
     criteria,
     iteration: number(stage.iterations ?? 0),
     maxIterations,
-    latestRejection: latest && !latest.pass ? firstReason ?? "rejected (no reason given)" : null,
+    latestRejection: latest && !latest.pass ? (firstReason ?? "rejected (no reason given)") : null,
     passed: latest?.pass ?? null,
   }
 }
@@ -227,7 +235,9 @@ export function formatElapsed(ms: number): string {
 }
 
 export function loopGauge(detail: LoopDetailView, now: number = Date.now()): LoopGaugeVM {
-  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
+  const maxIterations = detail.loop
+    ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS
+    : DEFAULT_MAX_ITERATIONS
   const evaluatorModel = detail.loop?.evaluatorModel ?? DEFAULT_EVALUATOR_MODEL
   const active =
     detail.stages.find((stage) => stage.status === "running") ??
@@ -243,9 +253,9 @@ export function loopGauge(detail: LoopDetailView, now: number = Date.now()): Loo
 export type StageAnnotationInput = { iterations?: number; maxIterations: number; isFinalGate: boolean }
 
 export function stageAnnotation(input: StageAnnotationInput): string | undefined {
-  if (input.isFinalGate) return "⏸ final kapı"
+  if (input.isFinalGate) return "⏸ final gate"
   const iterations = input.iterations ?? 0
-  if (iterations > 0) return `↻ revize ${iterations}/${input.maxIterations}`
+  if (iterations > 0) return `↻ revision ${iterations}/${input.maxIterations}`
   return undefined
 }
 // kilocode_change end
@@ -296,7 +306,9 @@ export function stageBadge(status: StageStatus): BadgeVariant {
 export function stageTimeline(detail: OrgRunDetailResponse | undefined): StageTimelineItem[] {
   if (!detail) return []
   // kilocode_change start - SP2 Task 2: annotate loop revisions and the active final gate.
-  const maxIterations = detail.loop ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS : DEFAULT_MAX_ITERATIONS
+  const maxIterations = detail.loop
+    ? number(detail.loop.maxIterations) || DEFAULT_MAX_ITERATIONS
+    : DEFAULT_MAX_ITERATIONS
   const finalGateStage =
     detail.run.status === "paused" && detail.run.pausedReason?.kind === "final_gate"
       ? detail.run.pausedReason.stage

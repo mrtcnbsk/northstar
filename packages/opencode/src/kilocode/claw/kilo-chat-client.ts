@@ -28,7 +28,7 @@ export class KiloChatApiError extends Error {
     public readonly status: number,
     public readonly body: unknown,
   ) {
-    super(`KiloChat request failed: ${status}${formatBodyDetail(body)}`)
+    super(`Northstar Chat request failed: ${status}${formatBodyDetail(body)}`)
     this.name = "KiloChatApiError"
   }
 }

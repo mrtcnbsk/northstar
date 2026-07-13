@@ -87,7 +87,7 @@ describe("SP2 builders compose on a paused final gate", () => {
     const gauge = loopGauge(detail, Date.parse("2026-07-12T10:09:05.000Z"))
     expect(gauge.iteration).toBe(2)
     expect(gauge.elapsed).toBe("5s")
-    expect(stageTimeline(detail as never).at(0)?.annotation).toBe("⏸ final kapı")
+    expect(stageTimeline(detail as never).at(0)?.annotation).toBe("⏸ final gate")
     expect(conversationCard(detail)).toEqual({ kind: "final_gate", stage: "build", detail: "approve to ship" })
   })
 })

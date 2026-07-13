@@ -16,6 +16,7 @@ import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { DialogAlert } from "@tui/ui/dialog-alert"
 import type { Organization } from "@kilocode/kilo-gateway"
+import type { FileContent } from "@kilocode/sdk/v2/client"
 import type { ClawStatus } from "./claw/types.js"
 import { DialogKiloTeamSelect } from "./components/dialog-kilo-team-select.js"
 import { DialogKiloProfile } from "./components/dialog-kilo-profile.js"
@@ -80,9 +81,9 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
       // the read-path rationale.
       {
         name: "org.status",
-        title: "Org Status",
+        title: "Organization Status",
         desc: "Show the active Northstar organization chart and validation",
-        category: "Org",
+        category: "Northstar",
         slashName: "org-status",
         run: async () => {
           try {
@@ -96,7 +97,9 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
               ? active.data.definition.trim()
               : await sdk.client.file
                   .read({ path: ORG_RELATIVE_PATH, ...routed })
-                  .then((result) => (!result.error && result.data?.type === "text" ? result.data.content.trim() : ""))
+                  .then((result: { error?: unknown; data?: FileContent }) =>
+                    !result.error && result.data?.type === "text" ? result.data.content.trim() : "",
+                  )
             if (!content) {
               dialog.replace(() => (
                 <DialogAlert
@@ -146,16 +149,19 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         },
       },
 
-      // /org-builder command — opens the Builder directly on the Organization section (vs.
-      // /builder, which defaults to Models).
+      // /org-builder remains a compatibility alias for the Northstar Setup workspace.
       {
         name: "org.builder",
-        title: "Open Org Builder",
-        desc: "Open the Builder on the Organization section",
-        category: "Org",
+        title: "Open Organization Setup",
+        desc: "Open Setup for the active Northstar organization",
+        category: "Northstar",
         slashName: "org-builder",
-        run: () => {
-          route.navigate({ type: "builder", section: "organization" })
+        run: async () => {
+          const registry = await sdk.client.organizations
+            .list({ workspace: project.workspace.current() })
+            .catch(() => undefined)
+          const active = registry?.data?.active
+          route.navigate(active ? { type: "setup", organizationID: active } : { type: "setup" })
           dialog.clear()
         },
       },
@@ -165,7 +171,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         name: "cockpit.open",
         title: "Open Mission Control",
         desc: "Open the autonomous-run Mission Control dashboard",
-        category: "Org",
+        category: "Northstar",
         slashName: "cockpit",
         run: () => {
           const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
@@ -178,7 +184,7 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
         name: "mission.open",
         title: "Open Mission Control",
         desc: "Open the autonomous-run Mission Control dashboard",
-        category: "Org",
+        category: "Northstar",
         slashName: "mission",
         run: () => {
           const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
@@ -191,8 +197,8 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
       // /kiloclaw command
       {
         name: "kilo.claw",
-        title: "KiloClaw",
-        desc: "Open KiloClaw chat & dashboard",
+        title: "Northstar Claw",
+        desc: "Open Northstar Claw chat and dashboard",
         category: "Northstar",
         slashName: "kiloclaw",
         slashAliases: ["claw"],

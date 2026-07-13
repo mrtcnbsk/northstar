@@ -92,12 +92,12 @@
   <!-- packages/opencode/src/kilocode/encoding.ts -->
 - <https://github.com/Kilo-Org/kilocode/issues/9755>
   <!-- packages/opencode/src/kilocode/encoding.ts -->
-- <https://github.com/Kilo-Org/kilocode/issues/new?template=bug-report.yml>
-  <!-- packages/opencode/src/cli/cmd/tui/component/error-component.tsx -->
 - <https://github.com/Kilo-Org/kilocode/issues/new/choose>
   <!-- packages/kilo-vscode/webview-ui/src/components/chat/FeedbackDialog.tsx -->
 - <https://github.com/microsoft/vscode-eslint/archive/refs/heads/main.zip>
   <!-- packages/opencode/src/lsp/server.ts -->
+- <https://github.com/mrtcnbsk/northstar/issues/new?template=bug-report.yml>
+  <!-- packages/opencode/src/cli/cmd/tui/component/error-component.tsx -->
 - <https://github.com/mrtcnbsk/northstar#readme>
   <!-- packages/opencode/src/kilocode/cli/cmd/tui/app.tsx -->
 - <https://github.com/oven-sh/bun/issues/16682>

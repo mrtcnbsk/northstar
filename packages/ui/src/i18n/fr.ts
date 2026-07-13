@@ -54,7 +54,7 @@ export const dict = {
 
   "dialog.usageExceeded.freeTier.title": "Limite gratuite atteinte",
   "dialog.usageExceeded.freeTier.description":
-    "Abonnez-vous à Kilo Go pour un accès fiable aux meilleurs modèles open source, à partir de $5/mois.",
+    "Abonnez-vous à Northstar Go pour un accès fiable aux meilleurs modèles open source, à partir de $5/mois.", // kilocode_change
   "dialog.usageExceeded.freeTier.actionLabel": "S'abonner",
   "dialog.usageExceeded.accountRateLimit.title": "Limite Go atteinte",
   "dialog.usageExceeded.accountRateLimit.description":

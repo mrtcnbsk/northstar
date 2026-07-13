@@ -38,7 +38,7 @@ export function ErrorComponent(props: {
   // kilocode_change end
   const [copied, setCopied] = createSignal(false)
 
-  const issueURL = new URL("https://github.com/Kilo-Org/kilocode/issues/new?template=bug-report.yml") // kilocode_change
+  const issueURL = new URL("https://github.com/mrtcnbsk/northstar/issues/new?template=bug-report.yml") // kilocode_change
 
   // Choose safe fallback colors per mode since theme context may not be available
   const isLight = props.mode === "light"
