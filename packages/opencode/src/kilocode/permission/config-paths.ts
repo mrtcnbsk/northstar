@@ -71,18 +71,26 @@ export namespace ConfigProtection {
 
   function configs(): string[] {
     return Array.from(
-      new Set([Global.Path.config, process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, "kilo") : ""]),
+      new Set([
+        Global.Path.config,
+        ...(process.env.XDG_CONFIG_HOME
+          ? [path.join(process.env.XDG_CONFIG_HOME, "northstar"), path.join(process.env.XDG_CONFIG_HOME, "kilo")]
+          : []),
+      ]),
     ).filter(Boolean)
   }
 
   function fallback(p: string): boolean {
     if (process.platform !== "win32") return false
-    return keys(p).some(
-      (key) =>
-        key.endsWith("/config/kilo") ||
-        key.includes("/config/kilo/") ||
-        key.endsWith("/.config/kilo") ||
-        key.includes("/.config/kilo/"),
+    const roots = ["northstar", "kilo"]
+    return keys(p).some((key) =>
+      roots.some(
+        (root) =>
+          key.endsWith(`/config/${root}`) ||
+          key.includes(`/config/${root}/`) ||
+          key.endsWith(`/.config/${root}`) ||
+          key.includes(`/.config/${root}/`),
+      ),
     )
   }
 
@@ -98,7 +106,7 @@ export namespace ConfigProtection {
   export function isAbsolute(filepath: string): boolean {
     if (fallback(filepath)) return true
 
-    // ~/.config/kilo/ (XDG config)
+    // ~/.config/northstar/ (current) and ~/.config/kilo/ (legacy)
     for (const dir of configs()) {
       if (within(filepath, dir)) return true
     }
