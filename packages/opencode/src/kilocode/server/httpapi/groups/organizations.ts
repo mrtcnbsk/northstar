@@ -116,6 +116,7 @@ export const OrganizationsApi = HttpApi.make("organizations")
         HttpApiEndpoint.get("list", OrganizationsPaths.list, {
           query: WorkspaceRoutingQuery,
           success: described(OrganizationsResponse, "Project-local Northstar organizations"),
+          error: badRequest,
         }).annotateMerge(OpenApi.annotations({ identifier: "organizations.list", summary: "List organizations" })),
         HttpApiEndpoint.get("get", OrganizationsPaths.get, {
           params,

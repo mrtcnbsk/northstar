@@ -12544,9 +12544,9 @@ export type OrganizationsListData = {
 
 export type OrganizationsListErrors = {
   /**
-   * Bad request
+   * BadRequest | InvalidRequestError
    */
-  400: BadRequestError
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
 }
 
 export type OrganizationsListError = OrganizationsListErrors[keyof OrganizationsListErrors]
