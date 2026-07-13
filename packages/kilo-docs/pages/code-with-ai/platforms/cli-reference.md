@@ -1,6 +1,6 @@
 ---
 title: "CLI Command Reference"
-description: "Complete reference for all Kilo CLI commands and subcommands"
+description: "Complete reference for all Northstar commands and subcommands"
 ---
 
 # CLI Command Reference
@@ -115,7 +115,7 @@ Options:
 ## kilo [project]
 
 ```
-start kilo tui
+start northstar tui
 
 Positionals:
   project  path to start kilo in  [string]
@@ -134,13 +134,14 @@ Options:
       --fork         fork the session when continuing (use with --continue or --session)  [boolean]
       --cloud-fork   fetch session from cloud and continue locally (use with --session)  [boolean]
       --prompt       prompt to use  [string]
+      --dry-run      validate .kilo/organization.jsonc + agent roster and exit (no interactive session)  [boolean]
       --agent        agent to use  [string]
 ```
 
 ## kilo attach
 
 ```
-attach to a running kilo server
+attach to a running Northstar server
 
 Positionals:
   url  http://localhost:4096  [string]
@@ -179,7 +180,7 @@ Options:
       --format                        format: default (formatted) or json (raw JSON events)  [string] [choices: "default", "json"] [default: "default"]
   -f, --file                          file(s) to attach to message  [array]
       --title                         title for the session (uses truncated prompt if no value provided)  [string]
-      --attach                        attach to a running kilo server (e.g., http://localhost:4096)  [string]
+      --attach                        attach to a running Northstar server (e.g., http://localhost:4096)  [string]
   -p, --password                      basic auth password (defaults to KILO_SERVER_PASSWORD)  [string]
   -u, --username                      basic auth username (defaults to KILO_SERVER_USERNAME or 'kilo')  [string]
       --dir                           directory to run in, path on remote server if attaching  [string]
@@ -190,7 +191,7 @@ Options:
       --replay-limit                  cap visible interactive replay to the newest N messages  [number]
   -i, --interactive                   run in direct interactive split-footer mode  [boolean] [default: false]
       --dangerously-skip-permissions  auto-approve permissions that are not explicitly denied (dangerous!)  [boolean] [default: false]
-      --auto                          auto-approve all permissions (for autonomous/pipeline usage)  [boolean] [default: false]
+      --auto                          drive approved organization loops and auto-approve their non-denied permissions  [boolean] [default: false]
       --demo                          enable direct interactive demo slash commands; pass one as the message to run it immediately  [boolean] [default: false]
 ```
 
@@ -583,7 +584,7 @@ Options:
 log in to a provider
 
 Positionals:
-  url  kilo auth provider  [string]
+  url  provider to authenticate with, or a login URL  [string]
 
 Options:
       --help      Show help  [boolean]
@@ -658,7 +659,7 @@ Options:
 ## kilo uninstall
 
 ```
-uninstall kilo and remove all related files
+uninstall northstar and remove all related files
 
 Options:
       --help         Show help  [boolean]
@@ -672,7 +673,7 @@ Options:
 ## kilo serve
 
 ```
-starts a headless kilo server
+starts a headless Northstar server
 
 Options:
   --help         Show help  [boolean]
@@ -687,7 +688,7 @@ Options:
 ## kilo web
 
 ```
-start kilo server and open web interface
+start Northstar server and open web interface
 
 Options:
   --help         Show help  [boolean]
@@ -736,7 +737,7 @@ Options:
 ## kilo profile
 
 ```
-show Kilo account profile
+show Northstar account profile
 
 Options:
   --help     Show help  [boolean]
@@ -888,14 +889,14 @@ Options:
 ## kilo daemon
 
 ```
-manage the local kilo daemon
+manage the local northstar daemon
 
 Commands:
-  kilo daemon          start the local kilo daemon  [default]
-  kilo daemon start    start the local kilo daemon
-  kilo daemon status   show local kilo daemon status
-  kilo daemon stop     stop the local kilo daemon
-  kilo daemon restart  restart the local kilo daemon
+  kilo daemon          start the local northstar daemon  [default]
+  kilo daemon start    start the local northstar daemon
+  kilo daemon status   show local northstar daemon status
+  kilo daemon stop     stop the local northstar daemon
+  kilo daemon restart  restart the local northstar daemon
 
 Options:
       --help         Show help  [boolean]
@@ -912,7 +913,7 @@ Options:
 ### kilo daemon start
 
 ```
-start the local kilo daemon
+start the local northstar daemon
 
 Options:
       --help         Show help  [boolean]
@@ -929,7 +930,7 @@ Options:
 ### kilo daemon status
 
 ```
-show local kilo daemon status
+show local northstar daemon status
 
 Options:
   --help     Show help  [boolean]
@@ -940,7 +941,7 @@ Options:
 ### kilo daemon stop
 
 ```
-stop the local kilo daemon
+stop the local northstar daemon
 
 Options:
   --help     Show help  [boolean]
@@ -951,7 +952,7 @@ Options:
 ### kilo daemon restart
 
 ```
-restart the local kilo daemon
+restart the local northstar daemon
 
 Options:
       --help         Show help  [boolean]
@@ -968,11 +969,11 @@ Options:
 ## kilo console
 
 ```
-open or stop the local Kilo Console
+open or stop the local Northstar Console
 
 Commands:
-  kilo console       open the local Kilo Console  [default]
-  kilo console stop  stop the local kilo daemon
+  kilo console       open the local Northstar Console  [default]
+  kilo console stop  stop the local northstar daemon
 
 Options:
       --help         Show help  [boolean]
@@ -988,7 +989,7 @@ Options:
 ### kilo console stop
 
 ```
-stop the local kilo daemon
+stop the local northstar daemon
 
 Options:
   --help     Show help  [boolean]

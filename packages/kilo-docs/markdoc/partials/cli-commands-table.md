@@ -4,19 +4,19 @@
 |---|---|
 | `kilo acp` | start ACP (Agent Client Protocol) server |
 | `kilo mcp` | manage MCP (Model Context Protocol) servers |
-| `kilo [project]` | start kilo tui |
-| `kilo attach <url>` | attach to a running kilo server |
+| `kilo [project]` | start northstar tui |
+| `kilo attach <url>` | attach to a running Northstar server |
 | `kilo run [message..]` | run kilo with a message |
 | `kilo debug` | debugging and troubleshooting tools |
 | `kilo auth` | manage AI providers and credentials |
 | `kilo agent` | manage agents |
 | `kilo upgrade [target]` | upgrade kilo to the latest or a specific version |
-| `kilo uninstall` | uninstall kilo and remove all related files |
-| `kilo serve` | starts a headless kilo server |
-| `kilo web` | start kilo server and open web interface |
+| `kilo uninstall` | uninstall northstar and remove all related files |
+| `kilo serve` | starts a headless Northstar server |
+| `kilo web` | start Northstar server and open web interface |
 | `kilo models [provider]` | list all available models |
 | `kilo roll-call <filter>` | batch-test text models matching a filter for connectivity and latency |
-| `kilo profile` | show Kilo account profile |
+| `kilo profile` | show Northstar account profile |
 | `kilo stats` | show token usage and cost statistics |
 | `kilo export [sessionID]` | export session data as JSON |
 | `kilo import <file>` | import session data from JSON file or URL |
@@ -24,8 +24,8 @@
 | `kilo pr <number>` | fetch and checkout a GitHub PR branch, then run kilo |
 | `kilo session` | manage sessions |
 | `kilo remote` | enable remote connection for real-time session relay |
-| `kilo daemon` | manage the local kilo daemon |
-| `kilo console` | open or stop the local Kilo Console |
+| `kilo daemon` | manage the local northstar daemon |
+| `kilo console` | open or stop the local Northstar Console |
 | `kilo db` | database tools |
 | `kilo config` | configuration tools |
 | `kilo plugin <module>` | install plugin and update config |
