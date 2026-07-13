@@ -1,5 +1,15 @@
 # @kilocode/cli
 
+## 0.1.1
+
+### Patch Changes
+
+- [`4ccc38e`](https://github.com/mrtcnbsk/northstar/commit/4ccc38e638a6e15b7ebe43c70502e90d66669540) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Add the Mission Control TUI for autonomous organization runs with evaluator criteria, loop telemetry, timeline annotations, always-visible approval and steering cards, HTTP-backed run controls, and the `/mission` command.
+
+- [`2aa8361`](https://github.com/mrtcnbsk/northstar/commit/2aa83614dd200ba16d40324f34bf1420dc6358f0) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Present the Northstar brand consistently across CLI, terminal, Console, VS Code, and JetBrains interfaces while preserving existing configuration and provider compatibility.
+
+- [`399b1ae`](https://github.com/mrtcnbsk/northstar/commit/399b1ae33f48a54216cbfccbbaaec778c713a309) Thanks [@mrtcnbsk](https://github.com/mrtcnbsk)! - Add autonomous organization loop mode with approved acceptance plans, deterministic evaluator retries, escalation pauses, irreversible-action final gates, run-scoped HTTP controls, telemetry, and a single-flight headless driver.
+
 ## 0.1.0
 
 ### Minor Changes
