@@ -40,6 +40,28 @@ export namespace TestProfile {
         ],
       },
     },
+    windows: {
+      description: "Windows-native path, process, configuration, and organization workflow coverage",
+      groups: {
+        cli: ["cli/run/runtime.stdin.test.ts", "cli/serve/*.test.ts"],
+        filesystem: [
+          "config/config.test.ts",
+          "file/{index,path-traversal,ripgrep}.test.ts",
+          "git/*.test.ts",
+          "tool/{external-directory,glob,grep,read,shell}.test.ts",
+          "util/{filesystem,module,process,wildcard,which}.test.ts",
+        ],
+        kilo: [
+          "kilocode/cockpit/epic8-exit.test.ts",
+          "kilocode/commit-message-windows.test.ts",
+          "kilocode/organization/{postmortem-integration,state,stop-tool,tools-fanout,wave6-exit,wave7-exit,wave8-exit}.test.ts",
+          "kilocode/permission/external-directory-allow.test.ts",
+          "kilocode/provider/local-provider.test.ts",
+          "kilocode/server/{httpapi-agents,httpapi-org-runs,org-runs-budget,org-runs-commands,wave3-exit}.test.ts",
+          "kilocode/session-export/source-contract.test.ts",
+        ],
+      },
+    },
   } as const
 
   export const names = Object.keys(profiles)
@@ -54,7 +76,7 @@ export namespace TestProfile {
       }
     }
 
-    const groups = Object.entries(profile.groups)
+    const groups: Array<[string, readonly string[]]> = Object.entries(profile.groups)
     const patterns = groups.flatMap(([, patterns]) => patterns)
     const malformed = patterns.filter(
       (pattern) =>

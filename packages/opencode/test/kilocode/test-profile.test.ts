@@ -30,11 +30,23 @@ describe("test profiles", () => {
     expect(result.files.some((file) => file.includes("\\"))).toBe(false)
   })
 
+  test("windows profile covers native paths and organization workflows", () => {
+    const result = TestProfile.resolve("windows", all)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.files.length).toBeGreaterThan(30)
+    expect(result.files).toContain("util/filesystem.test.ts")
+    expect(result.files).toContain("tool/external-directory.test.ts")
+    expect(result.files).toContain("kilocode/organization/state.test.ts")
+    expect(result.files).toContain("kilocode/server/httpapi-org-runs.test.ts")
+    expect(result.files).toContain("kilocode/cockpit/epic8-exit.test.ts")
+  })
+
   test("unknown profiles fail with available names", () => {
     const result = TestProfile.resolve("unknown", all)
     expect(result).toEqual({
       ok: false,
-      error: 'Unknown test profile "unknown". Available profiles: darwin',
+      error: 'Unknown test profile "unknown". Available profiles: darwin, windows',
     })
   })
 })

@@ -283,6 +283,16 @@ describe("filesystem", () => {
       expect(read).toEqual(content)
     })
 
+    test("replaces existing content", async () => {
+      await using tmp = await tmpdir()
+      const filepath = path.join(tmp.path, "state.json")
+
+      await Filesystem.write(filepath, "before")
+      await Filesystem.write(filepath, "after")
+
+      expect(await fs.readFile(filepath, "utf-8")).toBe("after")
+    })
+
     test("writes with permissions", async () => {
       await using tmp = await tmpdir()
       const filepath = path.join(tmp.path, "protected.txt")

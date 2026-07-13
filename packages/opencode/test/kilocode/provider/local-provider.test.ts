@@ -270,7 +270,7 @@ describe("addLocalProviders", () => {
 
           const globalFile = path.join(Global.Path.data, "auth.json")
           const stat = yield* Effect.promise(() => fs.stat(globalFile))
-          expect(stat.mode & 0o777).toBe(0o600)
+          if (process.platform !== "win32") expect(stat.mode & 0o777).toBe(0o600)
 
           const raw = yield* Effect.promise(() => fs.readFile(globalFile, "utf8"))
           const parsed = JSON.parse(raw) as Record<string, unknown>

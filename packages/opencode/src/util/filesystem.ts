@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rename, stat as statFile, writeFile } from "fs/promises" // kilocode_change
+import { chmod, mkdir, readFile, rename, rm, stat as statFile, writeFile } from "fs/promises" // kilocode_change
 import { createWriteStream, existsSync, statSync } from "fs"
 import { realpathSync } from "fs"
 // kilocode_change start - harden containment checks
@@ -76,7 +76,23 @@ export async function write(p: string, content: string | Buffer | Uint8Array, mo
     } else {
       await writeFile(tmp, content)
     }
-    await rename(tmp, p)
+    try {
+      await rename(tmp, p)
+    } catch (error) {
+      // Windows does not reliably replace an existing destination with rename(),
+      // unlike POSIX. Remove the old file and immediately retry so state/config
+      // updates keep the same temp-file discipline instead of failing with EPERM.
+      if (
+        process.platform !== "win32" ||
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        !["EACCES", "EEXIST", "EPERM"].includes(String(error.code))
+      )
+        throw error
+      await rm(p, { force: true })
+      await rename(tmp, p)
+    }
   }
   try {
     await doWrite()

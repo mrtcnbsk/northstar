@@ -63,8 +63,8 @@ const variants = (dir: string) => {
   if (process.platform !== "win32") return [dir]
   const full = AppFileSystem.normalizePath(dir)
   const slash = full.replaceAll("\\", "/")
-  const root = slash.replace(/^[A-Za-z]:/, "")
-  return Array.from(new Set([full, slash, root, root.toLowerCase()]))
+  const msys = slash.replace(/^([A-Za-z]):/, "/$1")
+  return Array.from(new Set([full, slash, msys, msys.toLowerCase()]))
 }
 const config = path.resolve(Global.Path.config)
 const configFile = path.join(config, "hello.txt")
