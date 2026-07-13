@@ -23,8 +23,8 @@ export type ConversationCard =
 
 export type CompletionDetailView = {
   run: { status: string; createdAt: string }
-  totalCost: number
-  stages: {
+  totalCost: number | "NaN" | "Infinity" | "-Infinity"
+  stages: readonly {
     stage: string
     status: string
     completedAt?: string | null
@@ -49,7 +49,7 @@ export function missionCompletion(detail: CompletionDetailView): MissionCompleti
   )
   return {
     title: "Mission complete",
-    totalCost: detail.totalCost,
+    totalCost: typeof detail.totalCost === "number" && Number.isFinite(detail.totalCost) ? detail.totalCost : 0,
     elapsed: formatElapsed(Number.isNaN(started) ? 0 : finished - started),
     deliverables: detail.stages
       .filter((stage) => stage.status === "completed" && stage.deliverablePath)

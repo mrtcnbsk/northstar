@@ -155,6 +155,16 @@ describe("Setup workflow", () => {
     expect(calls).toEqual(["update:product-studio:Product Studio 2", "refresh"])
   })
 
+  test("matches a normalized managed path back to the user-selected knowledge file", async () => {
+    const { api } = harness()
+    api.importKnowledge = async () => [{ source: "brief.md", status: "indexed" }]
+    const workflow = createSetupWorkflow({ api, draft: fixture() })
+
+    await workflow.importFiles(["/project/brief.md"], { type: "department", departmentID: "engineering" })
+
+    expect(workflow.draft().knowledge[0]?.status).toEqual({ "/project/brief.md": "indexed" })
+  })
+
   test("renders the first-run organization step in English with Northstar hierarchy copy", async () => {
     rendered = await testRender(
       () => (

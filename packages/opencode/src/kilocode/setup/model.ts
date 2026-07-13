@@ -186,7 +186,7 @@ export namespace SetupModel {
         ]),
       ),
       shared: [],
-      pipeline: draft.pipeline,
+      pipeline: draft.pipeline.map((stage, index) => (index === 0 ? { ...stage, gate: "human" as const } : stage)),
       toolpacks: [],
     })
   }

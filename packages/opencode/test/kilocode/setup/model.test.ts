@@ -77,6 +77,7 @@ describe("SetupModel", () => {
       chief: "lead",
       workers: ["engineer"],
     })
+    expect(organization.pipeline[0]).toMatchObject({ stage: "engineering", gate: "human" })
 
     const agent = SetupModel.agent(draft.agents[0])
     expect(agent).toContain('displayName: "CEO"')

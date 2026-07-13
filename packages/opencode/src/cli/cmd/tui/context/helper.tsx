@@ -21,8 +21,10 @@ export function createSimpleContext<T, Props extends Record<string, any>>(input:
       if (!value) throw new Error(`${input.name} context must be used within a context provider`)
       return value
     },
+    // kilocode_change start - allow compatibility views to consume an optional Northstar shell
     optional() {
-      return useContext(ctx) // kilocode_change - allow compatibility views to consume an optional Northstar shell
+      return useContext(ctx)
     },
+    // kilocode_change end
   }
 }

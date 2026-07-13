@@ -17,6 +17,8 @@ import { Agent } from "../../../src/agent/agent"
 import { Config } from "../../../src/config/config"
 import { Plugin } from "../../../src/plugin"
 import { RuntimeFlags } from "../../../src/effect/runtime-flags"
+import { Session } from "../../../src/session/session"
+import { unusedSessionStub } from "./session-stub"
 
 const ORG = OrgSchema.parse({
   ceo: "ceo",
@@ -53,6 +55,7 @@ function makeRuntime() {
       Agent.defaultLayer,
       Config.defaultLayer,
       RuntimeFlags.layer(),
+      Layer.succeed(Session.Service, unusedSessionStub),
     ),
   )
 }

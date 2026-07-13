@@ -110,7 +110,10 @@ export function createSetupWorkflow(input: {
       await input.api.saveDraft(id, current)
       try {
         const result = await input.api.importKnowledge(id, sources, scope)
-        const indexed = Object.fromEntries(result.map((file) => [file.source, file.status]))
+        const returned = new Map(result.map((file) => [file.source, file.status]))
+        const indexed = Object.fromEntries(
+          sources.map((source, index) => [source, returned.get(source) ?? result[index]?.status ?? "failed"]),
+        )
         current = {
           ...current,
           knowledge: current.knowledge.map((selection, index, all) =>

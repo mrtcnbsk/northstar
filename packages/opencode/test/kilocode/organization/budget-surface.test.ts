@@ -107,7 +107,7 @@ describe("organization-bound org tools", () => {
         Effect.succeed({
           id: ctx.sessionID,
           metadata: { northstarOrganizationID: "alpha" },
-        } as Session.Info),
+        } as unknown as Session.Info),
     })
     const runtime = makeRuntime(alphaSession)
     await provideTestInstance({

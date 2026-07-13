@@ -19,6 +19,8 @@ import { Agent } from "../../../src/agent/agent"
 import { Config } from "../../../src/config/config"
 import { Plugin } from "../../../src/plugin"
 import { RuntimeFlags } from "../../../src/effect/runtime-flags"
+import { Session } from "../../../src/session/session"
+import { unusedSessionStub } from "./session-stub"
 import * as CrossSpawnSpawner from "@opencode-ai/core/cross-spawn-spawner"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 
@@ -40,6 +42,7 @@ function makeRuntime(cancelled: string[]) {
       Agent.defaultLayer,
       Config.defaultLayer,
       RuntimeFlags.layer(),
+      Layer.succeed(Session.Service, unusedSessionStub),
       Layer.succeed(
         SessionRunState.Service,
         SessionRunState.Service.of({
