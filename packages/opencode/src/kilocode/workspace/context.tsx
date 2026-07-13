@@ -22,7 +22,11 @@ export type WorkspaceRegistry = {
   drafts: readonly WorkspaceOrganization[]
 }
 
-export const { use: useWorkspace, provider: WorkspaceProvider } = createSimpleContext({
+export const {
+  use: useWorkspace,
+  optional: useOptionalWorkspace,
+  provider: WorkspaceProvider,
+} = createSimpleContext({
   name: "NorthstarWorkspace",
   init: () => {
     const sdk = useSDK()

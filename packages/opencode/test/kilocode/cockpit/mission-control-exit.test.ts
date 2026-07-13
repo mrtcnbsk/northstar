@@ -27,6 +27,14 @@ describe("SP2 read-only / HTTP-only invariants", () => {
     expect(view).not.toContain("stopMessage")
   })
 
+  test("every Mission request carries the active project organization", () => {
+    const view = read("view.tsx")
+    expect(view).toContain("organizationID: activeOrganization()!.id")
+    expect(view).toContain("...routed()")
+    expect(view).toMatch(/orgRuns\.detail\(\{ runID: id, \.\.\.routed\(\) \}\)/)
+    expect(view).toMatch(/orgRuns\.list\(routed\(\)\)/)
+  })
+
   test("the strip is presentational", () => {
     const strip = read("mission-strip.tsx")
     expect(strip).not.toContain("orgRuns")

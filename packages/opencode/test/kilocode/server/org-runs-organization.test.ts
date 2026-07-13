@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import path from "node:path"
 import * as Log from "@opencode-ai/core/util/log"
 import { Server } from "../../../src/server/server"
 import { OrgSchema } from "../../../src/kilocode/organization/schema"
@@ -55,5 +56,22 @@ describe("organization-scoped org runs", () => {
     expect(((await response.json()) as { runs: Array<{ idea: string }> }).runs.map((run) => run.idea)).toEqual([
       "alpha mission",
     ])
+  })
+
+  test("completed detail exposes the managed organization deliverable path", async () => {
+    await using tmp = await tmpdir()
+    const alpha = await published(tmp.path, "Alpha")
+    const run = await OrgWorkspace.run(alpha, () => OrgState.create(tmp.path, ORGANIZATION, "alpha delivery"))
+    await OrgWorkspace.run(alpha, () =>
+      OrgState.update(tmp.path, run.runID, (current) => {
+        current.status = "completed"
+        current.stages.work!.status = "completed"
+        current.stages.work!.completedAt = "2026-07-13T10:02:30.000Z"
+      }),
+    )
+
+    const detail = await OrgRunsView.detail(tmp.path, run.runID, "alpha")
+
+    expect(detail.stages[0]?.deliverablePath).toBe(path.join(alpha.paths.runs, run.runID, "deliverables", "work.md"))
   })
 })

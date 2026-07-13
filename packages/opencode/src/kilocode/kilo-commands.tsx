@@ -81,22 +81,27 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
       {
         name: "org.status",
         title: "Org Status",
-        desc: "Show the project's organization chart and validation from .kilo/organization.jsonc",
+        desc: "Show the active Northstar organization chart and validation",
         category: "Org",
         slashName: "org-status",
         run: async () => {
           try {
-            const fileRes = await sdk.client.file.read({
-              path: ORG_RELATIVE_PATH,
-              workspace: project.workspace.current(),
-            })
-            const content =
-              !fileRes.error && fileRes.data?.type === "text" ? fileRes.data.content.trim() : ""
+            const routed = { workspace: project.workspace.current() }
+            const registry = await sdk.client.organizations.list(routed).catch(() => undefined)
+            const activeID = registry?.data?.active
+            const active = activeID
+              ? await sdk.client.organizations.get({ organizationID: activeID, ...routed }).catch(() => undefined)
+              : undefined
+            const content = active?.data?.definition?.trim()
+              ? active.data.definition.trim()
+              : await sdk.client.file
+                  .read({ path: ORG_RELATIVE_PATH, ...routed })
+                  .then((result) => (!result.error && result.data?.type === "text" ? result.data.content.trim() : ""))
             if (!content) {
               dialog.replace(() => (
                 <DialogAlert
                   title="Organization Status"
-                  message={`No ${ORG_RELATIVE_PATH} found in this project.\nOpen the Builder (/org-builder or /builder) to create one, or run "northstar org init".`}
+                  message="No active Northstar organization was found in this project. Open Setup to create one."
                 />
               ))
               return
@@ -132,13 +137,11 @@ export function registerKiloCommands(useSDK: () => UseSDK) {
               issues.length ? `issues (${issues.length}):` : "no validation issues",
               ...issues.map((issue) => `- ${issue}`),
               "",
-              "Run status/list isn't reachable from the composer yet — ask the CEO in chat (org_status) or open the Builder (/org-builder) for the full editor.",
+              "Open Mission (ctrl+x m) to inspect runs, decisions, and deliverables.",
             ]
             dialog.replace(() => <DialogAlert title="Organization Status" message={lines.join("\n")} />)
           } catch (error) {
-            dialog.replace(() => (
-              <DialogAlert title="Error" message={`Failed to read organization status: ${error}`} />
-            ))
+            dialog.replace(() => <DialogAlert title="Error" message={`Failed to read organization status: ${error}`} />)
           }
         },
       },

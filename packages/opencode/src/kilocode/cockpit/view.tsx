@@ -30,7 +30,7 @@ import { DialogPrompt } from "@tui/ui/dialog-prompt"
 import { DialogSelect } from "@tui/ui/dialog-select" // kilocode_change - Task 8.3: run-list home
 import { useToast } from "@tui/ui/toast"
 import { useTheme } from "@tui/context/theme"
-import { useBindings } from "@tui/keymap"
+import { useBindings, useOpencodeKeymap } from "@tui/keymap"
 import { useSDK } from "@tui/context/sdk"
 import { useProject } from "@tui/context/project"
 import { OrgSchema } from "@/kilocode/organization/schema"
@@ -49,8 +49,10 @@ import {
   type BudgetGauge,
 } from "./cockpit-view"
 import { MissionEvaluatorPanel, MissionLoopGauge } from "./mission-view" // kilocode_change - SP2 Task 3
-import { conversationCard, parseMention } from "./conversation" // kilocode_change - SP2 Task 5
+import { conversationCard, missionCompletion, parseMention } from "./conversation" // kilocode_change - SP2 Task 5
 import { MissionStrip, type StripMode } from "./mission-strip" // kilocode_change - SP2 Task 5
+import { useOptionalWorkspace } from "@/kilocode/workspace/context"
+import { MissionCompletionState, MissionEmptyState } from "./mission-states"
 
 // Mirrors the same relative path used by `/org-status` and the Builder Organization screen (see
 // `kilo-commands.tsx`'s ORG_RELATIVE_PATH comment for the read-path rationale — this is the
@@ -86,6 +88,14 @@ export function CockpitView() {
   const sdk = useSDK()
   const project = useProject()
   const toast = useToast() // kilocode_change - Task 8.2: gate/halt/budget notifications
+  const workspace = useOptionalWorkspace()
+  const keymap = useOpencodeKeymap()
+
+  const activeOrganization = () => workspace?.active()
+  const routed = () => ({
+    workspace: project.workspace.current(),
+    ...(activeOrganization()?.id ? { organizationID: activeOrganization()!.id } : {}),
+  })
 
   const runID = createMemo(() => (route.data.type === "cockpit" ? route.data.runID : undefined))
   // kilocode_change - Task 8.2: the CEO session the hard-stop control addresses (see route.tsx's
@@ -100,26 +110,31 @@ export function CockpitView() {
   // polling since `undefined !== "active"`). Plain closure variables (not signals) -- mirrors
   // `context/route.tsx`'s `let previous` / `routes/session/index.tsx`'s `let processSessionID`:
   // this is cross-poll bookkeeping the fetcher reads/writes itself, not something a consumer needs
-  // to react to. Keyed by runID so switching to a different run never leaks the old run's stale
-  // detail into a failed first fetch for the new one.
+  // to react to. Keyed by organization + runID so switching either boundary never leaks the old
+  // run's stale detail into a failed first fetch for the new one.
   let lastDetail: OrgRunDetailResponse | undefined
-  let lastDetailRunID: string | undefined
+  let lastDetailKey: string | undefined
   // kilocode_change end
 
-  const [detail, { refetch }] = createResource(runID, async (id): Promise<OrgRunDetailResponse | undefined> => {
+  const detailSource = createMemo(() => {
+    const id = runID()
+    return id ? `${activeOrganization()?.id ?? "__legacy__"}\0${id}` : undefined
+  })
+  const [detail, { refetch }] = createResource(detailSource, async (key): Promise<OrgRunDetailResponse | undefined> => {
+    const id = key.slice(key.indexOf("\0") + 1)
     setLoadError(undefined)
     try {
-      const result = await sdk.client.orgRuns.detail({ runID: id, workspace: project.workspace.current() })
+      const result = await sdk.client.orgRuns.detail({ runID: id, ...routed() })
       if (result.error || !result.data) {
         setLoadError("Failed to load org run detail.")
-        return lastDetailRunID === id ? lastDetail : undefined // kilocode_change - keep last-good on failure
+        return lastDetailKey === key ? lastDetail : undefined // kilocode_change - keep last-good on failure
       }
       lastDetail = result.data // kilocode_change
-      lastDetailRunID = id // kilocode_change
+      lastDetailKey = key // kilocode_change
       return result.data
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err))
-      return lastDetailRunID === id ? lastDetail : undefined // kilocode_change - keep last-good on failure
+      return lastDetailKey === key ? lastDetail : undefined // kilocode_change - keep last-good on failure
     }
   })
 
@@ -139,17 +154,25 @@ export function CockpitView() {
 
   // Read .kilo/organization.jsonc once (client-side parse, same read path as /org-status and the
   // Builder Organization screen) — for the agent-tree section only.
-  const [orgFile] = createResource(async () => {
-    const result = await sdk.client.file.read({ path: ORG_RELATIVE_PATH, workspace: project.workspace.current() })
-    if (result.error || !result.data) return undefined
-    const content = result.data.type === "text" ? result.data.content.trim() : ""
-    if (!content) return undefined
-    try {
-      return OrgSchema.parse(parseJsonc(content))
-    } catch {
-      return undefined
-    }
-  })
+  const [orgFile] = createResource(
+    () => activeOrganization()?.id ?? "__legacy__",
+    async (organizationID) => {
+      const content =
+        organizationID === "__legacy__"
+          ? await sdk.client.file
+              .read({ path: ORG_RELATIVE_PATH, workspace: project.workspace.current() })
+              .then((result) => (!result.error && result.data?.type === "text" ? result.data.content.trim() : ""))
+          : await sdk.client.organizations
+              .get({ organizationID, workspace: project.workspace.current() })
+              .then((result) => (!result.error && result.data?.definition ? result.data.definition.trim() : ""))
+      if (!content) return undefined
+      try {
+        return OrgSchema.parse(parseJsonc(content))
+      } catch {
+        return undefined
+      }
+    },
+  )
 
   // kilocode_change start - Task 8.3: run-list home. Fetches ONLY when the Cockpit was opened
   // without a runID (the run picker below) -- once a run is selected, `detail` above takes over and
@@ -165,11 +188,11 @@ export function CockpitView() {
   // empty instead of silently looking like "no runs yet").
   const [runsListError, setRunsListError] = createSignal<string | undefined>()
   const [runsList] = createResource(
-    () => (runID() ? undefined : true),
+    () => (runID() ? undefined : (activeOrganization()?.id ?? "__legacy__")),
     async () => {
       setRunsListError(undefined)
       try {
-        const result = await sdk.client.orgRuns.list({ workspace: project.workspace.current() })
+        const result = await sdk.client.orgRuns.list(routed())
         if (result.error || !result.data) {
           setRunsListError("Failed to load org runs.")
           return []
@@ -212,6 +235,19 @@ export function CockpitView() {
   const card = createMemo(() => {
     const run = detail()
     return run ? conversationCard(run) : ({ kind: "none" } as const)
+  })
+  const completion = createMemo(() => {
+    const run = detail()
+    return run ? missionCompletion(run) : undefined
+  })
+  const organizationStats = createMemo(() => {
+    const organization = orgFile()
+    if (!organization) return { departments: 0, agents: 0 }
+    const agents = new Set([
+      organization.ceo,
+      ...Object.values(organization.departments).flatMap((department) => [department.chief, ...department.workers]),
+    ])
+    return { departments: Object.keys(organization.departments).length, agents: agents.size }
   })
   // kilocode_change end
 
@@ -305,7 +341,7 @@ export function CockpitView() {
     dispatch(
       sdk.client.orgRuns.decision({
         runID: id,
-        workspace: project.workspace.current(),
+        ...routed(),
         stage: cardStage(),
         decision,
         note,
@@ -322,7 +358,7 @@ export function CockpitView() {
     dispatch(
       sdk.client.orgRuns.note({
         runID: id,
-        workspace: project.workspace.current(),
+        ...routed(),
         target_agent: target,
         text,
       }),
@@ -341,11 +377,11 @@ export function CockpitView() {
       criteria: stage.stage === current.stage ? current.criteria : (stage.criteria ?? []),
     }))
     dispatch(
-      sdk.client.orgRuns.plan({ runID: id, workspace: project.workspace.current(), stages }).then(async (result) => {
+      sdk.client.orgRuns.plan({ runID: id, ...routed(), stages }).then(async (result) => {
         if (result.error) throw new Error("Plan update failed")
         return sdk.client.orgRuns.decision({
           runID: id,
-          workspace: project.workspace.current(),
+          ...routed(),
           stage: current.stage,
           decision: "approve",
         })
@@ -398,7 +434,7 @@ export function CockpitView() {
     if (reason === null) return
     const trimmed = reason.trim()
     if (!trimmed) return
-    dispatch(sdk.client.orgRuns.stop({ runID: id, workspace: project.workspace.current(), reason: trimmed }))
+    dispatch(sdk.client.orgRuns.stop({ runID: id, ...routed(), reason: trimmed }))
     toast.show({ message: "Stop request sent.", variant: "info" })
   }
 
@@ -408,12 +444,16 @@ export function CockpitView() {
     dispatch(
       sdk.client.orgRuns.pause({
         runID: id,
-        workspace: project.workspace.current(),
+        ...routed(),
         detail: "operator pause from Mission Control",
         stage: cardStage(),
       }),
     )
     toast.show({ message: "Pause requested.", variant: "info" })
+  }
+
+  function openChat() {
+    keymap.dispatchCommand("northstar.chat")
   }
   // kilocode_change end
 
@@ -421,8 +461,10 @@ export function CockpitView() {
     const current = presentedCard()
     const composing = stripMode() === "note" || stripMode() === "revise-note" || stripMode() === "plan-edit"
     const hasRun = !!runID()
+    const hasRunControls = hasRun && !completion()
+    const chatAction = !hasRun ? runRows().length === 0 : !!completion()
     const cardBindings: { key: string; cmd: string }[] = []
-    if (hasRun && !composing) {
+    if (hasRunControls && !composing) {
       if (current.kind === "plan") {
         cardBindings.push({ key: "a", cmd: "cockpit.card.approve" })
         cardBindings.push({ key: "e", cmd: "cockpit.card.edit" })
@@ -436,9 +478,18 @@ export function CockpitView() {
       }
       cardBindings.push({ key: "m", cmd: "cockpit.card.message" })
     }
-    const escalationClaimsS = hasRun && !composing && current.kind === "escalation"
+    const escalationClaimsS = hasRunControls && !composing && current.kind === "escalation"
     return {
       commands: [
+        {
+          namespace: "palette",
+          name: "cockpit.chat",
+          title: hasRun ? "Return to Chat" : "Start a mission",
+          desc: "Open the active organization's CEO Chat",
+          category: "Cockpit",
+          hidden: true,
+          run: openChat,
+        },
         {
           namespace: "palette",
           name: "cockpit.back",
@@ -537,8 +588,10 @@ export function CockpitView() {
         ? []
         : [
             { key: "escape", cmd: "cockpit.back" },
-            { key: "p", cmd: "cockpit.pause" },
-            ...(escalationClaimsS ? [] : [{ key: "s", cmd: "cockpit.stop" }]),
+            ...(hasRunControls
+              ? [{ key: "p", cmd: "cockpit.pause" }, ...(escalationClaimsS ? [] : [{ key: "s", cmd: "cockpit.stop" }])]
+              : []),
+            ...(chatAction ? [{ key: "enter", cmd: "cockpit.chat" }] : []),
             ...cardBindings,
           ],
     }
@@ -561,7 +614,12 @@ export function CockpitView() {
           <text fg={theme.error}>{runsListError()}</text>
         </Show>
         <Show when={!runsList.loading && !runsListError() && runsList() && runRows().length === 0}>
-          <text fg={theme.textMuted}>No org runs yet. Start one from a shell: northstar run --auto "your idea"</text>
+          <MissionEmptyState
+            organizationName={activeOrganization()?.name ?? "Organization"}
+            departments={organizationStats().departments}
+            agents={organizationStats().agents}
+            onStart={openChat}
+          />
         </Show>
         <Show when={runRows().length > 0}>
           <DialogSelect
@@ -599,8 +657,12 @@ export function CockpitView() {
               {formatCost(typeof detail()!.totalCost === "number" ? (detail()!.totalCost as number) : 0)}
             </text>
             {/* kilocode_change - SP2 Task 5: contextual pause / stop controls. */}
-            <text fg={theme.textMuted}>p: pause · s: stop</text>
+            <Show when={!completion()}>
+              <text fg={theme.textMuted}>p: pause · s: stop</text>
+            </Show>
           </box>
+
+          <Show when={completion()}>{(done) => <MissionCompletionState value={done()} onReturn={openChat} />}</Show>
 
           {/* kilocode_change start - SP2 wave-close: keep the action strip visible at normal
               terminal heights; only the observational dashboard below it scrolls. */}

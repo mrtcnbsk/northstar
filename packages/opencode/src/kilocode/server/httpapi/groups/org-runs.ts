@@ -113,6 +113,7 @@ const OrgAuditEntry = Schema.Struct({
 const OrgRunStageView = Schema.Struct({
   stage: Schema.String,
   status: StageStatus,
+  deliverablePath: Schema.optional(Schema.String),
   cost: Schema.Number,
   attempts: Schema.Number,
   startedAt: Schema.NullOr(Schema.String),
@@ -273,7 +274,9 @@ export const OrgRunsApi = HttpApi.make("org-runs")
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.resume", summary: "Resume autonomous run" })),
         ],
       )
-      .annotateMerge(OpenApi.annotations({ title: "org-runs", description: "Org run observability and run-scoped control routes." }))
+      .annotateMerge(
+        OpenApi.annotations({ title: "org-runs", description: "Org run observability and run-scoped control routes." }),
+      )
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),

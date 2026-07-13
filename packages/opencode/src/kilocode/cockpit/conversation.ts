@@ -1,5 +1,6 @@
 // kilocode_change - new file
 /** Pure card selection and @mention parsing for the Mission Control conversation strip. */
+import { formatElapsed } from "./cockpit-view"
 export type ConversationVerdict = { pass: boolean; reasons?: string[]; ts: string | number }
 
 export type ConversationStageView = {
@@ -20,6 +21,43 @@ export type ConversationCard =
   | { kind: "escalation"; stage: string; reasons: string[]; detail: string }
   | { kind: "final_gate"; stage: string; detail: string }
 
+export type CompletionDetailView = {
+  run: { status: string; createdAt: string }
+  totalCost: number
+  stages: {
+    stage: string
+    status: string
+    completedAt?: string | null
+    deliverablePath?: string
+  }[]
+}
+
+export type MissionCompletion = {
+  title: "Mission complete"
+  totalCost: number
+  elapsed: string
+  deliverables: { stage: string; path: string }[]
+  action: "Return to Chat"
+}
+
+export function missionCompletion(detail: CompletionDetailView): MissionCompletion | undefined {
+  if (detail.run.status !== "completed") return
+  const started = Date.parse(detail.run.createdAt)
+  const finished = Math.max(
+    Number.isNaN(started) ? 0 : started,
+    ...detail.stages.map((stage) => Date.parse(stage.completedAt ?? "")).filter((time) => !Number.isNaN(time)),
+  )
+  return {
+    title: "Mission complete",
+    totalCost: detail.totalCost,
+    elapsed: formatElapsed(Number.isNaN(started) ? 0 : finished - started),
+    deliverables: detail.stages
+      .filter((stage) => stage.status === "completed" && stage.deliverablePath)
+      .map((stage) => ({ stage: stage.stage, path: stage.deliverablePath! })),
+    action: "Return to Chat",
+  }
+}
+
 export function conversationCard(detail: ConversationDetailView): ConversationCard {
   const { run } = detail
   if (run.status === "paused" && run.pausedReason) {
@@ -30,7 +68,7 @@ export function conversationCard(detail: ConversationDetailView): ConversationCa
       return {
         kind: "escalation",
         stage,
-        reasons: latest && !latest.pass ? latest.reasons ?? [] : [],
+        reasons: latest && !latest.pass ? (latest.reasons ?? []) : [],
         detail: reason,
       }
     }

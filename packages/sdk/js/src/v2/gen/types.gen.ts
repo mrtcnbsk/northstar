@@ -16,6 +16,8 @@ export type Event =
   | EventKilocodeAgentManagerStart
   | EventKilocodeNotebookRequested
   | EventKilocodeNotebookCancelled
+  | EventOrganizationRunStarted
+  | EventOrganizationAutonomousStarted
   | EventIndexingStatus
   | EventIndexingWarning
   | EventServerInstanceDisposed
@@ -1049,6 +1051,8 @@ export type GlobalEvent = {
     | EventKilocodeAgentManagerStart
     | EventKilocodeNotebookRequested
     | EventKilocodeNotebookCancelled
+    | EventOrganizationRunStarted
+    | EventOrganizationAutonomousStarted
     | EventIndexingStatus
     | EventIndexingWarning
     | EventServerInstanceDisposed
@@ -2942,6 +2946,7 @@ export type OrgAuditEntry = {
 export type OrgRunStageView = {
   stage: string
   status: "pending" | "running" | "awaiting_approval" | "completed" | "skipped" | "failed"
+  deliverablePath?: string
   cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   attempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   startedAt: string
@@ -3720,6 +3725,26 @@ export type EventKilocodeNotebookCancelled = {
     requestID: NotebookRequestId
     sessionID: string
     reason: "cancelled" | "disposed" | "timeout"
+  }
+}
+
+export type EventOrganizationRunStarted = {
+  id: string
+  type: "organization.run.started"
+  properties: {
+    organizationID: string
+    runID: string
+    sessionID: string
+  }
+}
+
+export type EventOrganizationAutonomousStarted = {
+  id: string
+  type: "organization.autonomous.started"
+  properties: {
+    organizationID: string
+    runID: string
+    sessionID: string
   }
 }
 

@@ -22082,6 +22082,12 @@
             "$ref": "#/components/schemas/EventKilocodeNotebookCancelled"
           },
           {
+            "$ref": "#/components/schemas/EventOrganizationRunStarted"
+          },
+          {
+            "$ref": "#/components/schemas/EventOrganizationAutonomousStarted"
+          },
+          {
             "$ref": "#/components/schemas/EventIndexingStatus"
           },
           {
@@ -25263,6 +25269,12 @@
               },
               {
                 "$ref": "#/components/schemas/EventKilocodeNotebookCancelled"
+              },
+              {
+                "$ref": "#/components/schemas/EventOrganizationRunStarted"
+              },
+              {
+                "$ref": "#/components/schemas/EventOrganizationAutonomousStarted"
               },
               {
                 "$ref": "#/components/schemas/EventIndexingStatus"
@@ -31348,6 +31360,9 @@
             "type": "string",
             "enum": ["pending", "running", "awaiting_approval", "completed", "skipped", "failed"]
           },
+          "deliverablePath": {
+            "type": "string"
+          },
           "cost": {
             "anyOf": [
               {
@@ -34273,6 +34288,66 @@
               }
             },
             "required": ["requestID", "sessionID", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventOrganizationRunStarted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["organization.run.started"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "organizationID": {
+                "type": "string"
+              },
+              "runID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string"
+              }
+            },
+            "required": ["organizationID", "runID", "sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventOrganizationAutonomousStarted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["organization.autonomous.started"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "organizationID": {
+                "type": "string"
+              },
+              "runID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string"
+              }
+            },
+            "required": ["organizationID", "runID", "sessionID"],
             "additionalProperties": false
           }
         },

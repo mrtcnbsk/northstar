@@ -11,6 +11,7 @@ import { OrgNote } from "@/kilocode/organization/state"
 import { withRunLock } from "@/kilocode/organization/tools"
 import { OrgDriver } from "@/kilocode/organization/driver"
 import { OrgWorkspace } from "@/kilocode/organization/workspace"
+import { OrgArtifacts } from "@/kilocode/organization/artifacts"
 import { effectSessionBridge } from "@/kilocode/organization/driver-session"
 import { Session } from "@/session/session"
 import * as SessionPrompt from "@/session/prompt"
@@ -32,7 +33,7 @@ import type {
  * handler wiring so they can be unit-tested directly with tmpdir fixtures (see test/kilocode/server).
  * Cost math is delegated to OrgState.runSummary/stageCost — never re-derived here.
  */
-type RunSummaryEntry = typeof OrgRunsListResponse.Type["runs"][number]
+type RunSummaryEntry = (typeof OrgRunsListResponse.Type)["runs"][number]
 
 export namespace OrgRunsView {
   /**
@@ -87,13 +88,17 @@ export namespace OrgRunsView {
     const audit = await OrgAudit.read(projectDir, runID).catch((e: unknown) => {
       // approvals.json is supplementary: a corrupt/unreadable audit trail degrades to an empty
       // list rather than failing an otherwise-healthy run's detail view.
-      console.warn(`[org-runs] audit unreadable for run "${runID}", degrading to []: ${e instanceof Error ? e.message : String(e)}`)
+      console.warn(
+        `[org-runs] audit unreadable for run "${runID}", degrading to []: ${e instanceof Error ? e.message : String(e)}`,
+      )
       return []
     })
     const summary = OrgState.runSummary(run)
     const stages = Object.entries(run.stages).map(([stage, s]) => ({
       stage,
       status: s.status,
+      deliverablePath:
+        s.status === "completed" ? OrgArtifacts.deliverablePath(projectDir, run.runID, stage) : undefined,
       cost: OrgState.stageCost(s),
       attempts: s.attempts,
       startedAt: s.startedAt ?? null,
@@ -118,16 +123,16 @@ export namespace OrgRunsView {
     const budget = organization
       ? (() => {
           const org = organization
-        const resolved = OrgSchema.resolveBudget(org)
-        return {
-          run: resolved.run,
-          stage: resolved.stage,
-          escalationThreshold: resolved.escalationThreshold,
-          retries: resolved.retries,
-          spent,
-          remaining: Math.max(0, resolved.run - spent),
-          escalated: run.escalated ?? false,
-        }
+          const resolved = OrgSchema.resolveBudget(org)
+          return {
+            run: resolved.run,
+            stage: resolved.stage,
+            escalationThreshold: resolved.escalationThreshold,
+            retries: resolved.retries,
+            spent,
+            remaining: Math.max(0, resolved.run - spent),
+            escalated: run.escalated ?? false,
+          }
         })()
       : undefined
     const loop = organization ? OrgSchema.resolveLoop(organization) : undefined
@@ -141,13 +146,16 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
     const prompts = yield* SessionPrompt.Service
     const provider = yield* Provider.Service
     const workspace = (projectDir: string, organizationID?: string) =>
-      organizationID ? Effect.promise(() => OrgWorkspace.resolve(projectDir, organizationID)) : Effect.succeed(undefined)
+      organizationID
+        ? Effect.promise(() => OrgWorkspace.resolve(projectDir, organizationID))
+        : Effect.succeed(undefined)
     const scoped = <A>(ctx: OrgWorkspace.Context | undefined, fn: () => Promise<A>) =>
       ctx ? OrgWorkspace.run(ctx, fn) : fn()
     const organization = (projectDir: string, ctx?: OrgWorkspace.Context) =>
-      Effect.tryPromise({ try: () => scoped(ctx, () => OrgSchema.loadOrganization(projectDir)), catch: (error) => error }).pipe(
-        Effect.catch((error) => Effect.die(error)),
-      )
+      Effect.tryPromise({
+        try: () => scoped(ctx, () => OrgSchema.loadOrganization(projectDir)),
+        catch: (error) => error,
+      }).pipe(Effect.catch((error) => Effect.die(error)))
 
     const command = <A>(fn: () => Promise<A>) =>
       Effect.tryPromise({ try: fn, catch: (error) => error }).pipe(
@@ -227,7 +235,9 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
         scoped(orgctx, () =>
-          withRunLock(ctx.params.runID, () => OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages)),
+          withRunLock(ctx.params.runID, () =>
+            OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages),
+          ),
         ),
       )
       startDriver(instance.directory, orgctx, org, run)

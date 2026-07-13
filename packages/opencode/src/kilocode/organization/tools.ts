@@ -20,6 +20,8 @@ import { Provider } from "@/provider/provider" // kilocode_change - optional eva
 import type { TaskPromptOps } from "@/tool/task"
 import { KiloSession } from "@/kilocode/session"
 import { OrgWorkspace } from "./workspace"
+import * as Bus from "@/bus"
+import { OrgWorkspaceEvent } from "./events"
 
 // kilocode_change start - W6.2: postrun postmortem hook.
 const postmortemLog = Log.create({ service: "kilocode-org-postmortem" })
@@ -115,6 +117,27 @@ function scopedExecute<P, A, E, R>(
     }).pipe(Effect.orDie)
 }
 
+async function publishRunEvent(
+  instance: Parameters<typeof Bus.publish>[0],
+  kind: "started" | "autonomous",
+  run: OrgState.Run,
+  sessionID: string,
+) {
+  const organizationID = run.organizationID ?? OrgWorkspace.current(instance.directory)?.entry.id
+  if (!organizationID) return
+  const properties = { organizationID, runID: run.runID, sessionID }
+  try {
+    if (kind === "started") await Bus.publish(instance, OrgWorkspaceEvent.RunStarted, properties)
+    else await Bus.publish(instance, OrgWorkspaceEvent.AutonomousStarted, properties)
+  } catch (error) {
+    postmortemLog.warn("organization workspace event failed", {
+      kind,
+      runID: run.runID,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 // kilocode_change start - W0-R2: serialize the MUTATING org tools per run_id.
 // OrgState.update and OrgAudit.append are unlocked read-modify-write/append (see their own doc
 // comments) on the stated assumption that a single CEO session calls org tools serially. The AI
@@ -205,6 +228,7 @@ export const OrgStartTool = Tool.define(
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
           const run = yield* tryOrg(() => OrgRunner.start(dir, org, params.idea, params.mode, ctx.sessionID))
+          yield* Effect.promise(() => publishRunEvent(instance, "started", run, ctx.sessionID))
           return result(`org run ${run.runID}`, {
             run_id: run.runID,
             pipeline: org.pipeline,
@@ -502,8 +526,9 @@ export const OrgDecisionTool = Tool.define(
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
           // kilocode_change - W0-R2: serialize against other mutating org tool calls on this run_id.
-          const run = yield* tryOrg(() =>
+          const decision = yield* tryOrg(() =>
             withRunLock(params.run_id, async () => {
+              const previous = await OrgState.read(dir, params.run_id)
               const updated = await OrgRunner.decide(
                 dir,
                 org,
@@ -518,9 +543,10 @@ export const OrgDecisionTool = Tool.define(
                 await recordPostmortem(dir, org, params.run_id)
               }
               // kilocode_change end
-              return updated
+              return { run: updated, autonomousStarted: previous.auto !== true && updated.auto === true }
             }),
           )
+          const run = decision.run
           const promptOps = ctx.extra?.promptOps as TaskPromptOps | undefined
           if (run.status === "active" && run.auto === true && promptOps) {
             const bridge = yield* Effect.promise(() => import("./driver-session"))
@@ -532,13 +558,17 @@ export const OrgDecisionTool = Tool.define(
                 provider: Option.getOrUndefined(provider),
               }),
             })
-            void OrgDriver.attach({
+            const flight = OrgDriver.attach({
               projectDir: dir,
               org,
               runID: params.run_id,
               runtime,
               lock: (fn) => withRunLock(params.run_id, fn),
-            }).catch((error) =>
+            })
+            if (decision.autonomousStarted) {
+              yield* Effect.promise(() => publishRunEvent(instance, "autonomous", run, ctx.sessionID))
+            }
+            void flight.catch((error) =>
               postmortemLog.warn("autonomous driver failed", {
                 runID: params.run_id,
                 error: error instanceof Error ? error.message : String(error),
