@@ -10,6 +10,7 @@ import { OrgRunner } from "@/kilocode/organization/runner"
 import { OrgNote } from "@/kilocode/organization/state"
 import { withRunLock } from "@/kilocode/organization/tools"
 import { OrgDriver } from "@/kilocode/organization/driver"
+import { OrgWorkspace } from "@/kilocode/organization/workspace"
 import { effectSessionBridge } from "@/kilocode/organization/driver-session"
 import { Session } from "@/session/session"
 import * as SessionPrompt from "@/session/prompt"
@@ -23,6 +24,7 @@ import type {
   OrgRunResumePayload,
   OrgRunsListResponse,
   OrgRunStopPayload,
+  OrgRunQuery,
 } from "../groups/org-runs"
 
 /**
@@ -39,7 +41,11 @@ export namespace OrgRunsView {
    * per-run failure we log a warning with the offending runID + reason and skip that run --
    * healthy runs still render. See Wave 3 observability review (Bug A).
    */
-  export async function list(projectDir: string): Promise<typeof OrgRunsListResponse.Type> {
+  export async function list(projectDir: string, organizationID?: string): Promise<typeof OrgRunsListResponse.Type> {
+    if (organizationID) {
+      const organization = await OrgWorkspace.resolve(projectDir, organizationID)
+      return OrgWorkspace.run(organization, () => list(projectDir))
+    }
     const ids = await OrgState.list(projectDir) // already reverse-sorted (newest first); [] when no runs dir
     const runs = await Promise.all(
       ids.map(async (runID): Promise<RunSummaryEntry | null> => {
@@ -68,7 +74,15 @@ export namespace OrgRunsView {
 
   /** Throws OrgState.NotFound when the run genuinely does not exist; any other thrown error means
    * the run is present but corrupt/unreadable, and callers must not treat that as "not found". */
-  export async function detail(projectDir: string, runID: string): Promise<typeof OrgRunDetailResponse.Type> {
+  export async function detail(
+    projectDir: string,
+    runID: string,
+    organizationID?: string,
+  ): Promise<typeof OrgRunDetailResponse.Type> {
+    if (organizationID) {
+      const organization = await OrgWorkspace.resolve(projectDir, organizationID)
+      return OrgWorkspace.run(organization, () => detail(projectDir, runID))
+    }
     const run = await OrgState.read(projectDir, runID) // throws OrgState.NotFound on ENOENT/traversal
     const audit = await OrgAudit.read(projectDir, runID).catch((e: unknown) => {
       // approvals.json is supplementary: a corrupt/unreadable audit trail degrades to an empty
@@ -126,8 +140,12 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
     const sessions = yield* Session.Service
     const prompts = yield* SessionPrompt.Service
     const provider = yield* Provider.Service
-    const organization = (projectDir: string) =>
-      Effect.tryPromise({ try: () => OrgSchema.loadOrganization(projectDir), catch: (error) => error }).pipe(
+    const workspace = (projectDir: string, organizationID?: string) =>
+      organizationID ? Effect.promise(() => OrgWorkspace.resolve(projectDir, organizationID)) : Effect.succeed(undefined)
+    const scoped = <A>(ctx: OrgWorkspace.Context | undefined, fn: () => Promise<A>) =>
+      ctx ? OrgWorkspace.run(ctx, fn) : fn()
+    const organization = (projectDir: string, ctx?: OrgWorkspace.Context) =>
+      Effect.tryPromise({ try: () => scoped(ctx, () => OrgSchema.loadOrganization(projectDir)), catch: (error) => error }).pipe(
         Effect.catch((error) => Effect.die(error)),
       )
 
@@ -145,7 +163,12 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
 
     const response = (run: OrgState.Run) => ({ ok: true as const, runID: run.runID, status: run.status })
 
-    const startDriver = (projectDir: string, org: OrgSchema.Organization, run: OrgState.Run) => {
+    const startDriver = (
+      projectDir: string,
+      ctx: OrgWorkspace.Context | undefined,
+      org: OrgSchema.Organization,
+      run: OrgState.Run,
+    ) => {
       if (run.status !== "active" || run.auto !== true || !run.ownerSessionID) return
       const runtime = OrgDriver.sessionRuntime({
         ownerSessionID: run.ownerSessionID,
@@ -153,6 +176,7 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       })
       void OrgDriver.attach({
         projectDir,
+        organization: ctx,
         org,
         runID: run.runID,
         runtime,
@@ -164,12 +188,15 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       )
     }
 
-    const list = Effect.fn("OrgRunsHttpApi.list")(function* () {
+    const list = Effect.fn("OrgRunsHttpApi.list")(function* (ctx: { query: typeof OrgRunQuery.Type }) {
       const instance = yield* InstanceState.context
-      return yield* Effect.promise(() => OrgRunsView.list(instance.directory))
+      return yield* Effect.promise(() => OrgRunsView.list(instance.directory, ctx.query.organizationID))
     })
 
-    const detail = Effect.fn("OrgRunsHttpApi.detail")(function* (ctx: { params: { runID: string } }) {
+    const detail = Effect.fn("OrgRunsHttpApi.detail")(function* (ctx: {
+      params: { runID: string }
+      query: typeof OrgRunQuery.Type
+    }) {
       const instance = yield* InstanceState.context
       // OrgState.NotFound (unknown runID / traversal) is a normal, expected outcome -> mapped to
       // the declared 404 failure below. Anything else means the run exists but its state.json (or
@@ -179,7 +206,7 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
       // HttpApiError.NotFound, and the house errorLayer maps an unhandled defect to a generic 500
       // with no path/message leak.
       return yield* Effect.tryPromise({
-        try: () => OrgRunsView.detail(instance.directory, ctx.params.runID),
+        try: () => OrgRunsView.detail(instance.directory, ctx.params.runID, ctx.query.organizationID),
         catch: (e) => e, // keep the raw error on the failure channel (typed `unknown`) for catchIf below
       }).pipe(
         Effect.catchIf(
@@ -192,52 +219,64 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
 
     const plan = Effect.fn("OrgRunsHttpApi.plan")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunPlanPayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
-        withRunLock(ctx.params.runID, () => OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages)),
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, () => OrgRunner.commitPlan(instance.directory, org, ctx.params.runID, ctx.payload.stages)),
+        ),
       )
-      startDriver(instance.directory, org, run)
+      startDriver(instance.directory, orgctx, org, run)
       return response(run)
     })
 
     const decision = Effect.fn("OrgRunsHttpApi.decision")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunDecisionPayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
-        withRunLock(ctx.params.runID, () =>
-          OrgRunner.decide(
-            instance.directory,
-            org,
-            ctx.params.runID,
-            ctx.payload.decision,
-            ctx.payload.note,
-            ctx.payload.stage,
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, () =>
+            OrgRunner.decide(
+              instance.directory,
+              org,
+              ctx.params.runID,
+              ctx.payload.decision,
+              ctx.payload.note,
+              ctx.payload.stage,
+            ),
           ),
         ),
       )
-      startDriver(instance.directory, org, run)
+      startDriver(instance.directory, orgctx, org, run)
       return response(run)
     })
 
     const note = Effect.fn("OrgRunsHttpApi.note")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunNotePayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
-        withRunLock(ctx.params.runID, () =>
-          OrgNote.append(instance.directory, org, ctx.params.runID, {
-            target: ctx.payload.target_agent,
-            text: ctx.payload.text,
-            from: "mission-control",
-          }),
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, () =>
+            OrgNote.append(instance.directory, org, ctx.params.runID, {
+              target: ctx.payload.target_agent,
+              text: ctx.payload.text,
+              from: "mission-control",
+            }),
+          ),
         ),
       )
       return response(run)
@@ -245,13 +284,17 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
 
     const stop = Effect.fn("OrgRunsHttpApi.stop")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunStopPayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const stopped = yield* command(() =>
-        withRunLock(ctx.params.runID, () =>
-          OrgRunner.stop(instance.directory, org, ctx.params.runID, ctx.payload.reason),
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, () =>
+            OrgRunner.stop(instance.directory, org, ctx.params.runID, ctx.payload.reason),
+          ),
         ),
       )
       return response(stopped.run)
@@ -259,36 +302,44 @@ export const orgRunsHandlers = HttpApiBuilder.group(InstanceHttpApi, "org-runs",
 
     const pause = Effect.fn("OrgRunsHttpApi.pause")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunPausePayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
-        withRunLock(ctx.params.runID, async () => {
-          const current = await OrgState.read(instance.directory, ctx.params.runID)
-          const stage = ctx.payload.stage ?? OrgState.runSummary(current).currentStage ?? "none"
-          return OrgRunner.pause(instance.directory, org, ctx.params.runID, {
-            kind: "manual",
-            stage,
-            detail: ctx.payload.detail,
-          })
-        }),
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, async () => {
+            const current = await OrgState.read(instance.directory, ctx.params.runID)
+            const stage = ctx.payload.stage ?? OrgState.runSummary(current).currentStage ?? "none"
+            return OrgRunner.pause(instance.directory, org, ctx.params.runID, {
+              kind: "manual",
+              stage,
+              detail: ctx.payload.detail,
+            })
+          }),
+        ),
       )
       return response(run)
     })
 
     const resume = Effect.fn("OrgRunsHttpApi.resume")(function* (ctx: {
       params: { runID: string }
+      query: typeof OrgRunQuery.Type
       payload: typeof OrgRunResumePayload.Type
     }) {
       const instance = yield* InstanceState.context
-      const org = yield* organization(instance.directory)
+      const orgctx = yield* workspace(instance.directory, ctx.query.organizationID)
+      const org = yield* organization(instance.directory, orgctx)
       const run = yield* command(() =>
-        withRunLock(ctx.params.runID, () =>
-          OrgRunner.resume(instance.directory, org, ctx.params.runID, ctx.payload.note),
+        scoped(orgctx, () =>
+          withRunLock(ctx.params.runID, () =>
+            OrgRunner.resume(instance.directory, org, ctx.params.runID, ctx.payload.note),
+          ),
         ),
       )
-      startDriver(instance.directory, org, run)
+      startDriver(instance.directory, orgctx, org, run)
       return response(run)
     })
 

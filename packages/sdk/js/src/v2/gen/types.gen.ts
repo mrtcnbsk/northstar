@@ -12243,6 +12243,7 @@ export type OrgRunsListData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs"
 }
@@ -12273,6 +12274,7 @@ export type OrgRunsDetailData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}"
 }
@@ -12314,6 +12316,7 @@ export type OrgRunsPlanData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/plan"
 }
@@ -12352,6 +12355,7 @@ export type OrgRunsDecisionData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/decision"
 }
@@ -12389,6 +12393,7 @@ export type OrgRunsNoteData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/note"
 }
@@ -12425,6 +12430,7 @@ export type OrgRunsStopData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/stop"
 }
@@ -12462,6 +12468,7 @@ export type OrgRunsPauseData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/pause"
 }
@@ -12498,6 +12505,7 @@ export type OrgRunsResumeData = {
   query?: {
     directory?: string
     workspace?: string
+    organizationID?: string
   }
   url: "/org-runs/{runID}/resume"
 }

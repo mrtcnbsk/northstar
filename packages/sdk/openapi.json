@@ -16605,6 +16605,14 @@
               "type": "string"
             },
             "required": false
+          },
+          {
+            "name": "organizationID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -16662,6 +16670,14 @@
           },
           {
             "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "organizationID",
             "in": "query",
             "schema": {
               "type": "string"
@@ -16734,6 +16750,14 @@
           },
           {
             "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "organizationID",
             "in": "query",
             "schema": {
               "type": "string"
@@ -16858,6 +16882,14 @@
               "type": "string"
             },
             "required": false
+          },
+          {
+            "name": "organizationID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -16954,6 +16986,14 @@
           },
           {
             "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "organizationID",
             "in": "query",
             "schema": {
               "type": "string"
@@ -17056,6 +17096,14 @@
               "type": "string"
             },
             "required": false
+          },
+          {
+            "name": "organizationID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -17145,6 +17193,14 @@
           },
           {
             "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "organizationID",
             "in": "query",
             "schema": {
               "type": "string"
@@ -17242,6 +17298,14 @@
           },
           {
             "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "organizationID",
             "in": "query",
             "schema": {
               "type": "string"

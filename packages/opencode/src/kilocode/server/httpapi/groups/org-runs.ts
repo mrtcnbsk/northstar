@@ -9,6 +9,11 @@ import {
 } from "@/server/routes/instance/httpapi/middleware/workspace-routing"
 import { described } from "@/server/routes/instance/httpapi/groups/metadata"
 
+export const OrgRunQuery = Schema.Struct({
+  ...WorkspaceRoutingQuery.fields,
+  organizationID: Schema.optional(Schema.String),
+})
+
 // Read-only view schemas over org RUN state (state.json + approvals.json). Kept independent of the
 // zod OrgState/OrgAudit schemas so the API surface is decoupled from internal storage details.
 
@@ -201,7 +206,7 @@ export const OrgRunsApi = HttpApi.make("org-runs")
     HttpApiGroup.make("org-runs")
       .add(
         HttpApiEndpoint.get("list", OrgRunsPaths.list, {
-          query: WorkspaceRoutingQuery,
+          query: OrgRunQuery,
           success: described(OrgRunsListResponse, "Org runs summary list"),
         }).annotateMerge(
           OpenApi.annotations({
@@ -213,7 +218,7 @@ export const OrgRunsApi = HttpApi.make("org-runs")
         ),
         HttpApiEndpoint.get("detail", OrgRunsPaths.detail, {
           params: { runID: Schema.String },
-          query: WorkspaceRoutingQuery,
+          query: OrgRunQuery,
           success: described(OrgRunDetailResponse, "Full org run state, audit trail, and per-stage view"),
           error: HttpApiError.NotFound,
         }).annotateMerge(
@@ -226,42 +231,42 @@ export const OrgRunsApi = HttpApi.make("org-runs")
         ...[
           HttpApiEndpoint.post("plan", OrgRunsPaths.plan, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunPlanPayload,
             success: described(OrgRunCommandResponse, "Committed autonomous plan"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.plan", summary: "Commit autonomous plan" })),
           HttpApiEndpoint.post("decision", OrgRunsPaths.decision, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunDecisionPayload,
             success: described(OrgRunCommandResponse, "Applied run gate decision"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.decision", summary: "Apply run gate decision" })),
           HttpApiEndpoint.post("note", OrgRunsPaths.note, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunNotePayload,
             success: described(OrgRunCommandResponse, "Queued run steering note"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.note", summary: "Queue run steering note" })),
           HttpApiEndpoint.post("stop", OrgRunsPaths.stop, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunStopPayload,
             success: described(OrgRunCommandResponse, "Stopped run"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.stop", summary: "Stop org run" })),
           HttpApiEndpoint.post("pause", OrgRunsPaths.pause, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunPausePayload,
             success: described(OrgRunCommandResponse, "Paused run"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],
           }).annotateMerge(OpenApi.annotations({ identifier: "orgRuns.pause", summary: "Pause autonomous run" })),
           HttpApiEndpoint.post("resume", OrgRunsPaths.resume, {
             params: { runID: Schema.String },
-            query: WorkspaceRoutingQuery,
+            query: OrgRunQuery,
             payload: OrgRunResumePayload,
             success: described(OrgRunCommandResponse, "Resumed run"),
             error: [HttpApiError.NotFound, HttpApiError.BadRequest],

@@ -8338,6 +8338,7 @@ export class OrgRuns extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
+      organizationID?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8348,6 +8349,7 @@ export class OrgRuns extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
           ],
         },
       ],
@@ -8369,6 +8371,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8380,6 +8383,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
           ],
         },
       ],
@@ -8399,6 +8403,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       stages?: Array<{
         stage: string
         objective: string
@@ -8416,6 +8421,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "stages" },
           ],
         },
@@ -8441,6 +8447,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       decision?: "approve" | "no-go" | "revise"
       note?: string
       stage?: string
@@ -8455,6 +8462,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "decision" },
             { in: "body", key: "note" },
             { in: "body", key: "stage" },
@@ -8482,6 +8490,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       target_agent?: string
       text?: string
     },
@@ -8495,6 +8504,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "target_agent" },
             { in: "body", key: "text" },
           ],
@@ -8521,6 +8531,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       reason?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -8533,6 +8544,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "reason" },
           ],
         },
@@ -8558,6 +8570,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       detail?: string
       stage?: string
     },
@@ -8571,6 +8584,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "detail" },
             { in: "body", key: "stage" },
           ],
@@ -8597,6 +8611,7 @@ export class OrgRuns extends HeyApiClient {
       runID: string
       directory?: string
       workspace?: string
+      organizationID?: string
       note?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -8609,6 +8624,7 @@ export class OrgRuns extends HeyApiClient {
             { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "organizationID" },
             { in: "body", key: "note" },
           ],
         },
