@@ -11,7 +11,7 @@ on:
 jobs:
   check:
     name: Check markdown table padding
-    if: github.repository == 'Kilo-Org/kilocode'
+    if: github.repository == 'mrtcnbsk/northstar'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6 # kilocode_change

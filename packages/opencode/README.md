@@ -1,90 +1,84 @@
-# Kilo Code CLI
+# northstar
 
-The AI coding agent built for the terminal. Generate code from natural language, automate tasks, and run terminal commands -- powered by 500+ AI models.
+A terminal-first AI coding agent — plus an autonomous multi-agent organization (CEO → chiefs → workers) that takes an idea to a shipped app.
 
-![Kilo CLI showing code edits in a terminal](https://raw.githubusercontent.com/Kilo-Org/kilocode/main/packages/kilo-docs/public/img/npm-package-readme/kilo-cli.png)
-
-Kilo is the all-in-one agentic engineering platform. Build, ship, and iterate faster with the most popular open source coding agent.
-
-[Website](https://kilo.ai) · [Install](https://kilo.ai/install) · [IDE](https://kilo.ai/landing/vs-code) · [CLI](https://kilo.ai/cli) · [Docs](https://kilo.ai/docs) · [Models](https://kilo.ai/leaderboard) · [Gateway](https://kilo.ai/gateway) · [Pricing](https://kilo.ai/pricing) · [Kilo Pass](https://kilo.ai/pricing/kilo-pass)
-
-[500+ models](https://kilo.ai/leaderboard). One open source agent in [VS Code](https://kilo.ai/vscode-marketplace), [JetBrains](https://plugins.jetbrains.com/plugin/27133-kilo-code), [CLI](https://www.npmjs.com/package/@kilocode/cli), [Slack](https://kilo.ai/slack), and [Cloud](https://kilo.ai/cloud).
+northstar is an open-source (MIT) CLI by **Ilura Technology OÜ**, built on [Kilo Code](https://github.com/Kilo-Org/kilocode) and opencode (both MIT; see [`NOTICE`](https://github.com/mrtcnbsk/northstar/blob/main/NOTICE) for upstream provenance). It lives in your terminal — bring your own model keys (500+ models, mid-task switching, provider-rate pricing, no markup) — and adds an autonomous org layer that runs a whole software team through human-gated pipelines to build and ship apps end-to-end.
 
 ## Install
 
 ```bash
-npm install -g @kilocode/cli
+npm install -g @ilura/northstar
 ```
 
-Or run directly with npx:
+Or with another package manager:
 
 ```bash
-npx --package @kilocode/cli kilo
+pnpm add -g @ilura/northstar
+bun add -g @ilura/northstar
 ```
 
 ## Getting Started
 
-Run `kilo` in any project directory to launch the interactive TUI:
+Run `northstar` in any project directory to launch the interactive TUI:
 
 ```bash
-kilo
+northstar
 ```
 
 Run a one-off task:
 
 ```bash
-kilo run "add input validation to the signup form"
+northstar run "add input validation to the signup form"
 ```
+
+### Autonomous Mode (CI/CD)
+
+```bash
+northstar run --auto "run tests and fix any failures"
+```
+
+`--auto` disables all permission prompts and lets the agent execute any action without confirmation. Only use it in trusted environments.
 
 ## Features
 
-- **Code generation** -- describe what you want in natural language
-- **Terminal commands** -- the agent can run shell commands on your behalf
-- **500+ AI models** -- use models from OpenAI, Anthropic, Google, and more
-- **MCP servers** -- extend agent capabilities with the Model Context Protocol
-- **Multiple modes** -- Plan with Architect, code with Coder, debug with Debugger, or create your own
-- **Sessions** -- resume previous conversations and export transcripts
-- **API keys optional** -- bring your own keys or use Kilo credits
+- **Code generation** from natural language, across multiple files
+- **Terminal and browser control** to run commands and automate the web
+- **500+ AI models** with mid-task switching, so you can match latency, cost, and reasoning to the job
+- **Self-checking** so the agent reviews and corrects its own work
+- **MCP servers** to extend what the agent can do
+- **Autonomous organization** — an optional multi-agent org layer that runs a software team through human-gated pipelines
 
 ## Commands
 
-| Command               | Description                |
-| --------------------- | -------------------------- |
-| `kilo`                | Launch interactive TUI     |
-| `kilo run "<task>"`   | Run a one-off task         |
-| `kilo auth`           | Manage authentication      |
-| `kilo models`         | List available models      |
-| `kilo mcp`            | Manage MCP servers         |
-| `kilo session list`   | List sessions              |
-| `kilo session delete` | Delete a session           |
-| `kilo export`         | Export session transcripts |
+| Command                    | Description                |
+| -------------------------- | -------------------------- |
+| `northstar`                | Launch interactive TUI     |
+| `northstar run "<task>"`   | Run a one-off task         |
+| `northstar auth`           | Manage authentication      |
+| `northstar models`         | List available models      |
+| `northstar mcp`            | Manage MCP servers         |
+| `northstar session list`   | List sessions              |
+| `northstar export`         | Export session transcripts |
 
-Run `kilo --help` for the full list.
+Run `northstar --help` for the full list.
 
 ## Alternative Installation
 
-### Homebrew (macOS/Linux)
+### curl
 
 ```bash
-brew install Kilo-Org/tap/kilo
+curl -fsSL https://raw.githubusercontent.com/mrtcnbsk/northstar/main/install | bash
 ```
 
 ### GitHub Releases
 
-Download pre-built binaries from the [Releases page](https://github.com/Kilo-Org/kilocode/releases).
-
-## Documentation
-
-- [Docs](https://kilo.ai/docs)
-- [Getting Started](https://kilo.ai/docs/getting-started)
+Download pre-built binaries from the [Releases page](https://github.com/mrtcnbsk/northstar/releases).
 
 ## Links
 
-- [GitHub](https://github.com/Kilo-Org/kilocode)
-- [Discord](https://kilo.ai/discord)
-- [VS Code Extension](https://kilo.ai/vscode-marketplace)
-- [Website](https://kilo.ai)
+- [GitHub](https://github.com/mrtcnbsk/northstar)
+- [Report an issue](https://github.com/mrtcnbsk/northstar/issues)
 
 ## License
 
-MIT
+MIT. northstar extends the open-source Kilo Code and opencode projects; upstream attribution is preserved in [`NOTICE`](https://github.com/mrtcnbsk/northstar/blob/main/NOTICE). © 2026 Ilura Technology OÜ.
