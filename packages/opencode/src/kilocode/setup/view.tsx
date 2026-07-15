@@ -477,7 +477,11 @@ export function SetupView(props: {
   }
 
   useBindings(() => ({
-    enabled: !busy() && !loading(),
+    // kilocode_change - Finding: these single-key Setup shortcuts (a / return / left / right) must be
+    // suppressed while a prompt dialog is open, or they hijack text entry — typing an org name or
+    // mission would trigger "add/edit", "next step", or step navigation instead of inserting the
+    // character, dismissing or switching the screen mid-edit.
+    enabled: !busy() && !loading() && dialog.stack.length === 0,
     bindings: [
       { key: "left", desc: "Previous Setup step", group: "Setup", cmd: () => void go(-1) },
       { key: "right", desc: "Next Setup step", group: "Setup", cmd: () => void go(1) },
