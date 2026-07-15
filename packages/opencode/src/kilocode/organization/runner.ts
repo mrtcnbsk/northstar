@@ -910,6 +910,17 @@ export namespace OrgRunner {
    * Persist the human-editable plan draft. `auto:false` is an intentional armed state: the next
    * approval of the pipeline's first gate flips it to true, while a legacy run keeps auto absent.
    */
+  /**
+   * kilocode_change - Finding: the editable plan-approval gate is the FIRST pipeline stage with
+   * gate:"human", not blindly pipeline[0]. A template may run one or more ungated stages before it
+   * (e.g. ios-app-factory runs an "evaluation" pass, then gates on "planning"), and the CEO commits the
+   * plan AT that gate. For plan-first templates the first human-gated stage IS pipeline[0], so this is
+   * unchanged for them. Falls back to pipeline[0] when no stage is human-gated.
+   */
+  function planGate(org: OrgSchema.Organization) {
+    return org.pipeline.find((entry) => entry.gate === "human") ?? org.pipeline[0]
+  }
+
   export async function commitPlan(
     projectDir: string,
     org: OrgSchema.Organization,
@@ -919,7 +930,7 @@ export namespace OrgRunner {
     const run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
     if (run.status !== "active") throw new TransitionError(`Cannot commit a plan for ${run.status} run ${runID}`)
-    const first = org.pipeline[0]
+    const first = planGate(org)
     if (run.stages[first.stage].status !== "awaiting_approval") {
       throw new TransitionError(`Cannot commit plan: stage "${first.stage}" is not awaiting approval in run ${runID}`)
     }
@@ -1187,7 +1198,9 @@ export namespace OrgRunner {
           s.irreversibleApproval = { stage: gated.stage, ts: Date.now() }
         }
         // `commitPlan` arms loop mode with auto:false; approving the first plan gate starts it.
-        if (s.auto === false && gated.stage === org.pipeline[0].stage) s.auto = true
+        // kilocode_change - Finding: arm autonomous mode when the plan-approval gate (the first
+        // human-gated stage, not necessarily pipeline[0]) is approved — see planGate.
+        if (s.auto === false && gated.stage === planGate(org).stage) s.auto = true
       } else if (decision === "no-go") {
         record.status = "completed"
         s.status = "halted"

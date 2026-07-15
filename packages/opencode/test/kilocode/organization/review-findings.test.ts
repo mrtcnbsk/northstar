@@ -117,6 +117,53 @@ describe("Finding #6: irreversible approval is bound to its stage", () => {
   })
 })
 
+describe("Finding: plan gate is the first human-gated stage, not blindly pipeline[0]", () => {
+  test("an org with an ungated pre-plan stage commits its plan and arms autonomous mode at the human gate", async () => {
+    await using tmp = await tmpdir()
+    // Shape mirrors ios-app-factory: an ungated "evaluation" pass precedes the human "planning" gate.
+    const org = OrgSchema.parse({
+      ceo: "ceo",
+      departments: {
+        evaluation: { chief: "eval-chief", workers: ["analyst"] },
+        planning: { chief: "plan-chief", workers: ["architect"] },
+        build: { chief: "build-chief", workers: ["builder"] },
+      },
+      pipeline: [
+        { stage: "evaluation", criteria: ["evaluation evidence"] },
+        { stage: "planning", gate: "human", criteria: ["plan evidence"] },
+        { stage: "build", requires: ["planning"], criteria: ["build evidence"] },
+      ],
+    })
+    const run = await OrgRunner.start(tmp.path, org, "eval-first idea")
+    const deps = { costOf: async () => 1 }
+    // Drive to the planning gate: evaluation runs (ungated -> completed), then planning gates.
+    await OrgRunner.advance(deps, tmp.path, org, run.runID, {}) // instruct evaluation
+    await writeDeliverable(tmp.path, run.runID, "evaluation")
+    await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskResults: [{ stage: "evaluation", taskID: "ses_eval" }] })
+    await writeDeliverable(tmp.path, run.runID, "planning")
+    await OrgRunner.advance(deps, tmp.path, org, run.runID, { taskResults: [{ stage: "planning", taskID: "ses_plan" }] })
+
+    let state = await OrgState.read(tmp.path, run.runID)
+    expect(state.stages.evaluation.status).toBe("completed")
+    expect(state.stages.planning.status).toBe("awaiting_approval")
+
+    // commitPlan must NOT throw even though pipeline[0] ("evaluation") is completed, not awaiting.
+    const PLAN = org.pipeline.map((s) => ({
+      stage: s.stage,
+      objective: `do ${s.stage}`,
+      criteria: [`${s.stage} evidence`],
+      agents: [],
+    }))
+    await OrgRunner.commitPlan(tmp.path, org, run.runID, PLAN)
+    // Approving the planning gate arms autonomous mode, even though planning is not pipeline[0].
+    await OrgRunner.decide(tmp.path, org, run.runID, "approve", undefined, "planning")
+
+    state = await OrgState.read(tmp.path, run.runID)
+    expect(state.auto).toBe(true)
+    expect(state.stages.planning.status).toBe("completed")
+  })
+})
+
 const sessionStub = Session.Service.of({
   list: () => Effect.die("unused"),
   create: () => Effect.die("unused"),
