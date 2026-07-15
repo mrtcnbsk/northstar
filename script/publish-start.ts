@@ -91,7 +91,10 @@ if (!Script.preview) {
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   // kilocode_change start - skip draft flag when KILO_SKIP_NOTES=1 (used by publish-stable.yml which doesn't have a publish-complete step)
   const draftFlag = skipNotes ? [] : ["-d"]
-  await $`gh release create v${Script.version} ${draftFlag} --title "v${Script.version}" --notes ${notes.join("\n") || "No notable changes"} ./packages/opencode/dist/archives/*.zip ./packages/opencode/dist/archives/*.tar.gz`
+  // Generate SHA-256 checksums over the release archives so the installer (curl | bash) can verify
+  // asset integrity before extracting. Uploaded as checksums.txt alongside the archives.
+  await $`cd ./packages/opencode/dist/archives && sha256sum *.zip *.tar.gz > checksums.txt`
+  await $`gh release create v${Script.version} ${draftFlag} --title "v${Script.version}" --notes ${notes.join("\n") || "No notable changes"} ./packages/opencode/dist/archives/*.zip ./packages/opencode/dist/archives/*.tar.gz ./packages/opencode/dist/archives/checksums.txt`
   // kilocode_change end
   const release = await $`gh release view v${Script.version} --json id,tagName`.json()
   output += `release=${release.id}\n`

@@ -43,7 +43,7 @@ async function approvePlan(dir: string) {
 }
 
 describe("SP1 autonomous loop exit", () => {
-  test("approved plan revises, passes, pauses once before release, then completes after final approval", async () => {
+  test("approved plan revises, passes, pauses at the delivery gate AND again at release's own irreversible-tool gate (Finding: per-stage irreversible approval)", async () => {
     await using tmp = await tmpdir()
     const runID = await approvePlan(tmp.path)
     const costs = new Map<string, number>()
@@ -82,12 +82,27 @@ describe("SP1 autonomous loop exit", () => {
     expect(stageCalls.get("build")).toBe(2)
     expect(stageCalls.get("release")).toBeUndefined()
 
+    // Approving the delivery gate must NOT pre-authorize release's irreversible asc_submit. The
+    // approval is minted for "delivery"; release touches a denylisted tool, so the driver stops at
+    // release's OWN final gate instead of silently submitting on the strength of delivery's approval.
     await OrgRunner.decide(tmp.path, ORG, runID, "approve", undefined, "delivery")
+    expect(await OrgDriver.attach({ projectDir: tmp.path, org: ORG, runID, runtime })).toEqual({
+      type: "paused",
+      kind: "final_gate",
+      stage: "release",
+      detail: "all criteria evidenced",
+    })
+    expect(stageCalls.get("release")).toBe(1)
+
+    // Now the human explicitly approves release's irreversible action; the run completes.
+    await OrgRunner.decide(tmp.path, ORG, runID, "approve", undefined, "release")
     expect(await OrgDriver.attach({ projectDir: tmp.path, org: ORG, runID, runtime })).toEqual({ type: "completed" })
     expect(stageCalls.get("release")).toBe(1)
     const audit = await OrgAudit.read(tmp.path, runID)
-    expect(audit.filter((entry) => entry.event === "final_gate")).toHaveLength(1)
-    expect(audit.some((entry) => entry.stage === "release" && entry.decision === "evaluator-approved")).toBe(true)
+    // Two distinct human gates were reached: delivery, then release's own irreversible-tool gate.
+    expect(audit.filter((entry) => entry.event === "final_gate")).toHaveLength(2)
+    expect(audit.some((entry) => entry.stage === "release" && entry.decision === "evaluator-final_gate")).toBe(true)
+    expect(audit.some((entry) => entry.stage === "release" && entry.decision === "approve")).toBe(true)
   })
 
   test("exhausted evaluator loop pauses with the latest actionable reason", async () => {

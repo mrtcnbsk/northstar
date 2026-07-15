@@ -208,4 +208,33 @@ describe("OrgConductor.drive", () => {
     expect(state.status).toBe("paused")
     expect(state.stages.build.status).toBe("awaiting_approval")
   })
+
+  test("a budget-escalation gate pauses for a human in autonomous mode instead of being auto-approved by the evaluator", async () => {
+    await using tmp = await tmpdir()
+    const org = OrgSchema.parse({
+      ceo: "ceo",
+      departments: { build: { chief: "build-chief", workers: ["builder"] } },
+      pipeline: [{ stage: "build" }],
+      loop: { maxIterations: 2, evaluatorModel: "haiku" },
+      // run cap high, but the escalation threshold (4) is crossed by the stage cost (5).
+      budget: { run: 100, stage: 100, escalationThreshold: 4 },
+    })
+    const run = await seedAuto(tmp.path, org)
+    const h = harness({ projectDir: tmp.path, org, replies: ['{"pass":true}'], cost: 5 })
+
+    const outcome = await OrgConductor.drive(run.runID, h.deps)
+    // The cost-escalation checkpoint must halt the autonomous loop for a human — NOT be silently
+    // approved by the LLM evaluator (which would consume the once-per-run escalation flag).
+    expect(outcome.type).toBe("paused")
+    if (outcome.type !== "paused") throw new Error("unreachable")
+    expect(outcome.kind).toBe("escalation")
+    expect(outcome.stage).toBe("build")
+    expect(outcome.detail).toContain("escalation threshold")
+    expect(h.evaluatorCalls()).toBe(0)
+
+    const state = await OrgState.read(tmp.path, run.runID)
+    expect(state.status).toBe("paused")
+    expect(state.escalated).toBe(true)
+    expect(state.stages.build.status).toBe("awaiting_approval")
+  })
 })

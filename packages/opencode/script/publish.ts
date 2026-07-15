@@ -55,10 +55,9 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
     {
       name: pkg.name, // kilocode_change
       bin: {
-        // kilocode_change start
+        // kilocode_change - publish only the northstar bin; the upstream `kilocode` alias was dropped
+        // so a global install of @ilura/northstar cannot seize/overwrite upstream Kilo Code's command.
         northstar: `./bin/northstar`,
-        kilocode: `./bin/northstar`,
-        // kilocode_change end
       },
       scripts: {
         postinstall: "node ./postinstall.mjs",

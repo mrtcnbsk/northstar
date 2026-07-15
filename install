@@ -278,9 +278,10 @@ download_with_progress() {
         exec 4>/dev/null
     fi
 
-    local tmp_dir=${TMPDIR:-/tmp}
-    local basename="${tmp_dir}/northstar_install_$$" # kilocode_change
-    local tracefile="${basename}.trace"
+    # kilocode_change - place the trace fifo inside the caller's mktemp-created dir (unpredictable, not
+    # a guessable PID path under a world-writable dir) to avoid a symlink/substitution race (CWE-377).
+    local tracefile
+    tracefile="$(dirname "$output")/download.trace"
 
     rm -f "$tracefile"
     mkfifo "$tracefile"
@@ -328,17 +329,71 @@ download_with_progress() {
     return $ret
 }
 
+# kilocode_change start - verify a downloaded archive against the release's published SHA-256
+# checksums. checksums.txt is uploaded next to the archives by the publish pipeline. If it is missing
+# (older releases) or no sha256 tool is available, we warn and continue; a present-but-mismatching
+# checksum ABORTS the install (corrupted or tampered download).
+verify_checksum() {
+    local file=$1
+    local name=$2
+
+    local sha_cmd=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha_cmd="sha256sum"
+    elif command -v shasum >/dev/null 2>&1; then
+        sha_cmd="shasum -a 256"
+    fi
+
+    local checksums_url="https://github.com/mrtcnbsk/northstar/releases/download/v${specific_version}/checksums.txt"
+    local checksums
+    checksums=$(curl -fsSL "$checksums_url" 2>/dev/null || true)
+
+    if [ -z "$checksums" ]; then
+        print_message warning "${ORANGE}Warning: no checksums.txt published for v${specific_version}; skipping integrity verification.${NC}"
+        return 0
+    fi
+    if [ -z "$sha_cmd" ]; then
+        print_message warning "${ORANGE}Warning: no sha256 tool (sha256sum/shasum) found; skipping integrity verification.${NC}"
+        return 0
+    fi
+
+    local expected
+    expected=$(echo "$checksums" | awk -v f="$name" '$2 == f { print $1 }' | head -n1)
+    if [ -z "$expected" ]; then
+        print_message warning "${ORANGE}Warning: $name is not listed in checksums.txt; skipping integrity verification.${NC}"
+        return 0
+    fi
+
+    local actual
+    actual=$($sha_cmd "$file" | awk '{ print $1 }')
+    if [ "$actual" != "$expected" ]; then
+        rm -f "$file"
+        print_message error "${RED}Error: checksum mismatch for ${name}.${NC}"
+        print_message error "${RED}  expected: ${expected}${NC}"
+        print_message error "${RED}  actual:   ${actual}${NC}"
+        print_message error "${RED}Aborting: the downloaded file may be corrupted or tampered with.${NC}"
+        exit 1
+    fi
+    print_message info "${MUTED}Verified checksum for ${NC}${name}"
+}
+# kilocode_change end
+
 download_and_install() {
     # kilocode_change start
     print_message info "\n${MUTED}Installing ${NC}northstar ${MUTED}version: ${NC}$specific_version"
-    local tmp_dir="${TMPDIR:-/tmp}/northstar_install_$$"
+    # kilocode_change - mktemp -d atomically creates a private, unpredictable dir (mode 0700), replacing
+    # the guessable ${TMPDIR}/northstar_install_$$ path an attacker could pre-create on a shared host.
+    local tmp_dir
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/northstar_install.XXXXXXXX")
     # kilocode_change end
-    mkdir -p "$tmp_dir"
 
     if [[ "$os" == "windows" ]] || ! [ -t 2 ] || ! download_with_progress "$url" "$tmp_dir/$filename"; then
         # Fallback to standard curl on Windows, non-TTY environments, or if custom progress fails
         curl -f# -L -o "$tmp_dir/$filename" "$url" # kilocode_change
     fi
+
+    # kilocode_change - verify integrity before extracting/installing the downloaded archive
+    verify_checksum "$tmp_dir/$filename" "$filename"
 
     if [ "$os" = "linux" ]; then
         tar -xzf "$tmp_dir/$filename" -C "$tmp_dir"

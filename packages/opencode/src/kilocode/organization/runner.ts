@@ -626,9 +626,48 @@ export namespace OrgRunner {
   ): Promise<Batch> {
     let run = await OrgState.read(projectDir, runID)
     assertPipelineMatches(org, run)
+
+    // kilocode_change - Finding: persist every reported chief taskID onto its stage record BEFORE the
+    // halted/completed/paused early-returns. If a (manual) pause lands while a chief is still in flight,
+    // dropping the reported session id would leave record.taskID === undefined at the eventual
+    // post-resume settle, so settleRunningStage's `record.taskID ? costOf : undefined` skips cost
+    // recording entirely and that chief session's whole spend is silently excluded from budget
+    // accounting — the run ceiling, stage cap, and escalation threshold would all be enforced against an
+    // undercounted total. `reportedThisCall` still records which stages a taskID was assigned to this
+    // call, so the settle selection below is unchanged (moved up from its old post-early-return spot).
+    // W4-Finding#1: only reported/pending-revise/sole-running stages are settled; a running branch that
+    // is neither is left untouched (still in flight), so a sibling-driven advance never burns its retry.
+    // W4.6: assign each per-stage task result to its NAMED stage first, so every concurrently-completed
+    // branch settles with its own chief's session id (and thus its own cost). Unknown stage names are
+    // ignored (not fatal) — the CEO reports what it spawned, but a stale name shouldn't reject the advance.
+    const reportedThisCall = new Set<string>()
+    if (input.taskResults && input.taskResults.length > 0) {
+      run = await OrgState.update(projectDir, runID, (s) => {
+        for (const { stage, taskID } of input.taskResults!) {
+          if (s.stages[stage]) {
+            s.stages[stage].taskID = taskID
+            reportedThisCall.add(stage)
+          }
+        }
+      })
+    }
+
     if (run.status === "halted") return { instruct: [], halted: { reason: run.haltReason ?? "run halted" } }
     if (run.status === "completed") return { instruct: [], done: true }
     if (run.status === "paused") {
+      // A bare single taskID (the manual CEO path) must also survive a mid-flight pause. Resolve it to
+      // the stage it belongs to (a running stage lacking one, or the sole running stage) and persist
+      // before returning, mirroring the active-path resolution below, so its cost is not lost on resume.
+      if (input.taskID) {
+        const running = OrgState.runningStages(org, run)
+        const target =
+          running.find((stage) => !run.stages[stage].taskID) ?? (running.length === 1 ? running[0] : undefined)
+        if (target) {
+          run = await OrgState.update(projectDir, runID, (s) => {
+            s.stages[target].taskID = input.taskID
+          })
+        }
+      }
       return {
         instruct: [],
         paused: run.pausedReason ?? { kind: "manual", stage: "none", detail: "run paused" },
@@ -650,27 +689,6 @@ export namespace OrgRunner {
           reason: `stage "${failed.stage}" failed${record.decisionNote ? ": " + record.decisionNote : ""}; resolve it before continuing`,
         },
       }
-    }
-
-    // W4-Finding#1: track which running stages were actually REPORTED this call. Only these (plus
-    // any pending-revise stage) are settled below; a running branch that is neither reported nor
-    // pending-revise is left untouched (still in flight), so a sibling-driven advance never re-runs
-    // retryOrFail on it and never burns its retry budget without a real chief re-run.
-    const reportedThisCall = new Set<string>()
-
-    // W4.6: assign each per-stage task result to its NAMED stage's record first, so every
-    // concurrently-completed branch settles below with its own chief's session id (and thus its own
-    // cost). Only stages that actually exist in the run are touched (an unknown stage name is ignored,
-    // not fatal — the CEO reports what it spawned, but a stale name shouldn't reject the whole advance).
-    if (input.taskResults && input.taskResults.length > 0) {
-      run = await OrgState.update(projectDir, runID, (s) => {
-        for (const { stage, taskID } of input.taskResults!) {
-          if (s.stages[stage]) {
-            s.stages[stage].taskID = taskID
-            reportedThisCall.add(stage)
-          }
-        }
-      })
     }
 
     // Record input.taskID onto the stage the CEO just finished. Resolution order (deterministic,
@@ -985,7 +1003,11 @@ export namespace OrgRunner {
     const nextIterations = (run.stages[stage].iterations ?? 0) + (verdict.pass ? 0 : 1)
     const exhausted = !verdict.pass && nextIterations > OrgSchema.resolveLoop(org).maxIterations
     const touchedIrreversibleTool = OrgIrreversible.touched(run.stages[stage].toolsUsed ?? [])
-    const toolUseAuthorized = touchedIrreversibleTool && run.irreversibleApproval !== undefined
+    // kilocode_change - Finding: an irreversible approval authorizes ONLY the stage it was minted for.
+    // Comparing the stored stage prevents an approval granted at one stage's final gate from silently
+    // authorizing a DIFFERENT stage's denylisted tool use (irreversibleApproval.stage was recorded but
+    // never read before this).
+    const toolUseAuthorized = touchedIrreversibleTool && run.irreversibleApproval?.stage === stage
     const finalGate =
       verdict.pass && (OrgState.isIrreversible(org, stage) || (touchedIrreversibleTool && !toolUseAuthorized))
     const reviseBaseline = !verdict.pass && !exhausted ? await deliverableHash(projectDir, runID, stage) : undefined
@@ -1137,7 +1159,13 @@ export namespace OrgRunner {
     // kilocode_change end
     // Snapshot the deliverable a revise starts from, so completion can prove it actually changed.
     const reviseBaseline = decision === "revise" ? await deliverableHash(projectDir, runID, gated.stage) : undefined
-    const mintsIrreversibleApproval = decision === "approve" && run.pausedReason?.kind === "final_gate"
+    // kilocode_change - Finding: only mint the single-use irreversible authorization when the approval
+    // targets the very stage the run is paused at. Without the stage check, approving a DIFFERENT
+    // awaiting stage (a sibling gate in a parallel DAG) while the run is paused at stage X's final gate
+    // would mint an approval and — via the unpause below — dissolve X's final gate, authorizing X's
+    // denylisted tool use with a human approval that was never given for X.
+    const mintsIrreversibleApproval =
+      decision === "approve" && run.pausedReason?.kind === "final_gate" && run.pausedReason.stage === gated.stage
     // kilocode_change start - W8.5: best-effort content snapshot of the PRE-revise deliverable.
     // The chief overwrites the live .md in place, so without this the content being revised away
     // would be unrecoverable once the chief's next write lands. Must NEVER break the decision;
@@ -1182,7 +1210,11 @@ export namespace OrgRunner {
       }
       // Resolving a paused escalation/final gate is the explicit human transition back into the
       // active state machine. no-go remains terminal and therefore does not take this branch.
-      if (s.status === "paused" && decision !== "no-go") {
+      // kilocode_change - Finding: only the decision AT the paused gate's own stage resumes the run.
+      // Resolving a different awaiting stage (a sibling gate in a parallel DAG) must leave the run
+      // paused at its actual gate instead of silently dissolving it. (Escalation/final-gate resumes
+      // always target pausedReason.stage, so this preserves their behavior byte-for-byte.)
+      if (s.status === "paused" && decision !== "no-go" && s.pausedReason?.stage === gated.stage) {
         s.status = "active"
         s.pausedReason = undefined
       }

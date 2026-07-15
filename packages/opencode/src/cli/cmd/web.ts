@@ -5,6 +5,7 @@ import { effectCmd } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { InstanceRuntime } from "../../project/instance-runtime" // kilocode_change
+import { InsecureBind } from "../../kilocode/server/insecure-bind" // kilocode_change
 import open from "open"
 
 export const WebCommand = effectCmd({
@@ -19,6 +20,16 @@ export const WebCommand = effectCmd({
       UI.println(UI.Style.TEXT_WARNING_BOLD + "!  KILO_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = yield* resolveNetworkOptions(args)
+    // kilocode_change - refuse to expose the unauthenticated server beyond loopback (e.g. --mdns -> 0.0.0.0)
+    const bind = InsecureBind.check({
+      hostname: opts.hostname,
+      hasPassword: !!Flag.KILO_SERVER_PASSWORD,
+      allowUnauthenticated: InsecureBind.allowUnauthenticatedEnv(),
+    })
+    if (!bind.ok) {
+      UI.println(UI.Style.TEXT_DANGER_BOLD + bind.message)
+      process.exit(1)
+    }
     const server = yield* Effect.promise(() => Server.listen(opts))
     UI.empty()
     UI.println(UI.logo("  "))

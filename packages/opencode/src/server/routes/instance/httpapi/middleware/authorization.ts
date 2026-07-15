@@ -5,6 +5,7 @@ import { HttpApiError, HttpApiMiddleware } from "effect/unstable/httpapi"
 import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 import { UnauthorizedError } from "../errors"
+import { HostGuard } from "@/kilocode/server/host-guard" // kilocode_change
 
 const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
@@ -136,6 +137,14 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        // kilocode_change - DNS-rebinding guard: on an unauthenticated server, reject any request whose
+        // Host header is a registrable public domain (only reachable via DNS rebinding). Fails open for
+        // loopback / IP / single-label / *.local hosts, so no real local client is affected. Skipped
+        // when auth is required (credentials already defeat rebinding, and a password-protected server
+        // may legitimately be fronted by a domain).
+        if (!ServerAuth.required(config) && HostGuard.isRebinding(request.headers.host)) {
+          return yield* new HttpApiError.Unauthorized({})
+        }
         const url = new URL(request.url, "http://localhost") // kilocode_change - inspect endpoint-specific auth policy
         if (!guarded(url, config)) return yield* effect // kilocode_change
         return yield* credentialFromRequest(request).pipe(

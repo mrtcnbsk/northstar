@@ -1,6 +1,6 @@
 // kilocode_change - new file
 import path from "path"
-import { readdir } from "node:fs/promises"
+import { readdir, mkdir } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import z from "zod"
 import { Filesystem } from "../../util/filesystem"
@@ -238,6 +238,28 @@ export namespace OrgState {
     )
   }
 
+  /**
+   * kilocode_change - Finding: stamp() has one-second resolution and slugify() is deterministic, so two
+   * org_start calls for the SAME idea within the same second derive an identical base runID. org_start is
+   * intentionally exempt from the per-run mutex, so without a guard the second create's write() would
+   * silently clobber the first run's freshly-created state.json (POSIX rename replaces the destination).
+   * Reserve the run directory atomically — mkdir with recursive:false fails EEXIST if the leaf already
+   * exists, which is a cross-process-safe claim — and disambiguate with a numeric suffix on collision,
+   * so each start owns a distinct run instead of overwriting a live one.
+   */
+  async function reserveRunID(projectDir: string, base: string, suffix = 0): Promise<string> {
+    const runID = suffix === 0 ? base : `${base}-${suffix + 1}`
+    await mkdir(runsDir(projectDir), { recursive: true })
+    const reserved = await mkdir(runDir(projectDir, runID), { recursive: false }).then(
+      () => true,
+      (e: unknown) => {
+        if ((e as NodeJS.ErrnoException)?.code === "EEXIST") return false
+        throw e
+      },
+    )
+    return reserved ? runID : reserveRunID(projectDir, base, suffix + 1)
+  }
+
   export async function create(
     projectDir: string,
     org: OrgSchema.Organization,
@@ -246,7 +268,7 @@ export namespace OrgState {
     ownerSessionID?: string,
   ): Promise<Run> {
     const now = new Date()
-    const runID = `${stamp(now)}-${slugify(idea)}`
+    const runID = await reserveRunID(projectDir, `${stamp(now)}-${slugify(idea)}`)
     const run: Run = {
       runID,
       organizationID: OrgWorkspace.current(projectDir)?.entry.id,

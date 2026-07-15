@@ -329,6 +329,20 @@ export const OrgAdvanceTool = Tool.define(
           const dir = instance.directory
           const org = yield* load(dir)
           yield* guardCeo(org, ctx.agent)
+          // kilocode_change - Finding: when a headless autonomous driver is attached to this run it is
+          // the SOLE controller — its conductor loop calls OrgRunner.advance and spawns chief sessions
+          // itself. A concurrent manual org_advance would double-drive the pipeline: two chief sessions
+          // on the same stage, double spend, and racing writes to the same deliverable. Return a no-op so
+          // the CEO waits for the driver instead of advancing in parallel. isAttached is process-local,
+          // which is exactly the scope that matters: the driver was attached from OrgDecisionTool in this
+          // same process. When no driver is live (paused at a gate, or a crashed driver), advancing is
+          // allowed so manual recovery still works.
+          if (OrgDriver.isAttached(dir, params.run_id)) {
+            return result("autonomous", {
+              action: "autonomous",
+              note: "an autonomous driver is running this run; do not call org_advance. It advances itself and will surface a human gate or completion when it needs you.",
+            })
+          }
           const deps: OrgRunner.Deps = {
             // Best-effort: a malformed model-provided task_id must degrade to unknown cost,
             // not reject the whole advance (SessionID.make throws synchronously outside the Effect).
@@ -548,6 +562,10 @@ export const OrgDecisionTool = Tool.define(
           )
           const run = decision.run
           const promptOps = ctx.extra?.promptOps as TaskPromptOps | undefined
+          // kilocode_change - Finding: whether this decision hands the run to the headless autonomous
+          // driver. When it does, the CEO must NOT also call org_advance (that would double-drive it);
+          // org_advance is gated on isAttached too, but the returned guidance must not invite the call.
+          const driven = run.status === "active" && run.auto === true && promptOps !== undefined
           if (run.status === "active" && run.auto === true && promptOps) {
             const bridge = yield* Effect.promise(() => import("./driver-session"))
             const runtime = OrgDriver.sessionRuntime({
@@ -575,7 +593,12 @@ export const OrgDecisionTool = Tool.define(
               }),
             )
           }
-          return result(`decision: ${params.decision}`, { status: run.status, next: "call org_advance" })
+          return result(`decision: ${params.decision}`, {
+            status: run.status,
+            next: driven
+              ? "the autonomous driver is now running this run; wait for it to reach a human gate or finish — do not call org_advance"
+              : "call org_advance",
+          })
         }).pipe(Effect.orDie),
       ),
     }

@@ -103,6 +103,16 @@ export namespace OrgConductor {
 
       if (batch.gate) {
         const stage = batch.gate.stage
+        // kilocode_change - Finding: a budget-escalation gate carries a note (gateItemFor surfaces the
+        // stage's escalationNote, which only a cumulative-cost threshold crossing sets — a declared
+        // gate:"human" stage never does). It is a human FINANCIAL checkpoint, not an evaluator boundary.
+        // Auto-approving it through the LLM evaluator would consume the once-per-run escalation flag with
+        // no human review and let unattended spend continue to the hard ceiling — exactly what the
+        // threshold exists to interrupt. Pause for a human even in autonomous mode; they resolve it via
+        // org_decision (approve to continue / no-go / revise), same as the non-autonomous gate path.
+        if (batch.gate.note) {
+          return escalate(stage, batch.gate.note)
+        }
         const run = await OrgState.read(deps.projectDir, runID)
         if (run.auto !== true) {
           const detail = "run reached a human gate outside autonomous mode"

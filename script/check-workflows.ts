@@ -33,7 +33,6 @@ const active = new Set([
   "check-kilo-generated-artifacts.yml",
   "check-md-table-padding.yml",
   "check-opencode-annotations.yml",
-  "check-org-member.yml",
   "codeql.yml",
   "docs-build.yml",
   "docs-check-links.yml",
