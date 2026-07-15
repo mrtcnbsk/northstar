@@ -128,9 +128,14 @@ const OrgInitCommand = cmd({
         type: "boolean",
         default: false,
         describe: "overwrite an existing .kilo/organization.jsonc",
+      })
+      // kilocode_change - allow scaffolding into a target project dir without cd-ing first
+      .option("cwd", {
+        type: "string",
+        describe: "project directory to scaffold into (defaults to the current directory)",
       }),
   handler: async (args) => {
-    await handleInit({ template: args.template, force: args.force })
+    await handleInit({ template: args.template, force: args.force, cwd: args.cwd })
   },
 })
 
